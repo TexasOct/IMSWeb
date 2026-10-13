@@ -137,8 +137,16 @@ pub struct SetSearchArgs {
     pub generation: u64,
     pub revision: u64,
     pub host: NativeGlassFrame,
+    #[serde(default)]
+    pub navigation_frame: Option<NativeGlassFrame>,
     pub bottom_clearance: f64,
     pub dark: bool,
+    #[serde(default)]
+    pub tint: Option<NativeGlassColor>,
+    #[serde(default)]
+    pub refreshing: bool,
+    #[serde(default)]
+    pub return_focus_more: bool,
     pub detent: String,
     pub editing: bool,
     pub query: String,
@@ -146,6 +154,10 @@ pub struct SetSearchArgs {
     pub message: String,
     pub attribution: String,
     pub selected: String,
+    #[serde(default)]
+    pub selected_label: Option<String>,
+    #[serde(default)]
+    pub selected_address: Option<String>,
     pub filter_applied: bool,
     pub point_count: usize,
     pub has_attribution: bool,

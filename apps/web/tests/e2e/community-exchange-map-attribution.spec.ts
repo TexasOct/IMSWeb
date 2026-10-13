@@ -338,17 +338,22 @@ test.describe("community exchange map attribution", () => {
     const card = searchCard(page)
     const trigger = card.getByRole("button", { name: "查找地点" })
     expect(
+      await card
+        .locator(".exchange-search-surface")
+        .evaluate((element) => getComputedStyle(element).borderTopLeftRadius)
+    ).toBe("34px")
+    expect(
+      await trigger.evaluate((element) => ({
+        height: element.getBoundingClientRect().height,
+        radius: getComputedStyle(element).borderTopRightRadius,
+      }))
+    ).toEqual({ height: 48, radius: "24px" })
+    await trigger.click()
+    expect(
       await card.evaluate(
         (element) => getComputedStyle(element).borderTopLeftRadius
       )
     ).toBe("28px")
-    expect(
-      await trigger.evaluate((element) => ({
-        height: element.getBoundingClientRect().height,
-        radius: getComputedStyle(element).borderTopLeftRadius,
-      }))
-    ).toEqual({ height: 48, radius: "24px" })
-    await trigger.click()
     const actions = [
       card.getByRole("textbox", { name: "搜索地点" }),
       card.getByRole("button", { name: "取消" }),

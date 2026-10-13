@@ -137,7 +137,7 @@ export function ExchangeDiscoveryRail({
           ) : null}
         </div>
 
-        <form className="mt-4 flex gap-2" onSubmit={onCitySubmit}>
+        <form className="mt-4 flex gap-3" onSubmit={onCitySubmit}>
           <div className="relative min-w-0 flex-1">
             <SearchIcon
               className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"

@@ -55,6 +55,7 @@ import {
 } from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { NativeGlassControlsProvider } from "~/lib/native-glass-controls"
+import { shouldUseNativeGlassControls } from "~/lib/native-glass-panel"
 import { cn } from "~/lib/utils"
 import { CommunityExchangeMapSection } from "./community-exchange-map-section"
 import { ExchangeDiscoveryRail } from "./components/exchange-discovery-rail"
@@ -427,6 +428,10 @@ export default function CommunityExchangePage() {
     null
   )
   const [attributionOpen, setAttributionOpen] = useState(false)
+  const [searchAttributions, setSearchAttributions] = useState<string[]>([])
+  const hasAttribution = Boolean(
+    attribution || (IS_APP_TARGET && searchAttributions.length)
+  )
   const attributionTriggerRef = useRef<HTMLElement | null>(null)
 
   const openAttribution = useCallback((trigger?: HTMLElement | null) => {
@@ -456,8 +461,8 @@ export default function CommunityExchangePage() {
   }, [])
 
   useEffect(() => {
-    if (!attribution) setAttributionOpen(false)
-  }, [attribution])
+    if (!hasAttribution) setAttributionOpen(false)
+  }, [hasAttribution])
 
   const loadFirstPage = useCallback(async () => {
     const generation = ++requestGeneration.current
@@ -725,8 +730,10 @@ export default function CommunityExchangePage() {
                 seriesCatalog={state.series}
                 open={openOnly ? true : undefined}
                 onAttributionChange={setAttribution}
+                onSearchAttributionChange={setSearchAttributions}
                 onSwitchDirectory={() => openDirectory("offices")}
                 searchTools={{
+                  refreshing,
                   filterApplied: hasFilters,
                   modalOpen: filterOpen || directoryOpen || attributionOpen,
                   onOpenFilter: () => {
@@ -742,7 +749,9 @@ export default function CommunityExchangePage() {
                     openDirectory("cards")
                   },
                   onRefresh: () => void loadFirstPage(),
-                  onOpenAttribution: attribution ? openAttribution : undefined,
+                  onOpenAttribution: hasAttribution
+                    ? openAttribution
+                    : undefined,
                 }}
               />
             </div>
@@ -803,6 +812,8 @@ export default function CommunityExchangePage() {
 
           <ExchangeMapAttributionDialog
             attribution={attribution}
+            iosMapPresentation={shouldUseNativeGlassControls()}
+            searchAttributions={IS_APP_TARGET ? searchAttributions : undefined}
             open={attributionOpen}
             onOpenChange={handleAttributionOpenChange}
           />

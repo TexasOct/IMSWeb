@@ -14,7 +14,9 @@ let nextGeneration = Date.now()
 /** Serialized updates keep teardown behind pending installs. */
 export function useNativeExchangeSearch(
   snapshot: Omit<NativeGlassSearchSnapshot, "generation"> | null,
-  onEvent: (event: NativeGlassSearchEvent) => void
+  onEvent: (event: NativeGlassSearchEvent) => void,
+  onReady?: () => void,
+  onFallback?: () => void
 ) {
   const [native, setNative] = useState(false)
   const [generation, setGeneration] = useState(() => ++nextGeneration)
@@ -24,11 +26,15 @@ export function useNativeExchangeSearch(
     if (snapshot) setGeneration(++nextGeneration)
   }
   const handler = useRef(onEvent)
+  const ready = useRef(onReady)
+  const fallback = useRef(onFallback)
   const current = useRef(snapshot)
   useLayoutEffect(() => {
     handler.current = onEvent
+    ready.current = onReady
+    fallback.current = onFallback
     current.current = snapshot
-  }, [onEvent, snapshot])
+  }, [onEvent, onReady, onFallback, snapshot])
   const queue = useRef<Promise<unknown>>(Promise.resolve())
   const failed = useRef(false)
   const lastAttempt = useRef(generation)
@@ -80,7 +86,10 @@ export function useNativeExchangeSearch(
               lastAttempt.current
             )
           }
-          if (active) setNative(false)
+          if (active) {
+            setNative(false)
+            fallback.current?.()
+          }
           return
         }
         try {
@@ -90,13 +99,19 @@ export function useNativeExchangeSearch(
             generation,
           })
           if (!status.supported) throw new Error(status.reason ?? "unsupported")
-          if (active) setNative(true)
+          if (active) {
+            setNative(true)
+            ready.current?.()
+          }
         } catch {
           failed.current = true
           await removeNativeGlassSearch("exchange-search", generation).catch(
             () => removeNativeGlassSearch("exchange-search", generation)
           )
-          if (active) setNative(false)
+          if (active) {
+            setNative(false)
+            fallback.current?.()
+          }
         }
       })
       .catch(() => {
@@ -110,6 +125,12 @@ export function useNativeExchangeSearch(
   useEffect(
     () => () => {
       current.current = null
+    },
+    []
+  )
+
+  useEffect(
+    () => () => {
       if (admitted.current) {
         queue.current = queue.current
           .catch(() => undefined)

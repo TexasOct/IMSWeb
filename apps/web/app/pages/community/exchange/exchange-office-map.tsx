@@ -12,7 +12,13 @@ import {
 } from "maplibre-gl"
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-csp-worker.js?url"
 import { Protocol } from "pmtiles"
-import { useCallback, useEffect, useRef, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react"
 
 import { Button } from "~/components/ui/button"
 import {
@@ -614,20 +620,33 @@ export function ExchangeOfficeMap({
     }
   }, [])
 
-  const { controlRef: locateControlRef } = useNativeGlassControl(
-    "locate",
-    {
-      kind: "icon-button",
-      icon:
-        locationState.phase === "locating" ? "loader-circle" : "locate-fixed",
-      label: "回到我的位置",
-      group: EXCHANGE_MAP_FLOATING_GROUP,
-      disabled: locationState.phase === "locating",
-    },
-    () => {
-      void locateUser()
-    }
-  )
+  const { controlRef: locateControlRef, refreshGeometry } =
+    useNativeGlassControl(
+      "locate",
+      {
+        kind: "icon-button",
+        icon:
+          locationState.phase === "locating" ? "loader-circle" : "locate-fixed",
+        label: "回到我的位置",
+        group: EXCHANGE_MAP_FLOATING_GROUP,
+        disabled: locationState.phase === "locating",
+      },
+      () => {
+        void locateUser()
+      }
+    )
+
+  useLayoutEffect(() => {
+    refreshGeometry()
+  }, [
+    refreshGeometry,
+    occlusion?.x,
+    occlusion?.y,
+    occlusion?.width,
+    occlusion?.height,
+    mapSize.width,
+    mapSize.height,
+  ])
 
   useEffect(() => {
     groupsRef.current = groups
@@ -1071,55 +1090,65 @@ export function ExchangeOfficeMap({
         aria-label="区域事务所地图工作面"
       />
 
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                ref={locateControlRef}
-                type="button"
-                variant="outline"
-                size="icon"
-                className={cn(
-                  "absolute z-10",
-                  IS_APP_TARGET
-                    ? "exchange-map-app-control exchange-map-app-surface exchange-map-app-pill-top"
-                    : "bg-background/95 shadow-sm backdrop-blur-sm",
-                  locationControlOffset
-                )}
-                style={
-                  occlusion
-                    ? {
-                        bottom:
-                          occlusion.width < mapSize.width * 0.65
-                            ? 12
-                            : Math.max(12, mapSize.height - occlusion.y + 12),
-                        width: 44,
-                        height: 44,
-                        borderRadius: 22,
-                      }
-                    : undefined
-                }
-                aria-label="回到我的位置"
-                data-native-glass-control="locate"
-                aria-busy={locationState.phase === "locating"}
-                disabled={locationState.phase === "locating"}
-                onClick={locateUser}
-              >
-                {locationState.phase === "locating" ? (
-                  <LoaderCircleIcon
-                    className="size-5 animate-spin motion-reduce:animate-none"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <LocateFixedIcon className="size-5" aria-hidden="true" />
-                )}
-              </Button>
-            }
-          />
-          <TooltipContent side="left">回到我的位置</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <div
+        className={
+          occlusion
+            ? cn(
+                "exchange-map-side-controls",
+                IS_APP_TARGET && "exchange-map-app-surface"
+              )
+            : "contents"
+        }
+        data-exchange-side-controls={occlusion ? "" : undefined}
+        style={
+          occlusion
+            ? {
+                bottom:
+                  occlusion.width < mapSize.width * 0.65
+                    ? 12
+                    : Math.max(12, mapSize.height - occlusion.y + 12),
+              }
+            : undefined
+        }
+      >
+        <div data-exchange-refresh-anchor />
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  ref={locateControlRef}
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className={cn(
+                    "absolute z-10",
+                    IS_APP_TARGET
+                      ? "exchange-map-app-control exchange-map-app-surface exchange-map-app-pill-top"
+                      : "bg-background/95 shadow-sm backdrop-blur-sm",
+                    locationControlOffset
+                  )}
+                  aria-label="回到我的位置"
+                  data-native-glass-control="locate"
+                  aria-busy={locationState.phase === "locating"}
+                  disabled={locationState.phase === "locating"}
+                  onClick={locateUser}
+                >
+                  {locationState.phase === "locating" ? (
+                    <LoaderCircleIcon
+                      className="size-5 animate-spin motion-reduce:animate-none"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <LocateFixedIcon className="size-5" aria-hidden="true" />
+                  )}
+                </Button>
+              }
+            />
+            <TooltipContent side="left">回到我的位置</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
 
       <div
         className={cn(

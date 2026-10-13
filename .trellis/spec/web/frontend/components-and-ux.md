@@ -407,7 +407,9 @@ source of truth and a gapless set of entry points:
   (`app/pages/community/exchange/exchange-map-attribution.ts`) into ordered
   `{ kind: "text" | "link" }` segments and render those. `dangerouslySetInnerHTML` is forbidden; only
   `https:` hrefs survive and anything else degrades to plain text.
-- `null` means the entry is not rendered at all — no disabled button, no empty dialog.
+- With no tile notice, Web omits the entry. App also considers retained-result and selected-place
+  search notices, which belong to the same existing Dialog and render as plain text. Only when
+  both are absent does App omit the entry. No disabled source button or empty Dialog.
 - The entry points cover a gapless union: the bottom search card's More menu on App and Web below
   1024px, and the Web discovery rail at 1024px and up.
   Whenever a container gains a width-hiding class, re-check that no width loses its only entry.
@@ -415,8 +417,40 @@ source of truth and a gapless set of entry points:
   narrow layouts or the desktop source trigger. Native iOS focus returns to the native More control.
   Menu entries that have closed must not receive focus.
 - The card's search input/trigger is 48px high; More and the text tools have targets of at least
-  44 × 44 CSS pixels. Below 1024px, search, filter and both directories share the card, including
-  the 768px range. The card is nonmodal; only its dedicated handle owns drag gestures.
+  44 × 44 CSS pixels. Below 1024px, search/selected summary and the filter/directory tools occupy
+  separate rounded surfaces, including the 768px range. Selection replaces search capsule content.
+  The transparent gap passes hits to the map; only the dedicated handle owns drag gestures.
+  Refresh portals into `[data-exchange-refresh-anchor]` beside locate in
+  `[data-exchange-side-controls]`, retaining its directory callback and request-driven busy footprint.
+  Without a loaded map, refresh uses a standalone portal in the card host. The bottom occlusion
+  rectangle covers the actual search/tool union and excludes side controls. Native geometry owns
+  it until acknowledged native removal returns measurement to DOM.
+  In App DOM fallback, `.exchange-map-side-controls` owns one material capsule; refresh and locate
+  descendants have transparent backgrounds, no independent blur/shadow and no decorative pseudos.
+  Their 48px boxes and 24px measured radii remain available to native control measurement. Hiding
+  the locate twin leaves a circular 48px refresh surface. The outer rounded corners pass map hits
+  through. Material rules use the components layer; local shape/hiding rules use overrides.
+  App phone-portrait collapsed/selected search and tools align within 2px of the actual visible
+  bottom navigation capsule. DOM fallback measures its own visible inner capsule and shares
+  AppTabBar's spacing/max-width tokens for the first paint; native ownership uses the calibrated
+  public-layout exchange seam described in `tauri-mobile-integration.md`. Hidden fallback frames
+  and full-width AX tab strips are not visible navigation bounds. Expanded phone reading and
+  ordinary Web remain host minus 16; tablet width caps at 560. At available height ≤500 and
+  width ≥640, width is `min(420, max(320, hostWidth * 0.48))`, docked left with an 8px inset.
+  Text and 44px targets retain size when content scrolls. Web from 1024px keeps its desktop rail.
+
+### Exchange input-to-submit spacing
+
+The exchange search input row and submit action row keep a page-local minimum
+12px gap in ordinary Web and App DOM, and 12pt custom stack spacing in UIKit.
+The desktop city form uses its local `gap-3` input/submit spacing. Do not change
+global primitives or add spacing to unrelated native rows. Editing, results,
+busy, error and empty states retain the same input and controls. Fit essential
+rows at current text sizes before choosing expanded height, reserving at least
+one 44px/pt reading target where the available host permits it. Dragged expanded
+heights obey this floor; reading/footer content may intentionally scroll.
+Input, cancel and submit remain outside that reading scroll. Current-package
+browser/native geometry, not JSDOM or XCTest typecheck, proves visible spacing.
 
 ## Scenario: Mobile dialog sizing and scrolling
 

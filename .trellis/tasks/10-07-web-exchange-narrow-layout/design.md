@@ -2,9 +2,36 @@
 
 ## Review boundary
 
-方案已审阅并批准施工，覆盖 Web 窄屏和移动 App。结构图见 [layout-wireframe.svg](./layout-wireframe.svg)，预览见 [layout-preview.png](./layout-preview.png)。图中地图与结果均为占位示意；原生交互证据仍待验收，当前验证见 [verification.md](./verification.md)。依据见 [当前布局](./research/current-layout.md) 和 [Apple Maps／原生能力研究](./research/apple-maps-and-native-search.md)。
+用户已明确批准“全部按照A类进行施工”。当前权威布局为 [A 设计合同](./research/apple-maps-redesign/a-implementation.md) 和 A 四张单图：分组胶囊、右侧刷新／定位、浏览态五标签栏、平面结果。下面旧 Layout、几何及 iOS 修订作为历史保留，遇到冲突以新版合同为准；346／360pt 宽度不再约束手机竖屏。
+
+原结构图见 [layout-wireframe.svg](./layout-wireframe.svg)，原预览见 [layout-preview.png](./layout-preview.png)。图中地图与结果均为占位示意；实现验证见 [verification.md](./verification.md)。历史依据见 [当前布局](./research/current-layout.md) 和 [Apple Maps／原生能力研究](./research/apple-maps-and-native-search.md)。原始图片不重绘覆盖。
+
+参考研究见 [Apple Maps 参考与新版设计](./research/apple-maps-redesign/README.md)；[总览](./research/apple-maps-redesign/preview/overview.png) 同时保留已批准 A 和未采用 B／导航对照。实际 Apple Maps 的宽度随状态变化，本产品按新版 A 合同适配，不推广任一 Apple 状态为统一宽度。
 
 ## Layout
+
+### Current A integration
+
+The current implementation uses separate browse search/selected-summary and filter/directory
+surfaces. Selection replaces the capsule content. Refresh and locate occupy the right-side group;
+the measured bottom occlusion excludes that group and covers the search/tool union. R3 phone
+widths are host minus 16, tablets cap at 560, and short landscape follows the 48%/320/420 rule.
+The transparent gap passes map hits through. Expanded editing/results use a flat reading surface.
+The old layout and width tables below remain historical records.
+
+The user has now requested per-device alignment with the bottom navigation. The new
+[navigation-width correction](./research/apple-maps-redesign/a-navigation-width.md) supersedes
+the App collapsed/selected phone width rule. It leaves UIKit navigation ownership, ordinary Web,
+expanded reading width and short-landscape docking intact. Public content margins guide native
+adaptation; actual screenshot contours confirm the visible navigation capsule, whose outer
+accessibility frame includes transparent space. The correction is approved for implementation.
+
+The native snapshot now sends `selectedLabel` and `selectedAddress` from `selectedPlace`, alongside
+the legacy `selected` string. Deselection clears all three while preserving the draft and results.
+Existing page/modal, private-hook acknowledgment, source focus and navigation-suppression owners
+remain in place. New integration evidence is recorded in
+[a-integration.md](./research/apple-maps-redesign/a-integration.md); browser evidence does not
+establish native visual acceptance.
 
 Implementation clarification: `/community/exchange` is the Map tab root. It has no back control,
 following `app-navigation.md`; the schematic's generic return decoration is not a requirement.
@@ -17,14 +44,14 @@ Web：保留网站顶栏      App：沿用沉浸式地图外壳
 │  按需反馈                          │
 │ ┌────────────────────────────────┐ │
 │ │           拖动手柄             │ │
-│ │  查找地点               更多   │ │
+│ │  查找地点          刷新  更多   │ │
 │ │  筛选       事务所       名片   │ │
 │ └────────────────────────────────┘ │
 │       App 标签栏（折叠时保留）      │
 └────────────────────────────────────┘
 ```
 
-搜索入口是一张常驻可伸缩卡片。更多与搜索并排，筛选和两类名录位于卡片第二行；地点查找不再与这些工具共用五等分操作栏。定位独立放在右侧、卡片上方，随面板实际遮挡区域移动。正常浏览没有地图标题或统计摘要。
+搜索入口是一张常驻可伸缩卡片。刷新名录和更多与搜索并排，筛选和两类名录位于卡片第二行；地点查找不再与这些工具共用五等分操作栏。定位独立放在右侧、卡片上方，随面板实际遮挡区域移动。正常浏览没有地图标题或统计摘要。
 
 Web 卡片使用既有语义表面、边框和品牌色。App 使用同一结构与交互模型；iOS 26+ 的搜索与操作表面由原生 UIKit Liquid Glass 呈现。展开后的结果正文使用可读背景与平面列表，不给每条结果叠加玻璃卡片。
 
@@ -85,7 +112,7 @@ Web 卡片使用既有语义表面、边框和品牌色。App 使用同一结构
 
 - 筛选保留已应用提示和 URL；事务所／名片继续打开对应名录，保留 Tabs 和分页。加载数量在名录内明确标为“已加载”。
 - 打开筛选、名录、区域详情或来源时，先结束搜索编辑并暂时隐藏搜索表面，再打开现有模态内容；关闭后恢复折叠卡片及可见焦点。
-- 更多包含当前范围只读状态、我的交换账号、刷新名录和地图来源；没有 attribution 时移除来源项。刷新保持 `loadFirstPage()` 的名录语义。
+- 更多包含当前范围只读状态、我的交换账号和地图来源；没有 attribution 时移除来源项。刷新位于常驻搜索行，保持 `loadFirstPage()` 的名录语义，名录刷新期间保留原尺寸并显示忙碌状态。
 - 加载、空结果、截断、地图错误和定位失败放入卡片上方的按需反馈；搜索展开时把相关反馈放到可见内容区，避免额外占满地图。优先级为地图不可用、地图数据错误、定位失败、截断、加载、空结果。
 - 成功数量只在更多中显示“当前范围：N 个区域点”，变化通过 polite live region 告知辅助技术。错误保留重试与查看名录；不能清掉仍可用的旧结果。
 - 地图来源继续使用实际样式和安全解析。更多转到来源 Dialog 时先关闭菜单／工具面板；来源关闭后回到常驻更多，桌面回到原来源触发器。
@@ -120,7 +147,88 @@ Web 卡片使用既有语义表面、边框和品牌色。App 使用同一结构
 
 系统字级、明暗模式、减少透明度和减少动效优先使用 UIKit 行为。原生界面的可访问名称和可见文案由 Web 现有 i18n 传入；不在 Swift 重写一套业务文案。
 
+## iOS appearance follow-up boundaries
+
+The smallest gap is presentation: refresh is hidden in More, the native search card follows document darkness beside intentionally light map chrome, and its buttons inherit system tint and nested glass styling. `exchange-search-card.tsx` owns the visible refresh and appearance snapshot; `community-exchange-map-section.tsx` owns feedback visibility. `GlassSearchView.swift` owns the capsule, neutral grabber, native button hierarchy and fitting layout. Optional palette fields stay aligned in the TS/Rust/Swift app-local models. No HTTP or map request changes are needed.
+
+Keep one 28pt outer glass surface. Search uses a magnifier and semantic label in a capsule; secondary tools use plain, readable buttons. A neutral grabber retains its 44pt interaction area. One refresh-cw button stays beside search and More at every detent, with no duplicate menu item. Native appearance follows the map surface color scheme, currently light in App, rather than the document class. Action tint comes from the current CSS primary palette. UIKit continues to own material accessibility adaptations.
+
+## Native correction ownership
+
+Occlusion repair is limited to the card's renderer ownership, the private bridge's generation cleanup and acknowledged fallback callback, plus focused lifecycle regressions. Native frame data survives measurement subscription, readiness and position changes. Modal teardown, host disappearance and unmount release it; acknowledged fallback gives measurement back to DOM. Generation cleanup removes its native session without clearing the new session's current snapshot; actual unmount suppresses its events. The geometry scheduler remains unchanged. The native reviewer observed More/locate overlap; runtime IPC ordering was not instrumented and is not asserted as fact.
+
+`GlassSearchView.swift` owns stable search/tool buttons, UIKit activity and configuration transitions, and removal of its inline attribution label. `GlassControlView.swift` owns existing standalone press feedback and identity reconciliation for ungrouped icon controls such as locate. The existing tab bar remains the baseline and needs no edits.
+
+The map section preserves selected-place attribution separately from current result metadata and reports deduplicated App notices to the page. The page keeps source availability and Dialog state; the existing Dialog renders these notices as plain text alongside its safe loaded-style segments. The App card suppresses its inline notices. An optional app-local return-focus field in TS/Rust/Swift carries source-close intent to native More; it is consumed only on the returning native session. The private search hook acknowledges readiness before the card clears that intent, including a quick close while old teardown is pending. Ordinary Web and desktop behavior remain unchanged.
+
+Expected source edits are those owners plus aligned local search models, focused tests, and the authored search preview. No stylesheet, generated project, API, private fixture or global tab changes are required. Stable buttons retain existing callbacks and 44pt constraints; readiness still validates the complete asset set before rendering.
+
+## Historical iOS dock width amendment and visual refinement
+
+本节是历史修订及实现记录。用户最新请求重新确定宽度和样式，本节数值不作为新版设计目标。
+
+The user's follow-up narrows only the collapsed/selected iOS dock to
+`min(360pt, host viewport width - 56pt)`, centered in the measured host. At
+402pt this is 346pt with 28pt sides; at 440pt it is 360pt with 40pt sides;
+at 320pt it is 264pt with 28pt sides. Original PNG/SVG references and their
+renderer remain immutable. This amendment does not scale typography or targets.
+
+Implementation stays in the native search presenter and its complete-glyph
+readiness gate, with localized reading labels in the existing string dictionary.
+Use 17pt system body search text, a subdued idle magnifier/prompt, lighter neutral
+capsule fill, 18pt existing tool glyphs and a metrics-scaled 16pt medium tool font.
+Keep the 28pt dock radius, 48pt search row, 44pt action/drag targets, real fitted
+height and geometry events. Reflow tools vertically when inline content cannot
+fit; keep persistent input and buttons through live text-size changes.
+The native content viewport scrolls when fitted content exceeds available height;
+the results table keeps its own normal scrolling and whole-row selection.
+
+Expanded results use an independent sheet width, a flat system reading surface,
+23pt semibold heading, 14pt subtitle, 18pt medium result titles, 14pt addresses
+and neutral location/direction glyphs. Explicit submit/cancel and detent actions
+remain accessible, so the real header is taller than the drawing's header.
+The 44pt grabber can likewise make the dock taller than the illustrated 144pt.
+
+Keep public interactive regular UIGlassEffect for the dock; its OS-owned rim
+and highlights are accepted differences requiring actual backdrop comparison.
+Project refresh tint, modal suppression, system tab geometry and accessibility
+material adaptations remain intentional. No global primitives, map provider,
+HTTP contracts, dependencies, navigation or ordinary Web/Android changes.
+
+Visual approval requires new full native device-pixel captures and measured
+component comparison against immutable references plus this amendment: dock
+width/insets/radius/height, capsule fill/foreground/geometry, tool text/glyph sizes,
+action hits, expanded hierarchy, scrolling, live Dynamic Type and locate clearance
+of at least 12pt. Historical functional PASS does not approve this presentation.
+
 ## Validation and rollback
+
+### Recovered native visual review: capsule and source Dialog
+
+The next independent review confirmed capsule luminance and the local source
+Dialog repair. It measured an oversized idle magnifier and a status-bar overlap
+at largest Dynamic Type on a constrained 320pt host. Render the existing system
+magnifier into a 21pt template image to prevent automatic UIButton symbol growth.
+Constrain available native dock height from the measured safe-area top, reserving
+the existing 44pt locate target and 12pt clearance when collapsed. Oversized dock
+content remains scrollable; fonts and hit areas retain their current sizes.
+Default geometry is unchanged when fitted content already has this clearance.
+
+The optimized Release review confirms the amended 346pt dock and point-sized
+glyph/reading hierarchy. The capsule still measures about 219 luminance bytes
+against the immutable reference's 242. Use adaptive UIKit `systemGray6` for the
+search capsule and field background, preserving secondary idle ink and genuine
+regular interactive outer glass. Actual blank and synthetic-backdrop captures
+must establish the new fill; source color selection alone is not approval.
+
+The existing source Dialog receives an explicit iOS App admission from the map
+caller. Its local presentation uses viewport width minus 48px, 25px radius,
+24px padding, centered 20px system-font heading, 44px close target and a separator
+before search notices. Height follows complete actual tile and independent search
+licensing, with safe viewport scrolling. Ordinary Web/Android and the shared
+Dialog primitive keep their current presentation. Native suppression and More
+return remain owned by the existing modal lifecycle.
+
 
 浏览器验证状态、命中、焦点和回退；iOS 模拟器／设备验证原生玻璃、真实键盘、拖动、VoiceOver 和导航恢复。截图、视频需标明平台与实际 native capability；DOM 预览不能代替原生证据。
 

@@ -1,5 +1,168 @@
 # Implementation execution
 
+## User acceptance of the current delivery
+
+The user confirmed: “验收通过，没有问题”. User acceptance of the current delivery is recorded
+as passed in the [R8 review](./research/apple-maps-redesign/spacing-r8-review.md#用户验收).
+Existing independent results, historical failures and unrun scope remain unchanged.
+This annotation did not run product checks, commit, merge, publish or archive the task.
+
+## R8 input-to-submit spacing, 2026-10-12
+
+The approved local12px/pt correction covers DOM cards, UIKit and both desktop forms.
+The original writer fixed the omitted desktop place-search row before the final source
+binding. Web initially passed47/50; three preserved live-font failures have a separate
+3/3 stable-frame result. App DOM passed45/45. One fresh optimized Release and same-package
+installs yielded44 expanded UIKit12pt measurements with exposed fixed essentials, plus
+actual503/429/empty, keyboard, live-font, short-landscape and navigation evidence.
+
+The [R8 review](./research/apple-maps-redesign/spacing-r8-review.md) records exact scope,
+source/binary bindings, original HTTP/2/driver/parser/label failures, authorized minimal
+continuations and remaining limits. Entry packages/absence and12 preferences were restored,
+all3 simulators are Shutdown, and parent-owned services exited0 with their ports released.
+The standalone508-image gallery and574 embedded documents are archived under
+`data/native-glass-verification/exchange-search-spacing-r8-20261012/`; originals remain intact.
+Parent presentation checks and later task-note snapshots are separate from frozen capture.
+R7 REWORK/UNRUN remains independent. No staging, commit, publication or task closure occurred.
+
+Final parent gallery check exited0 in5.717s with508 decoded rendered images,574 exact documents,
+actual PNG/report/AX downloads, original zoom, filename filtering and320/390/1280px overflow
+checks. No base URL, external requests or page errors. The initial concurrent decoder exit1
+and scripts remain;212 sequential diagnostic images decoded before the bounded sequential
+checker correction. Context and whitespace exited0 in0.076/0.036s; rules exited0 in125.017s
+within600s. Receipts are in`parent-checks-final/`; final notes follow those completed checks.
+
+## R7 gallery preview repair, 2026-10-12
+
+The user found broken images in the delivered preview. The original file-URL check
+missed relative image paths failing when HTML has no filesystem base. The failure is
+reproduced and the existing evidence is preserved. Current delivery uses the same
+archive's `matrix-embedded.html`, with exact embedded assets and download links.
+All 313 PNGs decode in a no-base, embedded-only CSP browser check; every group has zero
+broken images, with zero external requests/page errors. Filter, zoom, mobile overflow
+and actual PNG/report download hashes pass. Receipts and before/after images are in
+`presentation-repair-20261012/`. Product acceptance remains REWORK; only presentation
+and these task notes change. [Repair record](./research/apple-maps-redesign/matrix-r7-review.md).
+
+## Complete R7 screenshot matrix, 2026-10-12
+
+The requested fresh matrix is captured and independently reviewed: 40 Web, 36 App DOM
+and 24 UIKit core states, with 309 inventory originals and four approved A references.
+Overall verdict is REWORK. Normal core layout and the 11.5/11.6667pt native gap pass;
+320px long-name controls, rotated native markers and dark App DOM refresh icons need
+repair. Source menu/link hit regions need further proof. Exact findings, raw failures,
+supplement counts and scope are in [R7 review](./research/apple-maps-redesign/matrix-r7-review.md).
+
+The original HTTP/2 interruption remains preserved. Same-protocol recovery completed
+the missing native work and a fresh independent review without replaying core captures,
+builds or completed installs. Both fixtures are stopped, entry packages/settings and
+twelve preferences are restored, and all three simulators are Shutdown. Independent
+hash/lifecycle/pixel audits preserve the frozen source, index, history and older galleries.
+
+The new ignored gallery is `data/native-glass-verification/exchange-matrix-r7-20261012/index.html`.
+It separates original and independent results, curated cells and diagnostics, and shows
+explicit UNRUN limits. The parent copied 3,500 existing evidence files byte-exact, read
+the complete reports and affected originals, and retained all six findings. Product code
+was not repaired during capture/review. Task remains `in_progress`, unstaged, uncommitted
+and unpublished. This note follows the frozen capture inputs.
+
+Closing context and whitespace checks exit 0; rules exit 0 in 128.340s within the
+unchanged 600s budget. A separate local-gallery Chromium check passes renderer/state/
+status filtering, original-image zoom, four A references and 390px overflow, with no
+page errors. It did not replay product validation. Receipts are archived separately
+under the gallery's `parent-checks/` and `closing-checks-manifest.json`; this result
+annotation follows the passing checks and does not change product inputs.
+
+## Tool-to-navigation gap, 2026-10-12
+
+The user-marked App gap is reduced. R6 uses a separately validated public tab-bar docking
+frame for collapsed phone portrait, preserving horizontal ownership, R5 fonts and existing
+expanded/landscape fallback. A fresh independent optimized-Release check passes on all three
+models: actual screenshot gaps are 11.50pt at 375 and 11.67pt at 402/440. Twenty current
+capture pairs and 14 portrait rim comparisons pass, with maximum horizontal error 1pt.
+
+The parent read both complete reports, inspected the images and verified 2,594 sources,
+20 capture pairs and 10 package files. The new ignored gallery contains 72 copied originals
+and 96 checked link references. [Gap review](./research/apple-maps-redesign/a-navigation-gap-review.md)
+records the current binding, 375 launch-only recovery, exact device/fixture restoration and
+remaining scope. Earlier evidence remains unchanged. No staging, commit, publication or
+protected-main edits occurred; wider task acceptance remains open.
+
+Closing task-context, whitespace and rules checks each exit 0. Rules completed in 132.934s
+under the unchanged 600s budget. The same owner continued after the 1000ms observation
+timeout; no completed command was replayed. Receipts are under
+`/tmp/imsweb-exchange-a-implementation/rework-r6/parent-closing-checks/`. This result
+annotation follows passing checks; product and original-image inputs remain unchanged.
+
+## Navigation width and retained native tools, 2026-10-12
+
+The requested App portrait width correction is implemented. R4 passed its DOM/mixed-renderer
+checks and native border measurements, then retained a native live-text clipping REWORK.
+R5 repairs configuration-owned tool fonts and fitting order in the existing host. Workflow
+`d09f9b56-ba27-48a6-a0e1-cd467bbabb50` completed the original-owner repair and a fresh
+product-read-only native review. The scoped R5 runtime result is PASS on 375/402/440pt.
+
+The reviewer built one changed-source optimized Release, used the same package for all three
+devices, and captured 22 original image/hierarchy pairs. Sixteen contour comparisons stay
+within 1pt; retained-host large-text round trips and the 440pt keyboard/More/Source neighbor
+pass. It restored entry packages, six preference snapshots and Shutdown. The parent stopped
+the exact fixture once, preserved its 61-record ledger, read both reports and independently
+verified 2,594 source files, 22 capture pairs and 10 package files before archiving.
+
+Scope, bindings and limits are in [navigation review](./research/apple-maps-redesign/a-navigation-review.md).
+The new ignored local gallery is `data/native-glass-verification/exchange-a-navigation-r5-20261012/index.html`;
+78 copied originals and 105 gallery link references verify without differences. Earlier R3/R4
+evidence remains unchanged. The XCTest regression is typechecked only. Task documentation
+updates follow the runtime snapshot; product inputs are unchanged. Wider composite acceptance
+remains open, with no new ticks, staging, commit, publication or protected-main changes.
+
+Closing task-context validation, whitespace and rules each returned exit 0. Rules completed
+in 133.904s under its original 600s deadline. The same detached owner survived the initial
+1000ms tool observation timeout; no completed check was restarted. Receipts are under
+`/tmp/imsweb-exchange-a-implementation/rework-r5/parent-closing-checks/`. This result annotation
+follows the passing checks and does not change product inputs.
+
+## A implementation and R3 review, 2026-10-11
+
+The approved A source, joint Web/App DOM integration and focused native repair are
+delivered in `codex/exchange-ios-polish`. Workflow
+`85a85895-e017-44f9-b321-a155061c0072` completed the same-owner report recovery and a fresh
+product-read-only native check. Verdicts: source READY, focused native PASS. Original
+HTTP/2 and receipt failures were preserved; completed source/compiler gates were not rerun.
+
+The reviewer ran doctor, one canonical optimized Release, the same-package second install,
+eight current native state checks, four reading comparisons and the exact affected title
+replay. It restored both owned devices and stopped the verified task fixture. The parent
+read both full reports and checked their source/image/package bindings before copying
+evidence through `/tmp/imsweb-exchange-a-implementation/rework-r3/archive-final.py`.
+The archive operation returned exit 0 and wrote
+`data/native-glass-verification/exchange-a-r3-20261011/parent-evidence-audit.json`.
+
+Final scope and actual screenshot delivery are recorded in
+[A final review](./research/apple-maps-redesign/a-final-review.md). Task documentation
+updates after that runtime snapshot are separate from the source-bound product evidence.
+Task context validation, `pnpm run check:rules` and `git diff --check` each returned exit 0.
+Receipts are in `/tmp/imsweb-exchange-a-implementation/rework-r3/parent-docs-checks/terminal.json`;
+rules retained its 600-second deadline and did not time out. The gallery's 38 local links
+and all 105 archived files were checked, with no missing files or hash differences.
+This result annotation follows the successful rules run; production inputs are unchanged.
+The task remains `in_progress` for composite accessibility/platform acceptance. A changes
+remain unstaged, uncommitted and unpublished; the protected main worktree was not edited.
+
+## iOS appearance follow-up
+
+Follow-up worktree: `/Users/texas/Workspace/IMSWeb/.worktrees/exchange-ios-polish`; branch `codex/exchange-ios-polish`; base `375820be0a1989ff5d356bc707434e5a58689661`. Existing task remains `in_progress`; the older worktree record below is retained.
+
+Refresh now occupies the shared search row in DOM and UIKit, with directory busy state and no More duplicate. The callback still calls `loadFirstPage()` for series, offices (limit 12) and available cards (limit 8). Search submit, map bounds and HTTP contracts are unchanged.
+
+The native surface keeps one outer Liquid Glass material, uses a capsule with the standard search magnifier, a neutral grabber with a 44pt interaction area, and plain secondary tools with Dynamic Type. Refresh reuses the bundled Lucide asset. Optional tint/busy fields are aligned across TS/Rust/Swift with old-payload defaults; primary tint comes from current CSS and is adjusted for semantic-surface contrast. App search adopts the map's current light chrome policy. Map feedback moves between upper map and expanded card; collapsed native notice is hidden. First-clearance occlusion is remeasured when bottom position changes so locate stays above the card.
+
+Dependencies were installed with the frozen lockfile and `HUSKY=0`; dependency manifests and locks are unchanged. Full formatting passed; its unrelated churn was restored with scoped patches. Detached Python runners retained each command's log and exit code beyond tool observation budgets. Final source/browser evidence is recorded in [verification.md](./verification.md) and `/tmp/imsweb-ios-exchange-polish/implementation-recovered.json`.
+
+No staging, commits, merges, pushes, deployment, phone installation, native generated-source edits, certificate changes, Keychain changes or phone-data operations occurred. Final check owns native build/install after source review. The installed private swift-rs 1.0.8 compatibility diff, runner and byte/symbol receipts were read for provenance; that private build tool was not invoked here.
+
+Recovery matched all 23 files against `/tmp/imsweb-ios-exchange-polish/recovery-399ce197/manifest.json` before editing notes. The final geometry investigation had already completed: `palette-hit-check.log` records five passing cases with atomic rectangle and `elementFromPoint` checks after each theme/palette change, without auto-scrolling. Closing lint, typecheck, policy and root rules receipts all exit 0. No validation runner or fixture listener remains on the owned 1420/4173 ports. Original orchestration failures `e307ac72` and `399ce197` remain historical protocol failures; they are not CI verdicts. Recovery changed only task notes and the final external report.
+
 Worktree: `/Users/texas/Workspace/IMSWeb/.worktrees/exchange-map-search`
 Branch: `codex/exchange-map-search`
 Base: `2e546377ff3bf132828f387c75d893080b82a752`
@@ -316,3 +479,25 @@ These follow-ups resolve the observed App fixture and local Firefox validation
 failures. They do not constitute a new full CI run on Ubuntu or native acceptance.
 Task remains `in_progress`; VoiceOver, Pinyin IME and other platform/device gaps
 recorded earlier remain open. This repair has not been staged or committed.
+
+## Live native Dynamic Type repair
+
+Independent native review found live folded-card clipping despite readable fresh navigation. `GlassSearchView.swift` now observes preferred-content-size trait changes, waits for descendant trait propagation, refreshes existing text configurations/fonts and invalidates intrinsic sizes before the next fitting pass. It keeps the same input and search snapshot, refits results and emits updated map occlusion through the existing geometry path.
+
+The enlarged card also exposed a position-only locate update that `ResizeObserver` misses. The supervisor approved a narrow change at the existing control scheduler: `useNativeGlassControl` exposes stable `refreshGeometry()`, and `exchange-office-map.tsx` calls it after committed occlusion coordinates or map dimensions change. Geometry values, not object identity or ordinary renders, trigger it. A behavior regression verifies that unchanged-size position changes reach the plugin through that callback. The platform spec records the callback.
+
+Optimized simulator Release build/install used the canonical App wrapper and the existing isolated, hash-verified compatibility cache. Final source build receipt: `/tmp/imsweb-ios-exchange-polish/repair4-native-terminal.json`, exit 0. Six native flows cover live grow/shrink, active keyboard/query retention, cancel and refresh; two further flows cover large-text drag, suppression, collapse, outside-card map pan and retained query. Eight screenshots/hierarchies and measured frame checks are retained. No phone installation occurred.
+
+The first synchronous refit and the subsequent locate overlap remain preserved in `repair-live-large.png` and `repair2-live-large.png`. The first unit attempt failed because the existing partial computed-style mock lacks accessibility-query methods; the fixture now obtains its elements before installing that mock. The 20-second root-check orchestration timeout is retained separately; its rerun uses an owned surviving runner. Earlier receipts and failures remain unchanged.
+
+Removed only 26 untracked wrapper-generated Android icon files after byte comparison with the existing external archive. Cleanup receipt records every hash and zero tracked removals. No staging, commit, branch integration, dependency, HTTP, signing or phone-data changes. Task remains `in_progress`; final reviewer owns physical Release delivery and the remaining accessibility/device checks.
+
+## Native Liquid Glass and source correction
+
+Recorded the narrow requirement, design and check deltas before editing. UIKit search/action/tool buttons now retain identity; standalone locate reconciles full snapshots without replacing its control. Interactive glass stays in the existing owners. Press transitions animate content while retaining hit bounds. Refresh uses UIKit configuration activity and a request-state crossfade; Reduce Motion stops custom press motion and switches busy refresh to a static icon with its disabled state and accessibility value intact. No arbitrary loading timer or success animation was added.
+
+App retained-result and selected-place attribution now reaches the existing source Dialog. Selection provenance survives newer results and errors; clearing a place removes only that selection's metadata. Native and App fallback surfaces have no inline notice. Loaded-style segments, HTTPS safety, source conditions and ordinary Web/desktop notices remain intact. Native source-close intent returns accessibility focus to More on the restored session, and the private hook clears it only after readiness acknowledgment, covering quick closure during teardown.
+
+Focused validation passes 86 tests, lint, typecheck, root rules and Web build. Three Web source regressions and four App portrait/landscape source-selection/refresh regressions pass with one worker and zero retries. New test-fixture failures and their corrections are retained separately; no assertion, timeout, retry or Vitest configuration was weakened. Authored search SVG removes only the standalone footer, and its derived search/overview PNGs remain illustrative. Other authored screens retain their initial bytes.
+
+Receipts and exact before/current source manifests are under `/tmp/imsweb-ios-liquid-glass-followup/`; `implementation.json` is the writer handoff. The native reviewer owns the new simulator Release build, animation, live Reduce Motion and VoiceOver validation. This writer made no native build, simulator setting change or phone install. The previously proved immutable phone package remains installed with its external locked-phone launch blocker; it was not rebuilt or classified as a source failure. No staging or commit; task remains `in_progress`.

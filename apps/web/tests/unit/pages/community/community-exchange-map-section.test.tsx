@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react"
+import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -115,6 +115,40 @@ describe("CommunityExchangeMapSection", () => {
       styleUrl: "/api/community/exchange/map/style.json",
     })
     apiMocks.sendOffices.mockResolvedValue({ items: [], truncated: false })
+  })
+
+  it("moves empty map feedback into the expanded card and restores it above the collapsed card", async () => {
+    const user = userEvent.setup()
+    renderSection({
+      searchTools: {
+        onOpenFilter: vi.fn(),
+        onOpenOffices: vi.fn(),
+        onOpenCards: vi.fn(),
+        onRefresh: vi.fn(),
+      },
+    })
+    await user.click(
+      await screen.findByRole("button", { name: "模拟地图移动" })
+    )
+    const message = "当前范围内没有公开事务所"
+    expect(await screen.findAllByText(message)).toHaveLength(1)
+    expect(screen.getByRole("button", { name: "刷新名录" })).toBeVisible()
+    await user.click(
+      within(screen.getByRole("region", { name: "地点查找" })).getByRole(
+        "button",
+        { name: "查找地点" }
+      )
+    )
+    expect(screen.getAllByText(message)).toHaveLength(1)
+    expect(screen.getByText(message).closest("section")).toHaveAttribute(
+      "aria-label",
+      "地点查找"
+    )
+    await user.click(screen.getByRole("button", { name: "取消" }))
+    expect(screen.getAllByText(message)).toHaveLength(1)
+    expect(
+      screen.getByText(message).closest("[data-map-point-count]")
+    ).not.toBeNull()
   })
 
   it("loads the map only after strict config and groups regional offices", async () => {

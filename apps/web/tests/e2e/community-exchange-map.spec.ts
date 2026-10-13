@@ -260,10 +260,16 @@ test.describe("community exchange map", () => {
       await expect(result).toBeVisible()
       expect(placeQueries).toEqual(["上海市"])
       await result.click()
-      await expect(
-        page.getByRole("status").filter({ hasText: "已定位：上海市" })
-      ).toBeVisible()
-      await expect(trigger).toBeFocused()
+      if (page.viewportSize()!.width < 1024) {
+        await expect(
+          page.getByRole("button", { name: "已定位：上海市，展开地点查找" })
+        ).toBeFocused()
+      } else {
+        await expect(
+          page.getByRole("status").filter({ hasText: "已定位：上海市" })
+        ).toBeVisible()
+        await expect(trigger).toBeFocused()
+      }
       await expect(
         page.getByRole("img", { name: "搜索地点：上海市" })
       ).toBeVisible()
@@ -285,7 +291,11 @@ test.describe("community exchange map", () => {
           })
         )
         .toBe(true)
-      const geometry = await trigger.boundingBox()
+      const geometry = await (
+        page.viewportSize()!.width < 1024
+          ? page.getByRole("button", { name: "已定位：上海市，展开地点查找" })
+          : trigger
+      ).boundingBox()
       expect(geometry).not.toBeNull()
       expect(geometry!.x).toBeGreaterThanOrEqual(0)
       expect(geometry!.x + geometry!.width).toBeLessThanOrEqual(
@@ -305,6 +315,7 @@ test.describe("community exchange map", () => {
     },
     async ({ page, isMobile }, testInfo) => {
       test.slow()
+      if (!isMobile) await page.setViewportSize({ width: 1280, height: 800 })
       await api.mockRoute(
         "/api/community/exchange/map/config",
         (route) =>

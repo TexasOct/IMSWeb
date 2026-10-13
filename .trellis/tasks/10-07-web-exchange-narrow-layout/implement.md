@@ -1,6 +1,51 @@
 # 跨端地图搜索实施计划
 
+## Current input-to-submit spacing correction (R8)
+
+用户要求所有地图查找／搜索框与提交按钮的间距调整，授权在现有任务继续施工。
+采用局部12px／pt基准，覆盖Web卡片、App DOM、UIKit编辑／结果及桌面同类输入行。
+先检查真正布局所有者；UIKit当前外层stack为4pt，DOM表面／动作由CSS和组件一起拥有。
+
+1. 保存当前dirty/source/index、R7图库及所有旧失败，使用新的`search-spacing-r8`证据目录。
+2. 原实现所有者调整输入行至提交行的专用间距，以及必要的最低高度／正文剩余空间计算。
+   保持持续input、IME、44px／pt目标、显式提交、五标签抑制／恢复、导航宽度及R6停靠。
+   Web与App DOM用同一个页面私有间距规则，桌面只调整同类输入行的局部gap。
+3. 运行相关静态／单元／真实浏览器几何检查，核对normal、loading、error、empty、results、
+   320／390／768／短横屏／桌面及大字号，不能以缩字、隐藏按钮或自动滚动掩盖固定操作。
+4. 独立检查者用新优化Release经原wrapper构建／安装自有模拟器，验证实际UIKit间距、
+   真实键盘、正常和大字号、横屏及恢复。父会话继续拥有新fixture生命周期；恢复入场状态。
+5. 新原图／层级／包绑定和自包含图库分别归档，更新局部规范及任务记录。旧R7不重标为R8；
+   其他R7返工发现保留其原判定，本轮不推断全任务PASS，不提交、发布或安装物理设备。
+
+## Current tool-to-navigation gap correction
+
+用户要求缩小标注的工具组与底部导航空白并交付新截图，已授权继续现有任务。R5 的当前
+原图／层级显示 402／440pt 间距约 47pt，375pt 约 13pt；先保留这些原始证据。
+
+1. 复核折叠底部净空和原生导航公共 frame 的坐标，避免重复安全区；目标可见间距约 12pt。
+2. 原实现 owner 只调整手机竖屏收起／选点停靠及必要的局部几何回归，保留 R4 宽度和 R5
+   配置字体／持续对象；原生导航仍由系统拥有。若导航几何不可用，保留可用的旧回退。
+3. 新上下文产品只读检查用一次 changed-source optimized Release，在 375／402／440pt
+   复核实际可见间距、正常／实时放大字号、命中与右侧净空；补一个来源／旋转相邻回归。
+4. 父会话仍拥有新 fixture 的启动／状态控制／停止；检查者恢复三个设备的确切入口状态。
+5. 保存新的原始截图／层级和前后对照，更新验收记录；旧 R3／R4／R5 图库保持原字节。
+
+## Current navigation-width correction
+
+用户最新要求上方搜索／工具组与底部导航按机型适配，已授权继续施工。按
+[宽度修订](./research/apple-maps-redesign/a-navigation-width.md) 顺序完成：
+
+1. [ ] 保存 R3 产品源码、当前文档、空 index、原图和制品绑定；核实公开 UIKit 内容边距与 DOM 导航实际几何。
+2. [ ] 调整 App 浏览／选点胶囊与工具组宽度，保留原生导航所有权、普通 Web、展开／短横屏布局、字体和命中合同。
+3. [ ] 执行受影响的几何、状态与桥接门禁；在 320／375／390／402／414／440 CSS px 验证 DOM 回退。
+4. [ ] 新上下文独立验证 402／440pt 与可用较小原生机型的可见导航边界、选点、来源返回、大字级、真实键盘和旋转；保存新原图及恢复回执。
+5. [ ] 同批更新局部设计／原生规范与交付索引。R3 的 22 张原图和既有图库保持原字节，不重标为新布局证据。
+
 ## Entry gate
+
+用户已明确批准全部按 A 施工。先按 [新版实施合同](./research/apple-maps-redesign/a-implementation.md) 顺序执行 Web DOM、UIKit、整合和独立验证。以下旧清单保留为历史，旧宽度与旧通过项不能代替本轮验收。
+
+真实状态几何、原始捕获和六图已保存。R2／R3／R7／R10 现按 A 更新；平板、短横屏和大字级的施工适配见新版合同。沿用 `in_progress` 状态；保护基线保存在 `/tmp/imsweb-exchange-a-implementation/`，包括源码摘要、完整差异和空 index。实施通过后更新规范、保存新运行截图与验收记录，再进行任务范围内提交。
 
 - [x] 用户已批准独立分支构建；当前任务为 `in_progress`。
 - [x] 实施前复核工作树、源码锚点、Web／App specs 与原生插件合同；保留其他任务的暂存和未暂存工作。
@@ -61,7 +106,58 @@ pnpm run app ios
 
 浏览器同时检查 `getBoundingClientRect` 与 `elementFromPoint`；先验证未自动滚动时可达，再点击。设备证据记录系统版本和搜索 capability，覆盖键盘出现／消失、面板拖动／滚动、旋转、工具互斥及返回地图。真实软键盘与原生玻璃不能用桌面缩小视口代替。
 
+## Scoped iOS follow-up
+
+1. Expose refresh directly in both renderers, retaining directory callback ownership and removing its More duplicate.
+2. Resolve native map appearance and current primary tint; align optional TS/Rust/Swift palette payloads and preserve old-payload defaults.
+3. Replace nested native glass tools with semantic plain controls, add capsule/magnifier and neutral grabber, and retain 44pt targets and Dynamic Type.
+4. Assign map feedback to the upper map when collapsed and the card when expanded. Preserve search feedback and recovery actions.
+5. Run real component/bridge behavior tests, policy, format, lint, typecheck and build checks. Record DOM artifacts separately from new UIKit proof. Final review owns native build/install; do not install on the phone in implementation.
+
+## Native correction checks
+
+Verify retained search attribution and selected attribution after newer results, failures, clear and collapse; source availability without tile metadata; complete safe Dialog text; App inline removal with Web unchanged; native source return intent and modal teardown. Refresh must retain `loadFirstPage()` ownership and request-driven busy state. Check native stable button/configuration updates against installed iOS 27 SDK declarations. Run focused units, format, lint, typecheck, rules and Web build. The native reviewer owns the new simulator Release build and animation/Reduce Motion evidence; this writer does not install on the phone. Reuse unchanged successful gates with explicit provenance. Preserve the prior immutable phone package and its external locked-device launch blocker.
+
+## Occlusion repair checks
+
+Keep native geometry across measurement subscription, readiness, host-position and detent changes. Scope bridge changes to preserving the current snapshot across generation cleanup and acknowledging DOM fallback after native removal. Clear the frame on modal/presentation teardown or actual unmount. Run the real-hook card regression with geometry before acknowledgment and no subsequent native frame, callback replacement, modal reopening and unsupported-removal acknowledgment, together with existing card, native-search and source-return tests. Recheck affected lint/typecheck/format and documentation rules. Preserve every failed receipt and the original reviewer overlap evidence. Writer readiness requires these checks; the original native reviewer must then rebuild optimized Release and prove first-entry More center hits and locate/card clearance before continuing the remaining native matrix. Existing 86-test/seven-browser receipts remain historical evidence for their prior source; do not describe them as a fresh native pass.
+
+## iOS visual refinement execution amendment
+
+1. Record the approved centered collapsed/selected width `min(360, viewport-56)`
+   separately from the immutable original drawings (see design amendment).
+2. Refine only native dock/sheet geometry, semantic capsule styling, tool glyphs
+   and scaled reading hierarchy; extend complete-asset admission and add reading
+   labels through the existing dictionary. Preserve old-payload defaults.
+3. Preserve input/control identity, explicit submit/cancel, selection/provenance,
+   refresh ownership, live accessibility refit and renderer-owned occlusion.
+4. Run focused bridge/card/lifecycle and delivery regressions plus format, lint,
+   typecheck, rules and client build. Retain failures and checkpoint artifacts.
+5. Parent-owned optimized Release build and actual native comparison must follow:
+   346pt dock at 402pt, 360pt cap at 440pt, narrow/rotated hosts, expanded results,
+   held refresh, source return, live large text and accessibility materials. Keep
+   blank functional fixture; a labeled synthetic backdrop is visual evidence only.
+   No visual PASS until that independent runtime review is complete.
+
 ## Risk and rollback
+
+### Recovered native review repair
+
+The second scoped repair is native-only: bound the idle magnifier's rendered
+extent to 21pt and use measured safe-area bounds plus the existing locate
+height/clearance to limit collapsed dock height. Preserve geometry events and
+scroll fitting. Independent Release review must measure actual image-view/ink
+bounds and largest-type 320pt dock/locate frames and center hits; source arithmetic
+does not establish visual acceptance.
+
+Repair only the remaining pale-capsule and map source Dialog findings. Keep
+the verified dock geometry, font sizes, icons, native input/control identities
+and lifecycle logic. Extend the source Dialog's existing safe-licensing tests
+to cover both normal and explicitly admitted iOS presentation. Run affected
+lint/typecheck/format/rules and source/modal tests, then return source hashes for
+independent optimized Release and matched native screenshot recheck. Preserve
+the recovered build/capture/failure receipts and archived wrapper icon outputs.
+
 
 - 共享搜索状态的提取可能影响桌面；先用现有显式搜索测试保护请求与错误语义。
 - 原生输入与异步模型同步必须保护 IME 组合文字；事件必须带当前呈现代次和有效结果身份。

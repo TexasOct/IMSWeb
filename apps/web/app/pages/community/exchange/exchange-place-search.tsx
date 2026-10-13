@@ -47,7 +47,7 @@ export function ExchangePlaceSearch({
       <div>
         <Field data-disabled={disabled || undefined}>
           <FieldLabel htmlFor={inputId}>搜索地点</FieldLabel>
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             <Input
               ref={inputRef}
               id={inputId}

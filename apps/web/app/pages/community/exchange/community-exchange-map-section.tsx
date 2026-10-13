@@ -220,6 +220,7 @@ export function CommunityExchangeMapSection({
   open,
   onSwitchDirectory,
   onAttributionChange,
+  onSearchAttributionChange,
   searchTools,
 }: {
   city?: string
@@ -228,6 +229,7 @@ export function CommunityExchangeMapSection({
   open?: boolean
   onSwitchDirectory: () => void
   onAttributionChange?: (value: ExchangeMapAttribution | null) => void
+  onSearchAttributionChange?: (value: string[]) => void
   searchTools?: ExchangeSearchCardTools
 }) {
   const [config, setConfig] = useState<ConfigState>(initialConfigState)
@@ -238,6 +240,7 @@ export function CommunityExchangeMapSection({
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null)
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
+  const [searchExpanded, setSearchExpanded] = useState(false)
   const [selectedPlace, setSelectedPlace] =
     useState<FudabaPlaceSearchResult | null>(null)
   const searchTriggerRef = useRef<HTMLButtonElement>(null)
@@ -246,6 +249,21 @@ export function CommunityExchangeMapSection({
   const lastBoundsRef = useRef<FudabaMapBounds[] | null>(null)
   const isNarrow = useNarrowMapLayout()
   const searchModel = useExchangePlaceSearch()
+  const [selectedAttribution, setSelectedAttribution] = useState("")
+  useEffect(() => {
+    if (!IS_APP_TARGET) return
+    onSearchAttributionChange?.(
+      [...new Set([searchModel.attribution, selectedAttribution])].filter(
+        Boolean
+      )
+    )
+  }, [searchModel.attribution, selectedAttribution, onSearchAttributionChange])
+  useEffect(
+    () => () => {
+      if (IS_APP_TARGET) onSearchAttributionChange?.([])
+    },
+    [onSearchAttributionChange]
+  )
   const [occlusion, setOcclusion] = useState<NativeGlassFrame | null>(null)
   const updateOcclusion = useCallback((frame: NativeGlassFrame | null) => {
     setOcclusion((current) =>
@@ -492,7 +510,7 @@ export function CommunityExchangeMapSection({
         </div>
       ) : null}
 
-      {mapFailure ? (
+      {mapFailure && !searchExpanded ? (
         <MapUnavailable
           message={mapFailure}
           onRetry={retryMap}
@@ -501,6 +519,7 @@ export function CommunityExchangeMapSection({
       ) : null}
 
       {!mapFailure &&
+      !searchExpanded &&
       data.phase !== "error" &&
       (data.phase !== "ready" || !groups.length || data.truncated) ? (
         <div
@@ -539,7 +558,7 @@ export function CommunityExchangeMapSection({
         </div>
       ) : null}
 
-      {data.phase === "error" && !mapFailure ? (
+      {data.phase === "error" && !mapFailure && !searchExpanded ? (
         <Alert
           className={cn(
             "absolute inset-x-3 z-10 bg-background/95 shadow-sm sm:left-auto sm:w-96",
@@ -600,6 +619,7 @@ export function CommunityExchangeMapSection({
       {searchTools ? (
         <ExchangeSearchCard
           {...searchTools}
+          onExpandedChange={setSearchExpanded}
           modalOpen={
             searchTools.modalOpen || (mobileSheetOpen && Boolean(selectedGroup))
           }
@@ -607,10 +627,14 @@ export function CommunityExchangeMapSection({
           selectedPlace={selectedPlace}
           onSelect={(place) => {
             setSelectedPlace(place)
+            setSelectedAttribution(searchModel.attribution)
             setSelectedGroupKey(null)
             setMobileSheetOpen(false)
           }}
-          onClear={() => setSelectedPlace(null)}
+          onClear={() => {
+            setSelectedPlace(null)
+            setSelectedAttribution("")
+          }}
           pointCount={groups.length}
           feedbackMessage={
             mapFailure
