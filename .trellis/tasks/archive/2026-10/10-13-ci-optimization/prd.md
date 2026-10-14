@@ -18,7 +18,7 @@
 
 ## Acceptance Criteria
 
-以下勾选代表代码、回归、本地适用检查及独立评审已通过；实际 GitHub 发布、native 行为和 hosted 耗时仍未验证。逐项证据与限制见 [acceptance.md](acceptance.md)。
+以下勾选代表代码、回归、本地适用检查及独立评审已通过；A7 的实际 GitHub 自动 Preview 与 hosted 耗时在 2026-10-14 归档复核补齐，native 行为仍未验证。本地截止证据见 [acceptance.md](acceptance.md)，发布身份、实测耗时与限制见 [归档验收](./archive-note.md)。
 
 - [x] A1：核心与扩展用例清单有明确归属；核心功能和可用性场景保留，删除项说明对应装饰细节，扩展支持手动与每周运行并单独报告。
 - [x] A2：审计只构建一次 TypeScript 审计结果，合法/非法 fixture 行为与诊断不退化。
@@ -26,7 +26,7 @@
 - [x] A4：构建复用校验覆盖错误 SHA/tree、lockfile、target、origin/version 和篡改文件的拒绝行为；未校验产物不会绕过必需构建。
 - [x] A5：CI 汇总拒绝失败、取消和缺失的必需候选检查，Preview 只从同一候选的成功验证继续，并保留新鲜度与部署完整性保护。
 - [x] A6：相关治理、规则、边界、API 和 Web 类型/单测/coverage、核心 Web/App 浏览器与交付验证通过，报告实测耗时、原始失败与未验证范围。
-- [ ] A7：release 合入与远端 SHA 一致，实际核心 CI、候选产物消费、Preview 镜像来源/新鲜度/部署及只读公开探测完成；记录实际耗时、原失败与剩余范围。
+- [x] A7：release 合入与远端 SHA 一致，实际核心 CI、候选产物消费、Preview 镜像来源/新鲜度/部署及只读公开探测完成；记录实际耗时、原失败与剩余范围。
 
 ## Baseline and scope
 
