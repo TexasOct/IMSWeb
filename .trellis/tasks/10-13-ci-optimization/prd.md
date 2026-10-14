@@ -31,6 +31,7 @@
 ## Baseline and scope
 
 - 开发起点：release/v1.1 的 375820be0a1989ff5d356bc707434e5a58689661；工作目录 .worktrees/ci-optimization，分支 codex/ci-optimization。
-- 最终验收基线：已快进同步 release/v1.1 的 447f2323a6ef28931b80e73750336b710ea21e49，保留其新增交换地图与 App 检查；同步记录见 research/baseline-integration.md。
+- 首次完整本地验收基线：已快进同步 release/v1.1 的 447f2323a6ef28931b80e73750336b710ea21e49，保留其新增交换地图与 App 检查；同步记录见 research/baseline-integration.md。
+- 发布整合来源：release/v1.1 的 3e71087f629e2fab323ad54863895267a6faf4da，保留 native tab effect 等待修复、规范与该任务的原 CI 研究记录；发布验证绑定整合后的实际提交。
 - 既有成功基线 db2b4f12：CI 24m43s，Web E2E 17.4m，Preview 32m16s；目标 CI 15m、Preview 18m 为待测目标，不作为已实现收益。
 - 本任务不修改产品 UI 或业务契约，不操作 GitHub 仓库设置，不恢复或删除主检出目录中其他任务的修改。最初实施阶段不推送或部署；R9 追加授权允许本任务提交、合入 release、普通推送与 Preview 验证，不包含 production Tag、分支删除或仓库设置变更。

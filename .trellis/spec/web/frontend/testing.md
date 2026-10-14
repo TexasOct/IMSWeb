@@ -22,6 +22,23 @@ Prefer role, label, and visible-state assertions over implementation details. A
 changed data-driven view covers loading, error, empty, and success states when
 each can occur.
 
+When a native bridge call runs in a separate React effect, wait on that call
+before asserting its payload. DOM fallback disappearance or a committed route
+does not guarantee the update effect has run. `app-tab-bar.test.tsx` waits for
+`nativeMocks.update` in both the initial dark-map case and the native-selection
+case, keeping the complete expected payload and the default `waitFor` budget:
+
+```tsx
+await waitFor(() => {
+  expect(nativeMocks.update).toHaveBeenLastCalledWith({
+    dark: false,
+    hidden: false,
+    selectedColor: nativeSelectedColor,
+    selectedIndex: 2,
+  })
+})
+```
+
 Keep independent unit scenarios separate within the default timeout. The
 community editor's dirty-baseline check uses the ordinary fixture; its 100-entry
 limit check mounts the maximum fixture separately. Unrelated typing should not
