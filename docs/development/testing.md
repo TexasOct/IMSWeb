@@ -33,9 +33,26 @@ Delivery integration profile 成功构建 Web 和 API 后，该进程才会运�
 是已构建的 Web 客户端（`apps/web/build/client`），只属于先构建 Web 的 delivery integration，
 因此不在 API owner 计划里：CI API lane 从不构建 Web，跑它只会在缺构建产物上失败，而不是暴
 露真实缺陷。这样 API 测试不会接受另一次运行留下的 `dist/server/main.js`。CI API lane 直接运
-行完整 API owner；本地 Web owner 默认只运行 unit；Web lane 使用 `ci` profile，在同一个 runner
-进程内依次运行 Web `check`（包含 unit）和完整普通 Playwright 套件。Integration job 没有跨 job artifact transfer，因此
-`delivery integration` 始终保留自己的 Web 与 API build。
+行完整 API owner；本地 Web owner 默认只运行 unit。CI Web `validation` profile 顺序运行 lint、
+typecheck 和完整域 unit，保留 coverage 阈值。独立 `web-build` job 构建 Web，`web-browser` 和
+integration 只依赖该 build 与 changes，因此浏览器可以在 unit 尚未完成时启动。
+本地 `ci` profile 仍运行完整 `check` 和核心浏览器；`web browser` 与 `delivery integration`
+默认保留构建前置条件。CI 显式传 `--artifact=.ci-artifacts/web.json`，owner 必须先调用
+`scripts/ci/build-artifact.mjs verify web`，核对候选 SHA/tree、同次 run/attempt、lockfile、target、
+origins、Node/pnpm/Vite/React Router/Playwright 版本和全部文件摘要。缺失、额外或篡改文件均拒绝。
+Web 与 App 使用独立 target 和输出目录；API integration 仍自行构建 API。pnpm store cache 由
+锁文件与固定 Node/pnpm 版本确定，每个消费 job 仍显式执行 frozen install。
+
+`release/v1.1` push 必须执行全部核心 lane；PR 检查 checkout 的 merge SHA/tree。
+`deploy-preview.yml` 由 CI result 成功后通过 workflow_call 启动，保留原 push SHA/ref 的
+OIDC provenance；`scripts/ci/verified-candidate.mjs` 使用 GitHub API
+核对受信任仓库、push 事件、release branch、当前 head/tree、workflow ID/path、run attempt 和
+每个必需 validation job 的成功结果，拒绝缺失、失败、取消、跳过、fork 或错误 SHA。
+自动调用不等待自身 publication 完成；publication 失败不清除已成功的验证证据。Preview 不重复运行
+`pnpm check` 和 `pnpm test`。手动重新部署也要求当前 head 的同一套验证成功，并校验已有镜像的
+digest/provenance。共享构建、镜像发布与部署资源使用前重新验证候选新鲜度。Docker 保留干净构建，
+镜像以不可变 digest 部署，构建和部署锁继续生效。容器升级与分片等待当前 reduced-core 测量和
+compatibility/digest 证据，不能用历史时间代替本次收益。
 
 governance、contracts 和 delivery 的 Node 测试属于仓库域，CI 由 `apps/api` 承载：
 
@@ -103,6 +120,29 @@ pnpm exec vitest run --project=api   # 只跑某个项目
 仓库域是三条 CI 调用覆盖的 10 个文件加本守卫。
 
 ## 测试位置
+
+Web 浏览器默认使用 core：Chromium desktop 的功能与精选可用性场景，以及带 `@mobile` 的
+移动场景。广泛布局用例带 `@extended`，Firefox 的 `@firefox` 兼容场景也属于 extended。
+`playwright.config.ts` 的 `resolveWebUiProjects` 拥有选择规则，core 与 extended 的并集
+必须等于保留的完整项目清单，交集为空。App 全部现有项目保持必需验证。
+
+手动执行扩展 UI：
+
+```sh
+node scripts/testing/run-test-owner.mjs web extended
+```
+
+`.github/workflows/ui-extended.yml` 每周一和手动运行，独立报告结果及浏览器证据。
+扩展结果不参与核心候选发布判定。盘点用 `E2E_UI_TIER=all pnpm --filter @imsweb/web exec
+playwright test --list`；默认命令列 core，`--config playwright.extended.config.ts` 列 extended。
+两个 tier 都保持 workers=1、retries=0 和原有预算。单测仍执行完整域并使用原有 coverage 阈值。
+CI Web 使用 `build/client`，由 `pnpm preview` 在 4173 端口复用 Hono 静态路由策略；
+本地 Playwright 保留 dev 入口。Web CI 由独立 build job 准备产物，extended owner 在浏览器前
+执行构建。直接运行 `CI=1` 的 Playwright 命令前须先构建 Web。App 继续独立构建和服务
+`build-app/client`，使用其独立 origins 和 1420 端口。两种预览都不启动数据库或 API，
+严格 API dispatcher 和不可用后端陷阱保持有效。
+纯装饰数量、精确外观几何、动画实现和普通 class-list 断言可删除；混合场景保留功能、
+键盘、focus、遮挡、溢出与操作可达性。
 
 | 范围                        | 位置                                                                                | 主要工具                             |
 | --------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------ |
@@ -212,7 +252,7 @@ lane；CI 强制运行这些检查，本地可显式执行。所以本地 pre-co
 
 Root `test:web-routing` 调用 delivery integration owner；该 owner 在当前 job 内构建两个
 workspace 后运行 frontend routing 与 packaged-client asset contracts。CI 的 Web lane 运行
-Chromium、移动 Chromium 与 Firefox 的普通 Web Playwright 矩阵；App Playwright 由独立 App
+Chromium 与移动 Chromium 的核心 Web Playwright 矩阵；Firefox 由扩展 workflow 安装并运行；App Playwright 由独立 App
 lane 运行。两个浏览器 lane 在 `playwright install --with-deps` 前只移除 GitHub runner 预装的
 Google Chrome apt source；Playwright 使用自己的固定浏览器版本，不依赖该 source，而保留
 `--with-deps` 继续安装所需的 Ubuntu 系统库。
@@ -236,7 +276,7 @@ owner plan 传 flag：CI 用写 JUnit 的同一次运行产出覆盖率，`run-t
 只覆盖 1.36% 的行，任何大于 1 的阈值都拦不住回归，却要为 CPU 密集的 contracts 固定付出约 40s。
 
 覆盖率只在「这一次运行覆盖了整个域」时开启：配置读 `IMS_TEST_COVERAGE_ENABLED === 'true'`，只有
-ci.yml 里两个域级步骤设置它（Web lane 的 `test -- ci`、API lane 的 `run test`）。这样过滤运行——App lane
+ci.yml 里两个域级步骤设置它（Web lane 的 `web validation`、API lane 的 `run test`）。这样过滤运行——App lane
 只跑一个 Web 测试文件、integration lane 只跑 `test:assets`——不会被域级阈值压死：阈值是按域级运行实测
 出来的，部分运行本来就达不到。
 

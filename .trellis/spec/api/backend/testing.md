@@ -20,6 +20,10 @@ the tsx loader for the same reason.
   `tests/assets/**` from its whole-tree run for that reason: the standalone API
   lane never builds Web, and the root chain already covers the suite in delivery
   integration before its API phase runs.
+  CI delivery integration consumes a same-run Web artifact only after the owner
+  verifies SHA/tree, run/attempt, lockfile, target, origins, tool versions and
+  every file digest. The local delivery owner still builds Web and API; artifact
+  reuse never skips its API build. Web and App remain separate targets.
 - `tests/postgres-test-lifecycle.js`, `tests/postgres-test-database.ts` and
   `tests/integration/` hold infrastructure that more than one suite imports.
 

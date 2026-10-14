@@ -59,7 +59,7 @@ mechanically: global teardown stays in `vitest.config.ts`, no
 
 The same config owns the domain's reports. CI writes
 `apps/web/reports/junit-web.xml`, and coverage is instrumented only when the run
-owns the whole Web unit suite: the Web lane's `check` sets
+owns the whole Web unit suite: the Web lane's `validation` owner sets
 `IMS_TEST_COVERAGE_ENABLED=true`, while the app lane's single-file
 `test:unit` run stays ungated. Thresholds are the floor of the measured
 baseline and may only ratchet upward. A domain must not run two Vitest
@@ -92,8 +92,8 @@ stable canvas path, so Firefox skips that one success case while retaining the
 explicit map-failure and directory fallback coverage. Do not remove the
 Chromium canvas assertion or the Firefox fallback test.
 
-Keep complete compatible coverage on the primary `chromium-desktop` and
-`app-small` projects. Secondary browser and device projects collect only tests
+Keep complete compatible functional coverage on the core `chromium-desktop` and
+`app-small` projects. Broad Web layout belongs to extended. Secondary browser and device projects collect only tests
 tagged for an invariant they uniquely own. Every secondary project must execute
 at least one assertion; any runtime skip must be named in the task's E2E
 inventory. Both Playwright configurations use zero retries so fixture, startup,
@@ -245,6 +245,34 @@ Ordinary Web tests use the page origin. App tests also receive the normalized
 `E2E_APP_API_ORIGIN` through the typed `apiOrigins` project option. An external
 `E2E_APP_BASE_URL` requires that API origin explicitly. Both values must be
 credential-free HTTP(S) origins with no path, query, or fragment.
+
+CI Web browsers serve `build/client` through `pnpm preview`, using Hono's
+`FrontendStaticAssets` route and MIME policy. Local browsers keep the Web dev
+server. CI builds Web in `web-build`; the browser and delivery jobs download its
+same-run artifact and verify it before consuming it. The `validation` owner keeps
+lint, typecheck and complete-domain units independent of build and browsers.
+The local `ci` owner still builds through `check`; the extended owner builds before
+running browsers. Direct CI Playwright commands require a preceding Web build.
+Artifact reuse is limited to `web browser --artifact=MANIFEST` and
+`delivery integration --artifact=MANIFEST`. Default local owners build their own
+prerequisites. `scripts/ci/build-artifact.mjs` rejects mismatched SHA/tree,
+run/attempt, lockfile, target, origins, tool versions, missing or extra files,
+digest changes and symlinks. App remains a distinct build target.
+Trusted release pushes require every core lane, while PR artifacts identify the
+merge checkout. After every core validation job succeeds, CI calls Preview as a
+reusable workflow, preserving the original push SHA/ref for OIDC provenance.
+Manual recovery also requires every validation job from a trusted CI push for the
+identical current release head/tree; failed, cancelled, skipped, missing and fork
+checks cannot authorize publication or manual redeployment. The trusted verifier
+checks validation separately from publication, so publication failure does not
+erase successful validation evidence. It checks freshness before shared resources
+and publication. Docker builds remain
+clean and retain digest/provenance verification and deployment locks.
+When editing the reusable Preview interface or shared preview inputs, read
+[CI orchestration contracts](./ci-orchestration.md) for secret passage and
+changed-path consumer selection.
+The shared preview launcher selects Web on port 4173 or App on port 1420,
+and rejects unknown targets. Neither preview starts database or API services.
 
 CI builds the App with API `http://127.0.0.1:1420` and public site
 `http://localhost:1420`, then serves `build-app/client` through `preview:app`.
@@ -562,9 +590,19 @@ prerender, server path ownership, or SPA fallback changes.
 Root `pnpm run dev:web:mock` starts the web dev server with the mock API enabled,
 so pages render without a backend; see "Dev-time API mocks".
 
-Local Playwright runs use the default worker count, and a parallel run on a busy
-machine fails specs that pass at `--workers=1`. Reproduce a browser failure the
-way CI runs it before treating it as a regression:
+Web Playwright defaults to core: desktop functional and selected usability cases,
+plus tagged mobile cases. Broad layout cases carry `@extended`; tagged Firefox
+compatibility belongs to extended. `resolveWebUiProjects` in `playwright.config.ts`
+owns selection. Core and extended must partition all retained project cases.
+Run `node scripts/testing/run-test-owner.mjs web extended` manually; the independent
+`ui-extended.yml` workflow also runs weekly. Use `E2E_UI_TIER=all` with `--list`
+to inventory the union. App retains its complete current functional matrix.
+Decorative counts, exact appearance geometry, animation implementation and ordinary
+class-list checks may be deleted. Keep functional and responsive usability checks
+inside mixed files. Full-domain unit coverage and thresholds remain required.
+
+Local and CI Playwright use one worker and zero retries. Reproduce failures with
+the owning tier:
 
 ```sh
 CI=1 pnpm --filter @imsweb/web exec playwright test --workers=1 --retries=0

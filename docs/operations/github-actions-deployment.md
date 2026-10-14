@@ -22,16 +22,19 @@ Worker 默认一个副本，可通过 `IMS_EMAIL_WORKER_REPLICAS` 扩展到最�
 
 ## 1. 工作流
 
-仓库包含四个工作流：
+发布与验证工作流按职责拆分：
 
-- `.github/workflows/ci.yml`：在 Pull Request 和 `main` push 上按受影响工作区分派任务。`changes`
-  检测受影响的工作区，再由 `repository`、`app`、`web`、`api`、`integration` 按需运行，最后由
-  `result` 汇总选中与跳过的结果。`repository` 依次运行 `pnpm run check:root`、governance、
+- `.github/workflows/ci.yml`：在 Pull Request 和 `main` push 上按受影响工作区分派任务；
+  `release/v1.1` push 必须运行全部核心验证。`changes` 检测受影响的工作区，`web-build` 独立
+  准备受校验候选产物，`web-browser` 与 integration 消费同次 run/attempt 的 Web build；
+  `web` 独立运行 lint、typecheck 与完整域单测。`result` 汇总全部选中与跳过的结果，成功后
+  仅受信任 release push 可以调用 Preview。`repository` 依次运行 `pnpm run check:root`、governance、
   contracts 和 `delivery repository`。CI 不调用 `pnpm run check` 这个聚合命令；
 - `.github/workflows/deploy.yml`：发布稳定 SemVer Tag，并允许从 GitHub Actions 页面重新部署
   已存在的 Tag；
-- `.github/workflows/deploy-preview.yml`：在 `release/v1.1` push 时自动构建和部署 preview，也允许
-  从该分支手动确认后重新部署当前 commit 已有的镜像；
+- `.github/workflows/deploy-preview.yml`：通过 CI 的 workflow_call 在 `release/v1.1` push
+  核心验证全部成功后构建和部署 preview，保留原 push SHA/ref 的 OIDC provenance。也允许
+  从该分支手动确认后重新部署当前 commit 已有的镜像，但仍须校验当前 head 的全部核心验证；
 - `.github/workflows/release-preview-app.yml`：在 `release/v1.1` 的 App preview tag 上构建移动端
   预览产物，见[预览 App 发布](preview-app-release.md)。
 
@@ -74,9 +77,13 @@ Docker 的 Buildx、Registry Login 和 Build/Push Actions 分别使用 v4、v4 �
 版本声明使用 Node.js 24 Action runtime，并继续固定到完整 release commit SHA。它们要求
 Actions Runner `v2.327.1` 或更高版本，GitHub-hosted `ubuntu-24.04` runner 满足该要求。
 
-preview push 执行完整 `pnpm run check`、`pnpm run test`、镜像构建、provenance 生成与
-`gh attestation verify`。手动运行不重建同一 commit，只解析 commit 标签对应的已有 digest 并验证
-同一 provenance。构建阶段允许新提交取消旧构建；部署阶段串行且不取消进行中的远端操作。部署前
+Preview 使用 `scripts/ci/verified-candidate.mjs` 核对受信任 CI workflow ID/path、push 事件、
+仓库、release head/tree、run attempt 和每个必需 validation job 的成功结果；缺失、失败、取消、
+跳过、fork 或错误 SHA 均不能授权发布。验证不等待 publication 自身，publication 失败后仍可
+使用已成功的验证证据恢复。Preview 不重复运行整套 `pnpm check` 和 `pnpm test`；Docker 执行
+干净构建，再发布镜像、生成 provenance 并执行 `gh attestation verify`。手动运行不重建同一 commit，
+只解析 commit 标签对应的已有 digest 并验证同一 provenance。共享资源、发布和部署前重新核对
+新鲜度。构建阶段允许新提交取消旧构建；部署阶段串行且不取消进行中的远端操作。部署前
 再次读取 `release/v1.1` 远端 head，旧 commit 已过期时记录为跳过，避免较慢的旧 Workflow 覆盖
 新 preview。
 

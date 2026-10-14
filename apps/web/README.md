@@ -51,7 +51,7 @@ Web 的进程中设置 `IMS_API_ORIGIN`；根 `pnpm dev` 会根据实际 API 端
 | `pnpm build`        | 生成生产前端产物与预渲染页面             |
 | `pnpm build:app`    | 生成带已验证远程 origin 的 App 静态产物  |
 | `pnpm design:lint`  | 校验根目录 `DESIGN.md` 设计规范          |
-| `pnpm preview`      | 在 `127.0.0.1` 上预览已构建产物          |
+| `pnpm preview`      | 通过 Hono 在 `127.0.0.1:4173` 预览 Web 编译产物 |
 | `pnpm lint`         | 执行 ESLint 与 Tailwind canonical 类检查 |
 | `pnpm typecheck`    | 生成路由类型并执行 TypeScript 检查       |
 | `pnpm test:unit`    | 运行 Vitest 单元与组件测试               |
@@ -64,9 +64,12 @@ Web 的进程中设置 `IMS_API_ORIGIN`；根 `pnpm dev` 会根据实际 API 端
 | `pnpm app`          | 设备安装入口，参数选目标、配置与设备     |
 
 Web test owner 本地默认只运行 unit。需要本地运行浏览器套件时，显式执行 `pnpm test:e2e`；
-App 浏览器矩阵使用 `pnpm test:e2e:app`。CI 使用 runner 的 `ci` profile，在同一进程中依次
-运行 `check`（包含 unit）和完整普通 Playwright 套件，不重复 unit suite，也不暴露可绕过
-unit 的独立参数。
+App 浏览器矩阵使用 `pnpm test:e2e:app`。本地 `ci` owner 顺序运行 `check` 和 core Playwright；
+CI 分开运行完整域 `web validation`、Web build 和 core browsers，浏览器与 delivery owner
+必须先校验同次 run/attempt 产物的身份与全部文件摘要。默认本地 owner 保留构建前置条件。
+广泛布局与 Firefox 兼容场景使用
+`node ../../scripts/testing/run-test-owner.mjs web extended`，手动和每周独立报告结果。
+App 保持全部现有功能矩阵；两个 Web tier 的并集覆盖所有保留用例。
 
 `app` 是唯一的设备入口，目标与配置都是参数：
 

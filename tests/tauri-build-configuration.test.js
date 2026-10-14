@@ -16,7 +16,8 @@ const devAppUrl = pathToFileURL(path.resolve(webRoot, "scripts/dev-app.js"));
 const previewAppUrl = pathToFileURL(path.resolve(webRoot, "scripts/preview-app.js"));
 
 test("App preview includes App-only client routes and preserves shared server ownership", async () => {
-  const { appPreviewSpaRoutes } = await import(previewAppUrl.href);
+  const { appPreviewSpaRoutes, appPreviewWebOnlyRoutes } = await import(previewAppUrl.href);
+  assert.deepEqual(appPreviewWebOnlyRoutes(), ["/admin", "/admin/*", "/wiki/classic", "/wiki/classic/", "/story/classic", "/story/classic/"]);
   const routes = appPreviewSpaRoutes();
   for (const route of ["apps", "account/me", "account/me/:section", "events/:eventId"]) {
     assert.ok(routes.includes(route), route);
@@ -276,7 +277,7 @@ test.describe('tauri build configuration', () => {
       );
       assert.equal(
         webPackage.scripts.preview,
-        "VITE_IMS_APP_TARGET=web vite preview --host 127.0.0.1",
+        "node --experimental-strip-types scripts/preview-app.js web",
       );
       assert.equal(
         webPackage.scripts.typecheck,
