@@ -5,6 +5,7 @@ import {
   verifySummaryGeometry,
   verifyEssentialGeometry,
   verifyReadingScroll,
+  verifyFocusedGeometry,
 } from "./verify-exchange-side-geometry.mjs"
 
 const node = (id, x, y, w, h) => ({
@@ -23,6 +24,20 @@ const capture = (width, locate = true) => [
   node("ims-native-exchange-refresh", width - 56, locate ? 392 : 440, 48, 48),
   ...(locate ? [node("locate", width - 56, 440, 48, 48)] : []),
 ]
+
+test("focused search has no refresh, locate, or shared skin", () => {
+  verifyFocusedGeometry([node("ims-native-exchange-search", 8, 62, 386, 500)])
+  for (const id of [
+    "ims-native-exchange-refresh",
+    "locate",
+    "ims-native-exchange-side-controls",
+  ]) {
+    assert.throws(
+      () => verifyFocusedGeometry([node(id, 340, 70, 48, 48)]),
+      /absent throughout/
+    )
+  }
+})
 
 for (const width of [402, 440]) {
   test(`${width}pt grouped locate has distinct targets across suppression`, () => {

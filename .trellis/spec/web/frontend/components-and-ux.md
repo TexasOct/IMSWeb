@@ -416,13 +416,19 @@ source of truth and a gapless set of entry points:
 - One controlled dialog serves the page. Closing it returns focus to the visible More trigger on
   narrow layouts or the desktop source trigger. Native iOS focus returns to the native More control.
   Menu entries that have closed must not receive focus.
-- The card's search input/trigger is 48px high; More and the text tools have targets of at least
-  44 × 44 CSS pixels. Below 1024px, search/selected summary and the filter/directory tools occupy
-  separate rounded surfaces, including the 768px range. Selection replaces search capsule content.
+- Ordinary Web search input/trigger and the App expanded input are 48px high. The collapsed App
+  pill uses the measured visible navigation body height, with a conservative 44px fallback;
+  safe-area padding and transparent navigation hosts are excluded. Its targets remain at least
+  44 × 44 CSS pixels. App More is an independent circular surface beside the pill, with a map-hit
+  gap; the search/More row and filter/directory row remain separate rounded surfaces. Below 1024px,
+  ordinary Web retains its existing search/selected-summary and tools surfaces. Selection replaces
+  the compact summary and preserves complete metadata in the expanded reading area.
   The transparent gap passes hits to the map; only the dedicated handle owns drag gestures.
   Refresh portals into `[data-exchange-refresh-anchor]` beside locate in
   `[data-exchange-side-controls]`, retaining its directory callback and request-driven busy footprint.
-  Without a loaded map, refresh uses a standalone portal in the card host. The bottom occlusion
+  Without a loaded map, refresh uses a standalone portal in the card host. App expanded search and
+  its retained exit hide standalone refresh and side locate/skin; browse restores their existing
+  owners. The bottom occlusion
   rectangle covers the actual search/tool union and excludes side controls. Native geometry owns
   it until acknowledged native removal returns measurement to DOM.
   In App DOM fallback, `.exchange-map-side-controls` owns one material capsule; refresh and locate
@@ -430,14 +436,43 @@ source of truth and a gapless set of entry points:
   Their 48px boxes and 24px measured radii remain available to native control measurement. Hiding
   the locate twin leaves a circular 48px refresh surface. The outer rounded corners pass map hits
   through. Material rules use the components layer; local shape/hiding rules use overrides.
-  App phone-portrait collapsed/selected search and tools align within 2px of the actual visible
+  App phone-portrait collapsed/selected search-plus-More row and tools align within 2px of the actual visible
   bottom navigation capsule. DOM fallback measures its own visible inner capsule and shares
   AppTabBar's spacing/max-width tokens for the first paint; native ownership uses the calibrated
   public-layout exchange seam described in `tauri-mobile-integration.md`. Hidden fallback frames
-  and full-width AX tab strips are not visible navigation bounds. Expanded phone reading and
-  ordinary Web remain host minus 16; tablet width caps at 560. At available height ≤500 and
-  width ≥640, width is `min(420, max(320, hostWidth * 0.48))`, docked left with an 8px inset.
+  and full-width AX tab strips are not visible navigation bounds. App expanded search fills the
+  safe available host (host minus 16 inline), accounting for the visible viewport/keyboard.
+  For collapsed App DOM search, dock the tools' bottom 12px above the actual visible navigation
+  body's top. Its measured position already includes the navigation safe-area offset; do not add
+  `--app-bottom-clearance` again. That token remains the scroll-content reservation and the fallback
+  when no attached navigation body fits the host/visual viewport. Use the same selected/dismissed
+  geometry after reflow, and preserve native-navigation and keyboard/expanded fallbacks.
+  Collapsed App DOM search stays 44px tall, matching its detached 44px More target. Navigation
+  body-height, safe-area and root font changes must not enlarge it. Navigation measurement owns
+  docking/alignment, not the search row's height; expanded input and ordinary Web retain their sizing.
+  Ordinary Web retains host minus 16 and its 560px tablet cap. Collapsed App short landscape at
+  available height ≤500 and width ≥640 keeps `min(420, max(320, hostWidth * 0.48))`, docked left
+  with an 8px inset; that compact width must not constrain fullscreen App search.
   Text and 44px targets retain size when content scrolls. Web from 1024px keeps its desktop rail.
+
+### App search focus and exit lifetime
+
+App activation requests `large` directly; App `large` fills the safe available host and has no
+half-height stop. Ordinary Web keeps its existing detents. Editing/keyboard state is independent
+of expanded presentation: explicit submit ends editing while retaining expanded results.
+
+Downward handle/title dragging exits directly to collapsed. DOM retains expanded content and
+navigation/map suppression while height/bottom settle for 280ms; exiting controls become inert
+and fade. Height-transition completion (with a 320ms cleanup fallback) commits collapsed content
+and restores the non-input trigger. Native ownership instead ends on UIKit's completed
+`detent: collapsed` event. Cancel/select must not release it when blur starts. Reentry cancels
+pending exit cleanup, modal takeover/unmount clean up their lifetimes, and reduced motion ends
+the exit immediately. Restoring the search trigger must not reopen the input keyboard.
+
+A positioned pill-background pseudo-element can paint over unpositioned button text despite
+passing geometry and hit tests. Keep the compact row above that background and inspect actual
+caption ink. Capture focused screenshots after fullscreen geometry and finite animations settle;
+an image taken immediately after typing may still show the expansion's intermediate height.
 
 ### Exchange input-to-submit spacing
 
@@ -447,8 +482,9 @@ The desktop city form uses its local `gap-3` input/submit spacing. Do not change
 global primitives or add spacing to unrelated native rows. Editing, results,
 busy, error and empty states retain the same input and controls. Fit essential
 rows at current text sizes before choosing expanded height, reserving at least
-one 44px/pt reading target where the available host permits it. Dragged expanded
-heights obey this floor; reading/footer content may intentionally scroll.
+one 44px/pt reading target where the available host permits it. Resting expanded
+heights obey this floor; an App dismissal drag may transiently move below it while
+settling toward the compact target. Reading/footer content may intentionally scroll.
 Input, cancel and submit remain outside that reading scroll. Current-package
 browser/native geometry, not JSDOM or XCTest typecheck, proves visible spacing.
 

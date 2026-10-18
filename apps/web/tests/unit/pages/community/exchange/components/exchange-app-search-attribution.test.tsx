@@ -77,7 +77,9 @@ describe("App search source ownership", () => {
     )
     expect(screen.queryByText("© First contributors")).not.toBeInTheDocument()
     expect(
-      screen.getByRole("button", { name: "已定位：西岸艺术中心，展开地点查找" })
+      await screen.findByRole("button", {
+        name: "已定位：西岸艺术中心，展开地点查找",
+      })
     ).toBeVisible()
     await user.click(
       screen.getByRole("button", { name: "已定位：西岸艺术中心，展开地点查找" })
@@ -103,7 +105,9 @@ describe("App search source ownership", () => {
       "© First contributors",
     ])
     await user.click(screen.getByRole("button", { name: "取消" }))
-    await user.click(screen.getByRole("button", { name: "清除搜索地点" }))
+    await user.click(
+      await screen.findByRole("button", { name: "清除搜索地点" })
+    )
     await waitFor(() =>
       expect(mocks.attribution).toHaveBeenLastCalledWith([
         "© Second contributors",

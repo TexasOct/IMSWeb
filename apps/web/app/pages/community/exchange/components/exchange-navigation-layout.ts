@@ -10,6 +10,8 @@ export type ExchangeNavigationLayout = {
   visible: boolean
   viewport: { width: number; height: number }
   inline: { x: number; width: number } | null
+  /** Public visible navigation body height, excluding safe area and host. */
+  bodyHeight?: number
   provenance: "native-public-layout-calibrated"
 }
 
@@ -46,6 +48,13 @@ export function exchangeNavigationLayout(
         (value.revision ?? 0) <= previous.revision))
   )
     return null
+  if (
+    value.bodyHeight !== undefined &&
+    (!Number.isFinite(value.bodyHeight) ||
+      value.bodyHeight < 44 ||
+      value.bodyHeight > viewport.height)
+  )
+    return null
   if (value.available) {
     const inline = value.inline
     if (
@@ -80,6 +89,26 @@ export function measuredNavigationFrame(
   )
     return undefined
   return { x: box.x, y: box.y, width: box.width, height: box.height }
+}
+
+/** Dock above the visible DOM body; its offset already includes the safe area. */
+export function navigationDockBottom(
+  host: NativeGlassFrame,
+  visibleEnd: number,
+  navigation: NativeGlassFrame | undefined,
+  fallback: number
+): number {
+  if (
+    !navigation ||
+    !Number.isFinite(navigation.y) ||
+    !Number.isFinite(navigation.height) ||
+    navigation.height <= 0 ||
+    navigation.y < host.y ||
+    navigation.y + navigation.height >
+      Math.min(host.y + host.height, visibleEnd) + 2
+  )
+    return fallback
+  return Math.max(12, host.y + host.height - navigation.y + 12)
 }
 
 export function navigationInline(

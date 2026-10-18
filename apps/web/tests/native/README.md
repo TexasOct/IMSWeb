@@ -55,7 +55,16 @@ Verifier states are `collapsed`, `selected`, `editing` (Shanghai draft), `result
 landscape. Selected checks require the complete expected name and address as the
 third and fourth arguments. The verifier checks one 48×96pt shared side surface,
 distinct refresh/locate targets, 12pt card clearance and the bounded summary reading
-path. Expanded captures require a standalone refresh with no suppressed locate.
+Expanded captures require refresh, locate and their shared skin to be absent.
+App activation enters `large` directly; keyboard submission leaves results expanded.
+Downward handle dismissal retains content while settling, then emits collapsed to
+restore navigation and focuses the non-input trigger. Capture video/process frames
+across expansion, drag and settling; final screenshots cannot establish continuity.
+The collapsed search pill is 44pt (conservative public navigation-body fallback),
+with a detached 44pt circular More and 12pt map-hit gap. Public tab-strip docking
+bounds are not painted-body measurements. Qualify actual painted contours in runtime evidence.
+The gesture flow uses the measured 402×874 handle (50%, 10%). Re-measure
+`ims-native-exchange-search-handle` and adapt a task-local flow for other viewports.
 Use `selected-expanded` with the same complete name/address arguments to check the
 expanded reading header. Inspect and scroll its visible text separately; hierarchy
 content does not prove that the glyphs fit or that a mask is absent.

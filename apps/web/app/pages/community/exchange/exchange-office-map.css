@@ -157,6 +157,100 @@
 }
 
 @layer overrides {
+  .exchange-search-card[data-app-search] {
+    transition:
+      height 280ms ease,
+      bottom 280ms ease,
+      width 280ms ease,
+      left 280ms ease;
+  }
+  .exchange-search-card[data-app-search][data-dragging] {
+    transition: none;
+  }
+  .exchange-search-card[data-app-search]:not([data-detent="collapsed"]) {
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: none;
+    overflow: hidden;
+  }
+  .exchange-search-card[data-app-search] .exchange-search-actions,
+  .exchange-search-card[data-app-search] .exchange-search-content,
+  .exchange-search-card[data-app-search] .exchange-search-row {
+    transition: opacity 280ms ease;
+  }
+  .exchange-search-card[data-app-search][data-exiting] .exchange-search-actions,
+  .exchange-search-card[data-app-search][data-exiting] .exchange-search-content,
+  .exchange-search-card[data-app-search][data-exiting] .exchange-search-row {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .exchange-search-card[data-app-search][data-detent="collapsed"]
+    .exchange-search-surface {
+    padding: 0 0 0 44px;
+    min-height: 44px;
+    height: 44px;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    pointer-events: none;
+  }
+  .exchange-search-card[data-app-search][data-detent="collapsed"]
+    .exchange-search-surface::before {
+    inset: 0 52px 0 0;
+    width: auto;
+    height: auto;
+    border-radius: 999px;
+    background: var(--background);
+    box-shadow: 0 4px 18px rgb(0 0 0 / 12%);
+  }
+  .exchange-search-card[data-app-search][data-detent="collapsed"]
+    .exchange-search-handle {
+    inset: 0 auto auto 0;
+    height: 100%;
+    background: transparent;
+    pointer-events: auto;
+  }
+  .exchange-search-card[data-app-search][data-detent="collapsed"]
+    .exchange-search-row {
+    position: relative;
+    height: 100%;
+  }
+  .exchange-search-card[data-app-search][data-detent="collapsed"]
+    .exchange-search-row
+    > * {
+    pointer-events: auto;
+  }
+  .exchange-search-card[data-app-search][data-detent="collapsed"]
+    .exchange-search-input,
+  .exchange-search-card[data-app-search][data-detent="collapsed"]
+    .exchange-search-summary {
+    height: 100%;
+    min-height: 44px;
+    background: transparent;
+    overflow: hidden;
+  }
+  .exchange-search-card[data-app-search][data-detent="collapsed"]
+    .exchange-search-summary
+    > span {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .exchange-search-card[data-app-search][data-detent="collapsed"]
+    .exchange-search-round:last-child {
+    background: var(--background);
+    box-shadow: 0 4px 18px rgb(0 0 0 / 12%);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .exchange-search-card[data-app-search],
+    .exchange-search-card[data-app-search] .exchange-search-actions,
+    .exchange-search-card[data-app-search] .exchange-search-content,
+    .exchange-search-card[data-app-search] .exchange-search-row {
+      transition: none;
+    }
+  }
   @media (prefers-reduced-transparency: reduce) {
     .exchange-map-app-viewport::before {
       background: linear-gradient(
