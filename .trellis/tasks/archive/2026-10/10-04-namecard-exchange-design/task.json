@@ -1,0 +1,35 @@
+{
+  "id": "namecard-exchange-design",
+  "name": "namecard-exchange-design",
+  "title": "名片交换功能拓展设计",
+  "description": "依据用户完整名片交换提案，核对现有能力并规划资料审核、分享交换、名片册、认领及近场和离线扩展的系统设计与分阶段验收。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "imsweb",
+  "assignee": "imsweb",
+  "createdAt": "2026-10-04",
+  "completedAt": "2026-10-14",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "closure": {
+      "disposition": "planning_delivered",
+      "previous_status": "planning",
+      "acceptance_complete": true,
+      "acceptance_scope": "planning_documents_and_research_only",
+      "product_implementation_complete": false,
+      "evidence": "archive-note.md"
+    }
+  }
+}

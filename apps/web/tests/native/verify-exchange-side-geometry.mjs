@@ -13,6 +13,20 @@ export function bounds(node) {
 }
 
 // Operates on real UIKit hierarchy captures; caller supplies the lifecycle state.
+export function verifyFocusedGeometry(nodes) {
+  for (const id of [
+    "ims-native-exchange-side-controls",
+    "ims-native-exchange-refresh",
+    "locate",
+  ]) {
+    assert.equal(
+      nodes.filter((node) => node["resource-id"] === id).length,
+      0,
+      `${id} absent throughout focused presentation`
+    )
+  }
+}
+
 export function verifySideGeometry(nodes, expectsLocate, landscape = false) {
   const byId = (id) => nodes.filter((node) => node["resource-id"] === id)
   const side = byId("ims-native-exchange-side-controls")
@@ -65,7 +79,7 @@ export function verifySummaryGeometry(nodes, name, address) {
   const target = bounds(summary[0])
   const card = bounds(panel[0])
   assert(
-    target.width > 100 && target.height >= 48,
+    target.width > 100 && target.height >= 44,
     "fitted rectangular summary target"
   )
   assert(

@@ -449,6 +449,34 @@ test.describe("app map", () => {
     await expect
       .poll(() =>
         card.evaluate((element) => {
+          const nav = document
+            .querySelector("nav > [data-glass-fallback]")
+            ?.getBoundingClientRect()
+          const pill = element
+            .querySelector(".exchange-search-surface")!
+            .getBoundingClientRect()
+          const more = element
+            .querySelector('[aria-label="更多地图工具"]')!
+            .getBoundingClientRect()
+          const search = element
+            .querySelector(".exchange-search-row > button")!
+            .getBoundingClientRect()
+          const gap = document.elementFromPoint(
+            (search.right + more.left) / 2,
+            more.y + more.height / 2
+          )
+          return (
+            (!nav || pill.height <= nav.height + 1) &&
+            more.width === more.height &&
+            more.left - search.right >= 8 &&
+            !element.contains(gap)
+          )
+        })
+      )
+      .toBe(true)
+    await expect
+      .poll(() =>
+        card.evaluate((element) => {
           const capsule = element
             .querySelector(".exchange-search-surface")!
             .getBoundingClientRect()
@@ -473,7 +501,10 @@ test.describe("app map", () => {
                 : Math.min(560, hostWidth - 16)
           return {
             widthFits: Math.abs(capsule.width - expected) < 1,
+            searchHeight: capsule.height,
             separate: tools.top - capsule.bottom >= 12,
+            docked:
+              !navigation || Math.abs(navigation.top - tools.bottom - 12) <= 2,
             mapGap: !element.contains(gapHit),
             hits: [
               ...element.querySelectorAll("button"),
@@ -498,8 +529,75 @@ test.describe("app map", () => {
           }
         })
       )
-      .toEqual({ widthFits: true, separate: true, mapGap: true, hits: true })
+      .toEqual({
+        widthFits: true,
+        searchHeight: 44,
+        separate: true,
+        docked: true,
+        mapGap: true,
+        hits: true,
+      })
     await page.screenshot({ path: testInfo.outputPath("a-dom-browse.png") })
+    for (const safeBottom of [0, 24, 34]) {
+      for (const fontSize of [16, 20]) {
+        await page.evaluate(
+          ({ safeBottom, fontSize }) => {
+            document.documentElement.style.setProperty(
+              "--safe-area-bottom",
+              `${safeBottom}px`
+            )
+            document.documentElement.style.fontSize = `${fontSize}px`
+          },
+          { safeBottom, fontSize }
+        )
+        await expect
+          .poll(() =>
+            card.evaluate((element) => {
+              const search = element
+                .querySelector(".exchange-search-surface")!
+                .getBoundingClientRect()
+              const more = element
+                .querySelector('[aria-label="更多地图工具"]')!
+                .getBoundingClientRect()
+              const tools = element
+                .querySelector(".exchange-search-tools")!
+                .getBoundingClientRect()
+              const navigation = document
+                .querySelector("nav > [data-glass-fallback]")!
+                .getBoundingClientRect()
+              const hit = document.elementFromPoint(
+                tools.x + tools.width / 2,
+                (tools.bottom + navigation.top) / 2
+              )
+              return {
+                searchHeight: search.height,
+                moreWidth: more.width,
+                moreHeight: more.height,
+                gap: Math.round(navigation.top - tools.bottom),
+                mapGap: !element.contains(hit),
+                navigationHit: navigation.top >= tools.bottom,
+              }
+            })
+          )
+          .toEqual({
+            searchHeight: 44,
+            moreWidth: 44,
+            moreHeight: 44,
+            gap: 12,
+            mapGap: true,
+            navigationHit: true,
+          })
+        await page.screenshot({
+          path: testInfo.outputPath(
+            `a-dom-docked-safe-${safeBottom}-font-${fontSize}.png`
+          ),
+        })
+      }
+    }
+    await page.evaluate(() => {
+      document.documentElement.style.removeProperty("--safe-area-bottom")
+      document.documentElement.style.removeProperty("font-size")
+    })
     const search = card.getByRole("button", { name: "查找地点" })
     await search.click()
     await expect(page.getByRole("navigation", { name: "主导航" })).toBeHidden()
@@ -510,25 +608,74 @@ test.describe("app map", () => {
       card.getByRole("button", { name: "查找", exact: true })
     ).toBeDisabled()
     await input.fill("上海场馆")
-    await card.getByRole("button", { name: "展开结果" }).click()
     await expect(card).toHaveAttribute("data-detent", "large")
+    await expect(card.getByRole("button", { name: "展开结果" })).toHaveCount(0)
+    await expect(
+      page.getByRole("button", { name: "刷新名录", exact: true })
+    ).toHaveCount(0)
+    await expect
+      .poll(() =>
+        card.evaluate((element) => {
+          const box = element.getBoundingClientRect()
+          const host = element.parentElement!.getBoundingClientRect()
+          const root = getComputedStyle(document.documentElement)
+          const top = parseFloat(root.getPropertyValue("--safe-area-top")) || 0
+          const bottom =
+            parseFloat(root.getPropertyValue("--safe-area-bottom")) || 12
+          return (
+            box.height >= host.height - top - bottom - 25 &&
+            box.top >= host.top + top
+          )
+        })
+      )
+      .toBe(true)
+    await card.evaluate(async (element) => {
+      await Promise.all(
+        element
+          .getAnimations({ subtree: true })
+          .filter(
+            (animation) =>
+              animation.effect?.getComputedTiming().iterations !== Infinity
+          )
+          .map((animation) => animation.finished.catch(() => {}))
+      )
+    })
+    await page.screenshot({ path: testInfo.outputPath("a-dom-focused.png") })
     await card.getByRole("button", { name: "取消" }).click()
+    await expect(card.locator('input[aria-label="搜索地点"]')).toBeAttached()
+    await expect(page.getByRole("navigation", { name: "主导航" })).toBeHidden()
     await expect(search).toBeFocused()
     await expect(page.getByRole("navigation", { name: "主导航" })).toBeVisible()
     await search.click()
     await expect(input).toHaveValue("上海场馆")
     await card.getByRole("button", { name: "清除搜索文字" }).click()
     await expect(input).toHaveValue("")
-    await card.getByRole("button", { name: "取消" }).click()
+    const handle = card.getByRole("button", { name: "收起地点查找" })
+    const handleBox = await handle.boundingBox()
+    await page.mouse.move(
+      handleBox!.x + handleBox!.width / 2,
+      handleBox!.y + handleBox!.height / 2
+    )
+    await page.mouse.down()
+    await page.mouse.move(
+      handleBox!.x + handleBox!.width / 2,
+      handleBox!.y + handleBox!.height / 2 + 100,
+      { steps: 5 }
+    )
+    await expect(card).toHaveAttribute("data-detent", "large")
+    await page.mouse.up()
+    await expect(search).toBeFocused()
     const shape = await card.evaluate((element) => ({
-      radius: getComputedStyle(
-        element.querySelector(".exchange-search-surface")!
-      ).borderTopLeftRadius,
       box: element.getBoundingClientRect().toJSON(),
     }))
-    expect(shape.radius).toBe("34px")
     expect(shape.box.left).toBeGreaterThanOrEqual(0)
     expect(shape.box.right).toBeLessThanOrEqual(page.viewportSize()!.width)
+    await page.emulateMedia({ reducedMotion: "reduce" })
+    await search.click()
+    await expect(input).toBeFocused()
+    await card.getByRole("button", { name: "取消" }).click()
+    await expect(search).toBeFocused()
+    await expect(card).not.toHaveAttribute("data-exiting")
   })
   test(
     "selects a searched place without leaving the map and clears its marker",
@@ -577,6 +724,35 @@ test.describe("app map", () => {
       await trigger.click()
       const query = page.getByRole("textbox", { name: "搜索地点" })
       await query.fill("西岸艺术中心")
+      const focusedCard = page.locator("[data-app-search]")
+      await expect
+        .poll(() =>
+          focusedCard.evaluate((element) => {
+            const box = element.getBoundingClientRect()
+            const host = element.parentElement!.getBoundingClientRect()
+            const root = getComputedStyle(document.documentElement)
+            const top =
+              parseFloat(root.getPropertyValue("--safe-area-top")) || 0
+            const bottom =
+              parseFloat(root.getPropertyValue("--safe-area-bottom")) || 12
+            return (
+              box.height >= host.height - top - bottom - 25 &&
+              box.top >= host.top + top
+            )
+          })
+        )
+        .toBe(true)
+      await focusedCard.evaluate(async (element) => {
+        await Promise.all(
+          element
+            .getAnimations({ subtree: true })
+            .filter(
+              (animation) =>
+                animation.effect?.getComputedTiming().iterations !== Infinity
+            )
+            .map((animation) => animation.finished.catch(() => {}))
+        )
+      })
       await page.screenshot({
         path: testInfo.outputPath("app-map-search-edit.png"),
       })

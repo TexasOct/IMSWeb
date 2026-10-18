@@ -12,9 +12,9 @@
   "assignee": "imsweb",
   "createdAt": "2026-10-07",
   "completedAt": null,
-  "branch": "codex/exchange-map-search",
+  "branch": "codex/exchange-search-focus",
   "base_branch": "release/v1.1",
-  "worktree_path": "/Users/texas/Workspace/IMSWeb/.worktrees/exchange-map-search",
+  "worktree_path": "/Users/texas/Workspace/IMSWeb/.worktrees/exchange-search-focus",
   "commit": null,
   "pr_url": null,
   "subtasks": [],
@@ -23,6 +23,7 @@
   "relatedFiles": [],
   "notes": "",
   "meta": {
-    "implementation_approval": "用户在圆润 Web 方案审阅后明确开始施工，并要求独立分支。"
+    "implementation_approval": "用户在圆润 Web 方案审阅后明确开始施工，并要求独立分支。",
+    "app_focus_followup_approval": "2026-10-17 用户明确要求现在开始实现：收紧搜索高度、独立更多圆形按钮、App 聚焦即全屏与下拉平滑退出；iOS/Android 逻辑一致。"
   }
 }

@@ -103,6 +103,35 @@ function emit(action: string, extra: object = {}) {
 }
 
 describe("native search occlusion ownership", () => {
+  it("keeps native expansion owned until the renderer reports its completed collapsed detent", async () => {
+    prepare()
+    const view = renderHarness()
+    await waitFor(() => expect(mocks.sync).toHaveBeenCalled())
+    emit("detent", { value: "large" })
+    emit("input", { value: "保留草稿" })
+    await waitFor(() =>
+      expect(mocks.sync.mock.calls.at(-1)?.[0]).toMatchObject({
+        detent: "large",
+        editing: true,
+      })
+    )
+    emit("cancel")
+    await waitFor(() =>
+      expect(mocks.sync.mock.calls.at(-1)?.[0]).toMatchObject({
+        detent: "large",
+        editing: false,
+      })
+    )
+    emit("detent", { value: "collapsed" })
+    await waitFor(() =>
+      expect(mocks.sync.mock.calls.at(-1)?.[0]).toMatchObject({
+        detent: "collapsed",
+        editing: false,
+        query: "保留草稿",
+      })
+    )
+    view.unmount()
+  })
   it("sends independent selected name and address and clears both without losing the search draft", async () => {
     prepare()
     const place: FudabaPlaceSearchResult = {

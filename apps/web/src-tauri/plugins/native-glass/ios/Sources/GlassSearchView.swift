@@ -129,7 +129,7 @@ private final class SearchSummaryButton: SearchActionButton {
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-  override var intrinsicContentSize: CGSize { CGSize(width: UIView.noIntrinsicMetric, height: 48) }
+  override var intrinsicContentSize: CGSize { CGSize(width: UIView.noIntrinsicMetric, height: 44) }
 }
 
 @available(iOS 26.0, *)
@@ -155,6 +155,7 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     effect.isInteractive = true
     return effect
   }())
+  private let moreGlass = UIVisualEffectView(effect: UIGlassEffect(style: .regular))
   private let sideGlass = UIVisualEffectView(effect: {
     let effect = UIGlassEffect(style: .regular)
     effect.isInteractive = true
@@ -201,6 +202,10 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
   private var availableHeight: CGFloat = 600
   private var collapsedHeight: CGFloat = 164
   private var browseGlyph: UIImage?
+  private var settling = false
+  private var settleAnimator: UIViewPropertyAnimator?
+  private var browsingBottom: CGFloat?
+  private var browsingBounds = CGRect.zero
 
   override func loadView() {
     overlay.backgroundColor = .clear
@@ -211,17 +216,19 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
   override func viewDidLoad() {
     super.viewDidLoad()
     glass.layer.cornerRadius = 28
+    glass.layer.cornerCurve = .circular
     glass.clipsToBounds = true
     glass.accessibilityIdentifier = "ims-native-exchange-search"
     overlay.addSubview(glass)
-    for surface in [toolGlass, sideGlass] {
+    for surface in [toolGlass, sideGlass, moreGlass] {
       surface.clipsToBounds = true
       surface.layer.cornerCurve = .circular
       overlay.addSubview(surface)
     }
     toolGlass.accessibilityIdentifier = "ims-native-exchange-tools"
     sideGlass.accessibilityIdentifier = "ims-native-exchange-side-controls"
-    overlay.surfaces = [glass, toolGlass, refresh]
+    overlay.surfaces = [glass, toolGlass, moreGlass, sideGlass]
+    moreGlass.accessibilityIdentifier = "ims-native-exchange-more-surface"
     stack.axis = .vertical
     stack.spacing = 4
     stack.isLayoutMarginsRelativeArrangement = true
@@ -244,6 +251,7 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
       stack.bottomAnchor.constraint(equalTo: contentViewport.contentLayoutGuide.bottomAnchor, constant: -12)
     ])
     let grabber = UIView()
+    handle.accessibilityIdentifier = "ims-native-exchange-search-handle"
     grabber.backgroundColor = .tertiaryLabel
     grabber.layer.cornerRadius = 2.5
     grabber.isUserInteractionEnabled = false
@@ -258,13 +266,13 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     let handleHeight = handle.heightAnchor.constraint(equalToConstant: 44)
     handleHeight.priority = UILayoutPriority(999)
     handleHeight.isActive = true
-    handle.addAction(UIAction { [weak self] _ in self?.setDetent(self?.detent == "collapsed" ? "medium" : "collapsed") }, for: .touchUpInside)
+    handle.addAction(UIAction { [weak self] _ in self?.setDetent(self?.detent == "collapsed" ? "large" : "collapsed") }, for: .touchUpInside)
     handle.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(pan(_:))))
     stack.addArrangedSubview(handle)
-    let row = UIStackView(arrangedSubviews: [browseHandle, search, field, clearSelection, more])
+    let row = UIStackView(arrangedSubviews: [browseHandle, search, field, clearSelection])
     row.spacing = 4
     row.alignment = .center
-    row.heightAnchor.constraint(greaterThanOrEqualToConstant: 48).isActive = true
+    row.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
     field.delegate = self
     field.returnKeyType = .search
     field.accessibilityIdentifier = "ims-native-exchange-search-input"
@@ -272,12 +280,12 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     search.contentHorizontalAlignment = .leading
     browseGlyph = systemGlyph("magnifyingglass")
     browseHandle.setImage(browseGlyph, for: .normal)
-    search.heightAnchor.constraint(greaterThanOrEqualToConstant: 48).isActive = true
+    search.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
     fixedRowWidth(browseHandle)
-    browseHandle.heightAnchor.constraint(equalToConstant: 48).isActive = true
+    browseHandle.heightAnchor.constraint(equalToConstant: 44).isActive = true
     browseHandle.accessibilityIdentifier = "ims-native-exchange-search-drag"
     browseHandle.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(pan(_:))))
-    browseHandle.addAction(UIAction { [weak self] _ in self?.setDetent("medium") }, for: .touchUpInside)
+    browseHandle.addAction(UIAction { [weak self] _ in self?.beginEditing() }, for: .touchUpInside)
     fixedRowWidth(clearSelection)
     clearSelection.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
     clearSelection.setImage(UIImage(systemName: "xmark"), for: .normal)
@@ -298,6 +306,7 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     more.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
     more.setImage(UIImage(systemName: "ellipsis"), for: .normal)
     more.tintColor = .secondaryLabel
+    moreGlass.contentView.addSubview(more)
     sideGlass.contentView.addSubview(refresh)
     refresh.accessibilityIdentifier = "ims-native-exchange-refresh"
     refresh.addAction(UIAction { [weak self] _ in self?.tool("refresh") }, for: .touchUpInside)
@@ -357,7 +366,7 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
         case "submit": self.submit()
         case "cancel": self.cancel()
         case "collapse": self.cancel()
-        case "detent": self.setDetent(self.detent == "large" ? "medium" : "large")
+        case "detent": self.setDetent("large")
         default: self.tool(key)
         }
       }
@@ -565,11 +574,12 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
   func render(_ args: NativeSearchArgs) {
     loadViewIfNeeded()
     let newSession = snapshot?.generation != args.generation
+    if newSession || (settling && args.editing && !lastCommandedEditing) { interruptSettle() }
     snapshot = args
     overrideUserInterfaceStyle = args.dark ? .dark : .light
     view.tintColor = args.tint?.uiColor ?? imsTabBarSelectedColor
     if newSession || args.detent != lastCommandedDetent {
-      detent = args.detent
+      detent = args.detent == "collapsed" ? "collapsed" : "large"
       dragHeight = nil
     }
     lastCommandedDetent = args.detent
@@ -586,7 +596,11 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     search.nameLabel.text = selected ? selectedTitle : label("search")
     search.nameLabel.textColor = selected ? .label : .secondaryLabel
     search.addressLabel.text = selectedDetail
-    search.addressLabel.isHidden = !selected || selectedDetail.isEmpty
+    // Full selected metadata remains available in the expanded reading surface
+    // and accessibility label; the browsing pill keeps its 44pt body.
+    search.addressLabel.isHidden = true
+    search.nameLabel.numberOfLines = 1
+    search.nameLabel.lineBreakMode = .byTruncatingTail
     search.accessibilityLabel = selected ? [selectedTitle, selectedDetail].filter { !$0.isEmpty }.joined(separator: ", ") : label("search")
     selectedName.text = selectedTitle
     selectedAddress.text = selectedDetail
@@ -621,6 +635,10 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
   }
 
   @objc private func motionChanged() {
+    if UIAccessibility.isReduceMotionEnabled, let animator = settleAnimator {
+      animator.stopAnimation(false)
+      animator.finishAnimation(at: .end)
+    }
     refresh.layer.removeAllAnimations()
     updateRefresh(animated: false)
     actionButtons["submit"]?.configuration?.showsActivityIndicator = snapshot?.busy == true && !UIAccessibility.isReduceMotionEnabled
@@ -694,7 +712,7 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
 
   private func updateVisibility() {
     let collapsed = detent == "collapsed"
-    stack.directionalLayoutMargins = NSDirectionalEdgeInsets(top: collapsed ? 8 : 0, leading: 0, bottom: 0, trailing: 0)
+    stack.directionalLayoutMargins = .zero
     expandedContentHeight?.isActive = !collapsed
     readingContentHeight?.isActive = !collapsed
     readingViewport.isHidden = collapsed
@@ -705,6 +723,7 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     browseHandle.isHidden = !collapsed
     clearSelection.isHidden = !collapsed || snapshot?.selected.isEmpty != false
     more.isHidden = !collapsed
+    moreGlass.isHidden = !collapsed
     actionButtons["cancel"]?.isHidden = collapsed
     field.isHidden = collapsed
     actions.isHidden = collapsed
@@ -729,7 +748,7 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     notice.isHidden = collapsed || snapshot?.message.isEmpty != false
     handle.isHidden = collapsed
     handle.accessibilityLabel = label(collapsed ? "expand" : "collapse")
-    let detentActions = ["collapsed", "medium", "large"].map { value in
+    let detentActions = ["collapsed", "large"].map { value in
       UIAccessibilityCustomAction(name: label(value == "collapsed" ? "collapse" : value == "large" ? "expand" : "shrink")) { [weak self] _ in
         self?.setDetent(value)
         return self != nil
@@ -737,7 +756,8 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     }
     handle.accessibilityCustomActions = detentActions
     browseHandle.accessibilityCustomActions = detentActions
-    sideGlass.isHidden = false
+    sideGlass.isHidden = !collapsed || settling
+    refresh.isHidden = !collapsed || settling
   }
 
   override func accessibilityPerformEscape() -> Bool {
@@ -747,7 +767,7 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
   }
 
   private func beginEditing() {
-    setDetent("medium")
+    setDetent("large")
     field.becomeFirstResponder()
     emit("input", value: field.text ?? "")
   }
@@ -761,7 +781,7 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     }
     field.resignFirstResponder()
     if ["filter", "offices", "cards", "source", "account"].contains(key) {
-      for surface in [glass, toolGlass, sideGlass] { surface.isHidden = true }
+      for surface in [glass, toolGlass, sideGlass, moreGlass] { surface.isHidden = true }
       onSideLayout?(nil)
     }
     emit("tool", value: key)
@@ -785,9 +805,8 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
 
   private func cancel() {
     field.resignFirstResponder()
-    setDetent("collapsed")
     emit("cancel")
-    restoreFocus(search)
+    setDetent("collapsed")
   }
 
   private func restoreFocus(_ target: UIView) {
@@ -797,35 +816,95 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
   }
 
   private func setDetent(_ value: String) {
-    detent = value
+    if value == "collapsed", detent != "collapsed" {
+      settleCollapsed()
+      return
+    }
+    view.layoutIfNeeded()
+    interruptSettle()
+    detent = value == "collapsed" ? value : "large"
     dragHeight = nil
     if value == "collapsed" { field.resignFirstResponder() }
     updateVisibility()
     actionButtons["detent"]?.configuration?.title = label(value == "large" ? "shrink" : "expand")
     view.setNeedsLayout()
+    UIView.animate(withDuration: UIAccessibility.isReduceMotionEnabled ? 0 : 0.28, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
+      self.view.layoutIfNeeded()
+    }
+    emit("detent", value: detent)
+  }
+
+  private func interruptSettle() {
+    settleAnimator?.stopAnimation(true)
+    settleAnimator = nil
+    settling = false
+    contentViewport.alpha = 1
+    contentViewport.isUserInteractionEnabled = true
+    contentViewport.accessibilityElementsHidden = false
+  }
+
+  private func settleCollapsed() {
+    guard !settling else { return }
+    field.resignFirstResponder()
     view.layoutIfNeeded()
-    emit("detent", value: value)
+    settling = true
+    dragHeight = nil
+    contentViewport.isUserInteractionEnabled = false
+    contentViewport.accessibilityElementsHidden = true
+    sideGlass.isHidden = true
+    refresh.isHidden = true
+    onSideLayout?(nil)
+    // A zero-duration property animator uses UIKit's default duration rather
+    // than completing immediately. Reduced Motion must bypass it entirely.
+    if UIAccessibility.isReduceMotionEnabled {
+      UIView.performWithoutAnimation {
+        self.finishSettle(at: .end)
+      }
+      return
+    }
+    let animator = UIViewPropertyAnimator(duration: 0.28, curve: .easeInOut) { [weak self] in
+      guard let self else { return }
+      self.contentViewport.alpha = 0
+      self.view.setNeedsLayout()
+      self.view.layoutIfNeeded()
+    }
+    settleAnimator = animator
+    animator.addCompletion { [weak self] position in
+      self?.finishSettle(at: position)
+    }
+    animator.startAnimation()
+  }
+
+  private func finishSettle(at position: UIViewAnimatingPosition) {
+    guard settling, position == .end else { return }
+    settleAnimator = nil
+    settling = false
+    detent = "collapsed"
+    contentViewport.alpha = 1
+    contentViewport.isUserInteractionEnabled = true
+    contentViewport.accessibilityElementsHidden = false
+    updateVisibility()
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+    emit("detent", value: "collapsed")
+    restoreFocus(search)
   }
 
   @objc private func pan(_ gesture: UIPanGestureRecognizer) {
     switch gesture.state {
-    case .began: dragStart = detent == "collapsed" ? collapsedHeight : glass.frame.height
+    case .began:
+      interruptSettle()
+      dragStart = detent == "collapsed" ? collapsedHeight : glass.frame.height
     case .changed:
       dragHeight = max(min(availableHeight, collapsedHeight), dragStart - gesture.translation(in: view).y)
-      if dragHeight! > collapsedHeight + 24 { detent = "medium" }
+      if dragHeight! > collapsedHeight + 24 { detent = "large" }
       updateVisibility()
       view.setNeedsLayout()
       view.layoutIfNeeded()
     case .ended, .cancelled:
-      let height = dragHeight ?? dragStart
-      let available = availableHeight
-      let collapsed = min(available, collapsedHeight)
-      let medium = min(available, max(minimumExpandedHeight(width: glass.bounds.width), available * 0.5))
-      let large = min(available, max(medium, available * 0.85))
-      let choices: [(String, CGFloat)] = [("collapsed", collapsed), ("medium", medium), ("large", large)]
-      let nearest = choices.min { abs($0.1 - height) < abs($1.1 - height) }?.0 ?? "collapsed"
+      let dismiss = gesture.state == .ended && gesture.translation(in: view).y > 12
       lastGeometryTime = 0
-      setDetent(nearest)
+      if dismiss { cancel() } else { setDetent("large") }
     default: break
     }
   }
@@ -836,21 +915,26 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     let inset = webview.scrollView.adjustedContentInset
     let cssHost = CGRect(x: args.host.x + Double(inset.left), y: args.host.y + Double(inset.top), width: args.host.width, height: args.host.height)
     let host = webview.convert(cssHost, to: view)
-    let collapsed = detent == "collapsed"
+    let collapsed = detent == "collapsed" || settling
     let keyboardTop = view.keyboardLayoutGuide.layoutFrame.minY
     let domNavigation = args.navigationFrame.flatMap { frame -> CGRect? in
       let css = CGRect(x: frame.x, y: frame.y, width: frame.width, height: frame.height)
       guard ExchangeSearchLayout.validDOMNavigation(css, viewport: webview.bounds) else { return nil }
       return webview.convert(css.offsetBy(dx: inset.left, dy: inset.top), to: view)
     }
-    let bottom = ExchangeSearchLayout.collapsedBottom(host: host, viewport: view.bounds, collapsed: collapsed, portrait: view.bounds.height > view.bounds.width, clearance: CGFloat(args.bottomClearance), keyboardTop: keyboardTop, navigation: navigationDockingFrame?() ?? domNavigation)
+    var bottom = ExchangeSearchLayout.collapsedBottom(host: host, viewport: view.bounds, collapsed: collapsed, portrait: view.bounds.height > view.bounds.width, clearance: CGFloat(args.bottomClearance), keyboardTop: keyboardTop, navigation: navigationDockingFrame?() ?? domNavigation)
+    if settling, browsingBounds == view.bounds, let browsingBottom { bottom = min(host.maxY, browsingBottom) }
+    if detent == "collapsed" && !settling {
+      browsingBottom = bottom
+      browsingBounds = view.bounds
+    }
     let safeTop = max(host.minY, view.safeAreaLayoutGuide.layoutFrame.minY)
     let short = host.height <= 500 && host.width >= 640
     let sideHeight: CGFloat = hasLocate ? 96 : 48
     // Portrait reserves the entire refresh/locate group. Landscape docks it
     // beside the bottom union, so the reading surface keeps its safe height.
-    let topClearance: CGFloat = short ? 8 : sideHeight + 12
-    let available = max(0, bottom - safeTop - topClearance)
+    let topClearance: CGFloat = collapsed ? (short ? 8 : sideHeight + 12) : 0
+    let available = ExchangeSearchLayout.expandedHeight(bottom: bottom - topClearance, safeTop: safeTop)
     availableHeight = available
     handle.isHidden = collapsed || available < 280
     let fallbackNavigation = ExchangeSearchLayout.navigationRange(bounds: view.bounds, leftMargin: view.layoutMargins.left, rightMargin: view.layoutMargins.right, safeLeft: view.safeAreaInsets.left, safeRight: view.safeAreaInsets.right)
@@ -888,29 +972,27 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
       withHorizontalFittingPriority: .required,
       verticalFittingPriority: .fittingSizeLevel
     ).height
-    var capsuleHeight: CGFloat = 68
+    let capsuleHeight = ExchangeSearchLayout.collapsedPillHeight
     if collapsed {
-      capsuleHeight = max(snapshot?.selected.isEmpty == false ? 74 : 68, stack.systemLayoutSizeFitting(
-        CGSize(width: width - 24, height: UIView.layoutFittingCompressedSize.height),
-        withHorizontalFittingPriority: .required,
-        verticalFittingPriority: .fittingSizeLevel
-      ).height + 12)
       collapsedHeight = capsuleHeight + 12 + max(44, fittedTools)
     }
     let minimumExpanded = minimumExpandedHeight(width: width)
     let medium = min(available, max(minimumExpanded, available * 0.5))
-    let large = min(available, max(medium, available * 0.85))
-    actionButtons["detent"]?.isHidden = large <= medium
-    let proposedHeight = dragHeight ?? (detent == "collapsed" ? collapsedHeight : detent == "large" ? large : medium)
+    let large = available
+    actionButtons["detent"]?.isHidden = true
+    let proposedHeight = dragHeight ?? (collapsed ? collapsedHeight : detent == "large" ? large : medium)
     let height = min(available, collapsed ? proposedHeight : max(minimumExpanded, proposedHeight))
     let x = horizontal.minX
     let union = CGRect(x: x, y: bottom - height, width: width, height: height)
     if collapsed {
       // At large text sizes both surfaces scroll, retaining readable fonts and
       // all action targets within the available safe host.
-      let toolHeight = min(max(44, fittedTools), max(44, height - 68 - 12))
+      let toolHeight = min(max(44, fittedTools), max(44, height - 44 - 12))
       let fittedCapsule = max(0, height - toolHeight - 12)
-      glass.frame = CGRect(x: x, y: union.minY, width: width, height: fittedCapsule)
+      glass.frame = CGRect(x: x, y: union.minY, width: width - 56, height: fittedCapsule)
+      moreGlass.frame = CGRect(x: union.maxX - 44, y: union.minY, width: 44, height: 44)
+      moreGlass.layer.cornerRadius = 22
+      more.frame = moreGlass.bounds
       toolGlass.frame = CGRect(x: x, y: bottom - toolHeight, width: width, height: toolHeight)
       glass.layer.cornerRadius = min(34, fittedCapsule / 2)
       toolGlass.layer.cornerRadius = min(22, toolHeight / 2)
@@ -922,7 +1004,9 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     sideGlass.frame = CGRect(x: sideX, y: sideY, width: 48, height: sideHeight)
     sideGlass.layer.cornerRadius = 24
     refresh.frame = CGRect(x: 0, y: 0, width: 48, height: 48)
-    let nextLocate = hasLocate ? CGRect(x: sideX, y: sideY + 48, width: 48, height: 48) : nil
+    sideGlass.isHidden = !collapsed || settling
+    refresh.isHidden = !collapsed || settling
+    let nextLocate = hasLocate && collapsed && !settling ? CGRect(x: sideX, y: sideY + 48, width: 48, height: 48) : nil
     if locateFrame != nextLocate {
       locateFrame = nextLocate
       onSideLayout?(nextLocate)
@@ -966,7 +1050,6 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
     field.resignFirstResponder()
     emit("select", value: result.id)
     setDetent("collapsed")
-    restoreFocus(search)
   }
 
   private func emit(_ action: String, value: String? = nil, frame: [String: CGFloat]? = nil) {
@@ -978,12 +1061,13 @@ final class NativeGlassSearchHost: UIViewController, UITextFieldDelegate, UITabl
   }
 
   func clear() {
+    interruptSettle()
     view.endEditing(true)
     snapshot = nil
     onEvent = nil
     onSideLayout?(nil)
     onSideLayout = nil
-    for surface in [glass, toolGlass, sideGlass] { surface.removeFromSuperview() }
+    for surface in [glass, toolGlass, sideGlass, moreGlass] { surface.removeFromSuperview() }
     overlay.surfaces = []
   }
 }

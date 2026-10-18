@@ -532,7 +532,7 @@ Swift emits `window` CustomEvents named `ims:native-glass-search`.
 | `bottomClearance`, `dark` | Collapsed navigation clearance and active theme |
 | `tint`, `refreshing` | Optional normalized RGBA current CSS primary tint and directory refresh state; older payloads use the existing native brand fallback and idle refresh |
 | `returnFocusMore` | Optional source-close focus intent, applied only on the returning native session and cleared after successful acknowledgment |
-| `detent`, `editing`, `query`, `busy` | `collapsed \| medium \| large`, requested editing state, shared draft and request status |
+| `detent`, `editing`, `query`, `busy` | `collapsed \| medium \| large`; App expanded activation targets `large` directly (the full safe available host). Editing is independent of presentation; draft and request status remain shared. |
 | `message`, `attribution`, `selected` | Complete visible status, compatibility search metadata (not rendered inline in App), and legacy selected-place summary |
 | `selectedLabel`, `selectedAddress` | Optional strings from the selected result, independently cleared to empty strings on deselection; old payloads fall back to `selected` and an empty address |
 | `filterApplied`, `pointCount`, `hasAttribution` | Filter status, regional point count and map-source entry availability |
@@ -546,21 +546,24 @@ Events always carry `id`, `generation`, `revision` and an action. `input`, `subm
 
 The Web hook owns explicit requests, concurrent-submit protection, two-character minimum,
 retained results and 429/503 feedback. UIKit owns the persistent `UISearchTextField`, native
-result rows, Liquid Glass, local drag detents and `keyboardLayoutGuide`. Marked text and
+result rows, Liquid Glass, local drag/settle presentation and `keyboardLayoutGuide`. Marked text and
 first-responder drafts survive snapshots; repeated editing commands must preserve newer local
 focus intent. Input changes update the submit button's `isEnabled` locally.
 
 The host converts CSS coordinates through the WebView and its adjusted content inset, then
 reports actual occlusion back in CSS coordinates. Drag geometry is throttled to at most 30Hz;
-the final snap reports its final frame. Collapsed height comes from the native stack's fitting
-size, including the selected summary; the measured height also participates
-in drag snapping. Fixed detent constants must not compress the search row below its 48pt target.
+the final settle reports its final frame. The collapsed native search pill and detached More
+are 44pt high, separated by a 12pt map-hit gap; tools retain their separate surface. The compact
+height excludes the tools row and never derives from a transparent navigation/docking height.
+Expanded input retains its 48pt target. Native activation uses full safe available height above
+the real keyboard; downward handle/title drag dismisses directly without a medium stop.
 Outside-panel hits pass through to the map.
 
 The map surface owns native appearance, currently light App chrome even with a dark document.
 Semantic UIKit labels remain adaptive; the search affordance uses the system magnifier and a
-capsule, and secondary tools occupy a separate glass surface. Selection replaces capsule content
-with name and address. App phone-portrait collapsed/selected surfaces align their left/right
+capsule, and secondary tools occupy a separate glass surface. Selection replaces the bounded
+compact name and preserves complete name/address in its accessibility label and expanded reading.
+App phone-portrait collapsed/selected search-plus-More row and tools align their left/right
 edges within 2pt/CSSpx of the actual visible bottom navigation. Native navigation uses its public
 controller/root margins and safe area with a calibrated minimum 20pt inline inset, rather than
 the full tab-strip frame. Current iOS 27.0 24A434 probes cover iPhone 17 (402×874, 3×),
@@ -568,8 +571,9 @@ iPhone 18 Pro Max (440×956, 3×) and SE3 (375×667, 2×). Root inline margins a
 16/16, 20/20 and 16/0; raw navigation contours appear approximately 20pt inset. These are
 calibration observations, not an exact or universal UIKit glass-frame API. No model-name branch
 or fixed width cap is permitted. With DOM navigation, measure `nav > [data-glass-fallback]`
-itself; its max-width and spacing tokens remain owned by AppTabBar. Expanded phone reading and
-ordinary Web retain host minus 16; tablet caps at 560; short landscape uses
+itself; its max-width and spacing tokens remain owned by AppTabBar. App expanded reading uses
+host minus 16 across orientations, bounded by the safe host and keyboard. Ordinary Web keeps
+its existing 560px tablet cap; collapsed short landscape uses
 `min(420, max(320, hostWidth * 0.48))` at an 8pt left inset. Fitted content may grow or scroll,
 preserving semantic fonts and targets. Transparent gaps pass map hits through. The emitted bottom
 frame is the search/tool union, excluding side glass. The plugin extracts the registered
@@ -588,15 +592,16 @@ restores ancestor-surface ownership; standalone glass buttons use their own boun
 The plugin places the control overlay immediately above the search host after either
 installation order and modal return. Locate ink therefore sits above the shared material;
 its payload still owns enabled state, tint selection and disabled alpha.
-Locate suppression during expansion leaves a standalone refresh surface. Refresh uses the
-bundled Lucide refresh-cw asset and retains a 48pt side target, with no menu duplicate.
+Expansion and retained exit suppress refresh, locate and the shared side skin, including their
+hit interception. Browsing refresh uses the bundled Lucide refresh-cw asset and retains its 48pt
+side target, with no menu duplicate.
 Missing refresh assets decline search capability. Collapsed map feedback stays
 above the card; expanded feedback is shown once inside it. Search feedback remains separate.
 
-The selected action uses a persistent transparent UIButton containing unlimited-line semantic
-body/subheadline UILabels in a rectangular stack. The outer glass owns clipping and rounding;
-the text action has no UIButton configuration capsule mask. Fitted content scrolls within the
-bounded host at long strings or large Dynamic Type. Expansion renders the complete selected
+The selected action uses a persistent transparent UIButton with semantic UILabels. Its compact
+name is bounded by the 44pt pill, with complete metadata retained in its accessible label; the
+compact address is hidden. The outer glass owns clipping and rounding; the text action has no
+UIButton configuration capsule mask. Expansion renders the complete selected
 name/address in its scrolling reading header, even after newer results replace the selected row.
 Expanded input/cancel and submit remain in the persistent outer stack. A separate bounded
 `readingViewport` contains notices, selected metadata, results and secondary footer actions;
@@ -630,9 +635,21 @@ the previous removal ahead of installation. Only a successful search sync hides 
 After a renderer failure, DOM restoration waits for acknowledged removal, with one retry.
 Repeated cleanup failures keep cancel/tools available and retry on later state changes.
 
-Search expansion uses the existing `suppressNativeTabBar` channel. Collapse, modal tools,
-route teardown and successful fallback release ownership. Removal ends editing and detaches
-the host. UIKit tab selection also removes search and advances its generation to reject pending
+Search expansion uses the existing `suppressNativeTabBar` channel. Cancel/select blur immediately
+but retain expanded content and suppression through the local 0.28s property animation. Only a
+successful settle completion emits `detent: collapsed`; shared state then releases suppression.
+The non-input native accessibility target is restored after completion. Reentry interrupts the
+pending settle, stale completion must not collapse a newer presentation, and reduced motion
+finishes immediately, including a live setting change. When Reduce Motion is already enabled,
+bypass `UIViewPropertyAnimator` and call the same guarded completion inside
+`UIView.performWithoutAnimation`. A zero-duration property animator is not a reliable immediate
+path: the installed iOS 27 runtime reported a 0.2s duration for `duration: 0`, even with
+`UIAccessibility.isReduceMotionEnabled == true`. Native verification must observe the public
+App-process flag and actual transition frames; a Settings switch or settled-state assertion
+alone does not prove the absence of interpolation. DOM uses its own retained exit lifetime
+with equivalent ownership semantics. Modal tools, route teardown and successful fallback release
+ownership through their existing teardown paths. Removal ends editing and detaches
+the host. UIKit tab selection also removes search and advances its generation to reject pending events.
 Hidden search panels pass hits through. No new runtime environment keys are required.
 
 The exchange page supports both mixed renderer combinations. Native search receives only the
@@ -640,9 +657,13 @@ actual visible DOM capsule as `navigationFrame`; it must not reuse a hidden fall
 For DOM search with native navigation, the existing public native navigation owner publishes
 the page-private `ims:exchange-navigation-layout` CustomEvent. Its detail contains
 `layoutGeneration`, increasing layout `revision`, selected main-tab `route`, `available`,
-`visible`, CSS viewport `{ width, height }`, calibrated `inline: { x, width } | null` and
-`provenance: "native-public-layout-calibrated"`. It does not invent visible y/height from a full
-AX tab strip. These layout identifiers are separate from search/result generations and revisions.
+`visible`, CSS viewport `{ width, height }`, calibrated `inline: { x, width } | null`, optional
+`bodyHeight` and `provenance: "native-public-layout-calibrated"`. `bodyHeight` is finite and between
+44 and the current viewport height; it excludes safe-area padding and transparent hosts. With no
+honest public painted-body API the native producer reports a conservative 44pt fallback, and DOM
+also falls back to 44 when this optional field is absent or unavailable. It does not invent
+visible y/height from a full AX tab strip. These layout identifiers are separate from
+search/result generations and revisions.
 Accept only current exchange-route, finite bounded, current-viewport layouts with fresh ownership
 and revision. Same-viewport inline geometry can survive temporary suppression; removal clears it.
 Viewport changes reject old ranges. Native navigation removal/failure clears its geometry through
@@ -664,6 +685,9 @@ resize, root font/theme changes and restoration remeasure actual ownership befor
 | Generation older than plugin's current generation | `supported: false`, reason `stale-search-generation` |
 | Missing native parent/WebView, host width ≤24, height ≤120 or invalid detent | Host removed; `supported: false`, reason `invalid-search-host` |
 | Unknown action, missing required value, unsafe/negative generation or revision, invalid geometry | JS parser returns `null` |
+| Native navigation layout contains nonfinite `bodyHeight`, a value below 44 or above the current viewport | Layout parser returns `null`; stale/mismatched ownership or viewport remains rejected |
+| Native cancel/select starts an animated dismissal | Blur/update selection immediately; retain expanded ownership until the completed collapsed detent |
+| Reentry, modal removal or reduced motion interrupts settling | Cancel stale completion or finish the current target; never restore the input keyboard or leave an intercepting detached More |
 | Event id/generation differs from active snapshot | Hook ignores it |
 | Selection revision differs or result id is absent | Hook ignores it |
 | Failed sync after installation | Remove host before exposing DOM; retry removal once |
@@ -684,6 +708,11 @@ resize, root font/theme changes and restoration remeasure actual ownership befor
 - Bad: accept rounded corners using rectangular bounds, sample locate ink below returning
   glass, or interpret an offscreen 44pt AX footer rectangle as a visible target.
 - Bad: approve a complete accessible More label when the raw UIKit image loses a character.
+- Good: keep native select/cancel expanded ownership until local settle completion, then restore
+  navigation and the non-input trigger; use actual DOM body measurement or the conservative native
+  body fallback for the compact pill.
+- Bad: set shared detent to collapsed at blur time, use a navigation strip plus safe area as pill
+  height, retain focused refresh interception, or apply compact landscape width to full App search.
 
 ### 6. Tests Required
 
@@ -694,7 +723,9 @@ resize, root font/theme changes and restoration remeasure actual ownership befor
 - `tests/unit/pages/community/exchange/hooks/use-native-exchange-search.test.tsx`: search-only
   acknowledgment, stale generations/revisions/ids, ordered modal reopening, teardown retries,
   delayed DOM restoration and permitted cancellation during persistent failure.
-- Search-card and App-tab tests: retained query/results, explicit submit, suppression and restoration.
+- Search-card and App-tab tests: direct App fullscreen, retained query/results, explicit submit,
+  retained exit/inert content, downward dismissal, reduced motion, suppression/restoration and no
+  keyboard reopening on trigger focus. Native cancel/select must wait for completed detent events.
 - Compile/run `tests/native/exchange-navigation-layout.swift` with production
   `ExchangeSearchLayout.swift` for calibration inputs, asymmetric margins, finite bounded DOM
   frames, inline-only projection, expanded/tablet neighbors and short-landscape docking.
@@ -703,7 +734,8 @@ resize, root font/theme changes and restoration remeasure actual ownership befor
   actual visible DOM capsules at 320/375/390/402/414/440px, default/larger root text, full selected
   metadata, source return and 44px hits. Simulated bridge cases do not establish UIKit rendering.
 - Fresh optimized native Release acceptance must inspect original full-scale images at 375/402/440pt
-  and compare actual visible navigation/search/tools contour edges within 2pt. Bind source,
+  and compare actual visible navigation/search-plus-More-row/tools contour edges within 2pt.
+  Verify the pill's height against the visible navigation body and its detached More gap. Bind source,
   binary, installed package, device/runtime and pixel scale. Neither full-width AX tab-strip
   frames, public content margins, hard-coded 20pt expectations nor historical width PASS receipts
   alone establish the current visible contract. Keep larger-text/long metadata, expanded keyboard
@@ -747,6 +779,18 @@ resize, root font/theme changes and restoration remeasure actual ownership befor
   accessibility settings require their own native evidence.
 
 ### 7. Wrong vs Correct
+
+```ts
+// Wrong: release shared navigation ownership before UIKit's exit has settled.
+if (event.action === "cancel") setDetent("collapsed")
+
+// Correct: blur now; UIKit's completed collapsed event releases ownership later.
+if (event.action === "cancel") setEditing(false)
+if (event.action === "detent" && event.value === "collapsed") {
+  setDetent("collapsed")
+  setEditing(false)
+}
+```
 
 ```swift
 // Wrong: split More's title/font between legacy setters and its configuration.

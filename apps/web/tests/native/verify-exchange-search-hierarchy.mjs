@@ -6,6 +6,7 @@ import {
   verifySideGeometry,
   verifySummaryGeometry,
   verifyEssentialGeometry,
+  verifyFocusedGeometry,
 } from "./verify-exchange-side-geometry.mjs"
 
 const [path, state, selectedName, selectedAddress] = process.argv.slice(2)
@@ -83,8 +84,16 @@ if (["modal", "route"].includes(state)) {
     const search = byId("ims-native-exchange-selected-summary")
     assert.equal(search.length, 1)
     assert(
-      box(search[0]).height >= 48,
-      "collapsed search row must retain its 48pt height"
+      box(search[0]).height >= 44,
+      "collapsed search target must retain 44pt height"
+    )
+    assert(
+      box(panel[0]).height <= 44,
+      "pill uses conservative navigation body floor"
+    )
+    assert(
+      box(more[0]).left - box(panel[0]).right >= 12,
+      "detached More has a map-hit gap"
     )
     assert(
       box(panel[0]).bottom <= box(bar[0]).top,
@@ -104,7 +113,7 @@ if (["modal", "route"].includes(state)) {
       assert.equal(byId("ims-native-exchange-selected-reading").length, 0)
     }
   } else {
-    verifySideGeometry(nodes, false, state.endsWith("landscape"))
+    verifyFocusedGeometry(nodes)
     assert.equal(input.length, 1)
     assert.equal(bar.length, 0)
     assert(box(input[0]).height >= 48, "native search input height >=48pt")

@@ -34,6 +34,7 @@ import {
   EXCHANGE_NAVIGATION_LAYOUT_EVENT,
   exchangeNavigationLayout,
   measuredNavigationFrame,
+  navigationDockBottom,
   navigationInline,
   type ExchangeNavigationLayout,
 } from "./exchange-navigation-layout"
@@ -105,10 +106,15 @@ export function ExchangeSearchCard({
     "collapsed"
   )
   const [editing, setEditing] = useState(false)
+  const [exiting, setExiting] = useState(false)
+  const [settlingDrag, setSettlingDrag] = useState(false)
+  const exitFrame = useRef<number | null>(null)
+  const restoreTriggerFocus = useRef(false)
   const [more, setMore] = useState(false)
   const [returnFocusMore, setReturnFocusMore] = useState(false)
   const [available, setAvailable] = useState(600)
   const [bottom, setBottom] = useState(12)
+  const collapsedBottom = useRef(12)
   const [hostFrame, setHostFrame] = useState<NativeGlassFrame>({
     x: 0,
     y: 0,
@@ -128,7 +134,7 @@ export function ExchangeSearchCard({
   )
   const largeHeight = Math.min(
     available,
-    Math.max(mediumHeight, available * 0.85)
+    Math.max(mediumHeight, available * (IS_APP_TARGET ? 1 : 0.85))
   )
   const expanded = detent !== "collapsed"
   useLayoutEffect(() => {
@@ -256,15 +262,20 @@ export function ExchangeSearchCard({
         const place = model.results.find((item) => item.id === event.value)
         if (place) {
           onSelect(place)
-          collapse()
+          setEditing(false)
         }
-      } else if (event.action === "cancel") collapse()
+        // UIKit owns settling; its final collapsed detent releases suppression.
+      } else if (event.action === "cancel") setEditing(false)
       else if (event.action === "clear") onClear()
       else if (
         event.action === "detent" &&
         ["collapsed", "medium", "large"].includes(event.value ?? "")
       ) {
-        setDetent(event.value as typeof detent)
+        setDetent(
+          IS_APP_TARGET && event.value !== "collapsed"
+            ? "large"
+            : (event.value as typeof detent)
+        )
         if (event.value === "collapsed") setEditing(false)
       } else if (event.action === "geometry" && event.frame) {
         nativeOcclusion.current = event.frame
@@ -301,7 +312,11 @@ export function ExchangeSearchCard({
   )
   const wasNative = useRef(false)
   useEffect(() => {
-    if (wasNative.current && !native && !tools.modalOpen) collapse()
+    if (wasNative.current && !native && !tools.modalOpen) {
+      setEditing(false)
+      setMore(false)
+      finishCollapse()
+    }
     wasNative.current = native
   }, [native, tools.modalOpen])
 
@@ -312,6 +327,9 @@ export function ExchangeSearchCard({
 
   useEffect(() => {
     if (tools.modalOpen) {
+      if (exitFrame.current !== null) cancelAnimationFrame(exitFrame.current)
+      exitFrame.current = null
+      restoreTriggerFocus.current = false
       inputRef.current?.blur()
     }
   }, [tools.modalOpen])
@@ -323,6 +341,7 @@ export function ExchangeSearchCard({
     if (tools.modalOpen) {
       setNativeGeometryReceived(false)
       setEditing(false)
+      setExiting(false)
       setDetent("collapsed")
       setMore(false)
     }
@@ -391,12 +410,20 @@ export function ExchangeSearchCard({
           )
         }
       }
-      const top = Math.max(hostBox.top, viewport?.offsetTop ?? 0)
+      const safeTop = IS_APP_TARGET
+        ? parseFloat(
+            getComputedStyle(document.documentElement).getPropertyValue(
+              "--safe-area-top"
+            )
+          ) || 0
+        : 0
+      const top = Math.max(hostBox.top + safeTop, viewport?.offsetTop ?? 0)
       const end = Math.min(
         hostBox.bottom,
         (viewport?.offsetTop ?? 0) + (viewport?.height ?? window.innerHeight)
       )
       const shell = card.closest("[data-app-shell]")
+      let domNavigation: NativeGlassFrame | undefined
       if (IS_APP_TARGET && shell) {
         const viewportBox = {
           width: window.innerWidth,
@@ -409,6 +436,20 @@ export function ExchangeSearchCard({
           if (capsule) observer?.observe(capsule)
         }
         const measured = measuredNavigationFrame(capsule)
+        domNavigation = measured
+        const nativeLayout = nativeNavigation.current
+        const bodyHeight =
+          measured?.height ??
+          (nativeLayout?.available &&
+          Math.abs(nativeLayout.viewport.width - viewportBox.width) <= 2 &&
+          Math.abs(nativeLayout.viewport.height - viewportBox.height) <= 2
+            ? nativeLayout.bodyHeight
+            : undefined) ??
+          44
+        card.style.setProperty(
+          "--exchange-navigation-body-height",
+          `${bodyHeight}px`
+        )
         setNavigationFrame((current) =>
           current?.x === measured?.x &&
           current?.y === measured?.y &&
@@ -465,8 +506,17 @@ export function ExchangeSearchCard({
           ? parseFloat(geometry?.height ?? "0") || 0
           : 0
       const safe = clearance ? 12 : parseFloat(geometry?.width ?? "12") || 12
-      setBottom(Math.max(12, hostBox.bottom - end + safe + clearance))
-      setAvailable(Math.max(120, end - top - safe - clearance - 12))
+      const fallbackBottom = Math.max(
+        12,
+        hostBox.bottom - end + safe + clearance
+      )
+      const nextBottom =
+        IS_APP_TARGET && !expanded && shell
+          ? navigationDockBottom(hostBox, end, domNavigation, fallbackBottom)
+          : fallbackBottom
+      if (!expanded) collapsedBottom.current = nextBottom
+      setBottom(nextBottom)
+      setAvailable(Math.max(120, hostBox.bottom - nextBottom - top - 12))
       const box = card.getBoundingClientRect()
       const surface = card.querySelector<HTMLElement>(
         ".exchange-search-surface"
@@ -474,6 +524,7 @@ export function ExchangeSearchCard({
       const actions = card.querySelector<HTMLElement>(
         ".exchange-search-actions"
       )
+      const toolsRow = card.querySelector<HTMLElement>(".exchange-search-tools")
       if (expanded && box.width && surface && actions) {
         const reading = card.querySelector<HTMLElement>(
           ".exchange-search-content"
@@ -507,7 +558,15 @@ export function ExchangeSearchCard({
         box.width &&
         box.height
       )
-        setCollapsedHeight(box.height)
+        setCollapsedHeight(
+          IS_APP_TARGET
+            ? (surface?.getBoundingClientRect().height ?? 44) +
+                (toolsRow
+                  ? toolsRow.getBoundingClientRect().height +
+                    (parseFloat(getComputedStyle(toolsRow).marginTop) || 0)
+                  : 56)
+            : box.height
+        )
       if (nativeOcclusion.current && !tools.modalOpen) {
         // Native owns the frame even before support acknowledgment. Reproject
         // its viewport coordinates when the map host moves without a new frame.
@@ -617,20 +676,72 @@ export function ExchangeSearchCard({
   }, [])
 
   function collapse() {
+    if (exiting) return
     setEditing(false)
-    setDetent("collapsed")
     setMore(false)
     inputRef.current?.blur()
-    requestAnimationFrame(() =>
-      triggerRef.current?.focus({ preventScroll: true })
-    )
+    if (
+      IS_APP_TARGET &&
+      expanded &&
+      !native &&
+      !tools.modalOpen &&
+      !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+    ) {
+      // Freeze the live drag before changing the target on the next frame.
+      setExiting(true)
+      exitFrame.current = requestAnimationFrame(() => {
+        exitFrame.current = null
+        setDragHeight(null)
+        setSettlingDrag(true)
+      })
+      return
+    }
+    finishCollapse()
   }
 
+  function finishCollapse() {
+    restoreTriggerFocus.current = true
+    setExiting(false)
+    setSettlingDrag(false)
+    setDragHeight(null)
+    setDetent("collapsed")
+  }
+
+  useLayoutEffect(() => {
+    if (expanded || !restoreTriggerFocus.current || tools.modalOpen || native)
+      return
+    restoreTriggerFocus.current = false
+    triggerRef.current?.focus({ preventScroll: true })
+  }, [expanded, tools.modalOpen, native])
+
   function openSearch() {
+    if (exitFrame.current !== null) cancelAnimationFrame(exitFrame.current)
+    exitFrame.current = null
+    setExiting(false)
+    setSettlingDrag(false)
+    setDragHeight(null)
     setMore(false)
-    setDetent("medium")
+    setDetent(IS_APP_TARGET ? "large" : "medium")
     setEditing(true)
   }
+
+  useEffect(() => {
+    if (!exiting) return
+    const media = window.matchMedia?.("(prefers-reduced-motion: reduce)")
+    const finish = () => finishCollapse()
+    const timer = window.setTimeout(finish, media?.matches ? 0 : 320)
+    media?.addEventListener("change", finish)
+    return () => {
+      window.clearTimeout(timer)
+      media?.removeEventListener("change", finish)
+    }
+  }, [exiting])
+  useEffect(
+    () => () => {
+      if (exitFrame.current !== null) cancelAnimationFrame(exitFrame.current)
+    },
+    []
+  )
 
   useEffect(() => {
     if (editing && !native) inputRef.current?.focus({ preventScroll: true })
@@ -642,18 +753,23 @@ export function ExchangeSearchCard({
   }
 
   const height = expanded
-    ? Math.min(
-        available,
-        Math.max(
-          expandedMinimumHeight,
-          dragHeight ?? (detent === "large" ? largeHeight : mediumHeight)
+    ? exiting && settlingDrag
+      ? collapsedHeight
+      : Math.min(
+          available,
+          Math.max(
+            dragHeight !== null && IS_APP_TARGET ? 44 : expandedMinimumHeight,
+            dragHeight ?? (detent === "large" ? largeHeight : mediumHeight)
+          )
         )
-      )
     : undefined
 
   return (
     <>
-      {refreshHost && !native && !tools.modalOpen
+      {refreshHost &&
+      !native &&
+      !tools.modalOpen &&
+      !(IS_APP_TARGET && expanded)
         ? createPortal(
             <div
               className={
@@ -699,11 +815,26 @@ export function ExchangeSearchCard({
         className="exchange-search-card"
         data-detent={detent}
         data-editing={editing || undefined}
+        data-exiting={exiting || undefined}
+        data-dragging={dragHeight !== null || undefined}
         data-compact={available < 280 || undefined}
         hidden={tools.modalOpen || native}
         data-native-search={native || undefined}
         data-app-search={IS_APP_TARGET || undefined}
-        style={{ bottom, height, maxHeight: available }}
+        style={{
+          bottom: exiting && settlingDrag ? collapsedBottom.current : bottom,
+          height:
+            IS_APP_TARGET && !expanded && !more ? collapsedHeight : height,
+          maxHeight: available,
+        }}
+        onTransitionEnd={(event) => {
+          if (
+            exiting &&
+            event.target === event.currentTarget &&
+            event.propertyName === "height"
+          )
+            finishCollapse()
+        }}
         onKeyDown={(event) => {
           if (event.key !== "Escape" || event.nativeEvent.isComposing) return
           event.stopPropagation()
@@ -743,7 +874,8 @@ export function ExchangeSearchCard({
                 suppressHandleClick.current = false
                 return
               }
-              if (expanded) collapse()
+              if (exiting) openSearch()
+              else if (expanded) collapse()
               else openSearch()
             }}
             onPointerDown={(event) => {
@@ -757,12 +889,12 @@ export function ExchangeSearchCard({
             onPointerMove={(event) => {
               if (!drag.current) return
               if (Math.abs(event.clientY - drag.current.y) > 8) {
-                setDetent("medium")
+                setDetent(IS_APP_TARGET ? "large" : "medium")
                 setDragHeight(
                   Math.min(
                     available,
                     Math.max(
-                      144,
+                      IS_APP_TARGET ? 44 : 144,
                       drag.current.height + drag.current.y - event.clientY
                     )
                   )
@@ -774,11 +906,16 @@ export function ExchangeSearchCard({
               const moved = Math.abs(event.clientY - drag.current.y) > 8
               const finalHeight =
                 drag.current.height + drag.current.y - event.clientY
+              const downward = event.clientY - drag.current.y > 8
               drag.current = null
-              setDragHeight(null)
               if (moved) {
                 suppressHandleClick.current = true
                 event.preventDefault()
+                if (IS_APP_TARGET) {
+                  if (downward) collapse()
+                  else setDragHeight(null)
+                  return
+                }
                 const nearest = (
                   [
                     ["collapsed", collapsedHeight],
@@ -794,6 +931,7 @@ export function ExchangeSearchCard({
                 if (nearest[0] === "collapsed") collapse()
                 else setDetent(nearest[0])
               }
+              setDragHeight(null)
             }}
             onPointerCancel={() => {
               drag.current = null
@@ -809,7 +947,7 @@ export function ExchangeSearchCard({
             )}
           </button>
 
-          <div className="exchange-search-row">
+          <div className="exchange-search-row" inert={exiting || undefined}>
             {expanded ? (
               <Input
                 ref={inputRef}
@@ -907,7 +1045,11 @@ export function ExchangeSearchCard({
         </div>
 
         {expanded ? (
-          <div className="exchange-search-actions">
+          <div
+            key="actions"
+            className="exchange-search-actions"
+            inert={exiting || undefined}
+          >
             <Button
               className="exchange-search-pill"
               disabled={model.busy || model.query.trim().length < 2}
@@ -927,7 +1069,7 @@ export function ExchangeSearchCard({
             >
               取消
             </Button>
-            {largeHeight > mediumHeight ? (
+            {!IS_APP_TARGET && largeHeight > mediumHeight ? (
               <Button
                 className="exchange-search-pill"
                 variant="ghost"
@@ -940,7 +1082,7 @@ export function ExchangeSearchCard({
             ) : null}
           </div>
         ) : (
-          <div className="exchange-search-tools">
+          <div key="tools" className="exchange-search-tools">
             <Button
               className="exchange-search-pill"
               variant="secondary"
@@ -1004,7 +1146,11 @@ export function ExchangeSearchCard({
         ) : null}
 
         {expanded ? (
-          <div className="exchange-search-content" aria-label="地点搜索结果">
+          <div
+            className="exchange-search-content"
+            aria-label="地点搜索结果"
+            inert={exiting || undefined}
+          >
             {model.results.length ? (
               <h2 className="text-lg font-semibold">地点</h2>
             ) : null}

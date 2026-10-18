@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   exchangeNavigationLayout,
+  navigationDockBottom,
   navigationInline,
   type ExchangeNavigationLayout,
 } from "~/pages/community/exchange/components/exchange-navigation-layout"
@@ -19,7 +20,56 @@ const base: ExchangeNavigationLayout = {
 }
 const event = (value: unknown) => new CustomEvent("layout", { detail: value })
 
+describe("DOM navigation docking", () => {
+  it.each([
+    { inset: 0, offset: 24, body: 58, fallback: 96 },
+    { inset: 24, offset: 24, body: 58, fallback: 120 },
+    { inset: 34, offset: 25, body: 58, fallback: 130 },
+    { inset: 34, offset: 25, body: 72.5, fallback: 151 },
+  ])(
+    "counts navigation safe area only once at $inset inset / $body body",
+    ({ offset, body, fallback }) => {
+      const navigation = {
+        x: 20,
+        y: 956 - offset - body,
+        width: 400,
+        height: body,
+      }
+      const bottom = navigationDockBottom(host, 956, navigation, fallback)
+      expect(956 - bottom).toBe(navigation.y - 12)
+      // A downward correction must replace, not min with, the old clearance.
+      expect(bottom).toBeLessThan(fallback)
+    }
+  )
+  it("converts an offset host exactly once", () => {
+    expect(
+      navigationDockBottom(
+        { x: 0, y: 47, width: 440, height: 909 },
+        956,
+        { x: 20, y: 873, width: 400, height: 58 },
+        130
+      )
+    ).toBe(95)
+  })
+  it("keeps the fallback for absent, invalid or keyboard-clipped navigation", () => {
+    for (const navigation of [
+      undefined,
+      { x: 20, y: NaN, width: 400, height: 58 },
+      { x: 20, y: 500, width: 400, height: 0 },
+      { x: 20, y: -1, width: 400, height: 58 },
+      { x: 20, y: 873, width: 400, height: 58 },
+    ])
+      expect(navigationDockBottom(host, 600, navigation, 368)).toBe(368)
+  })
+})
+
 describe("exchange navigation layout", () => {
+  it("accepts an optional safe-area-excluded native body height", () => {
+    const measured = { ...base, bodyHeight: 52 }
+    expect(exchangeNavigationLayout(event(measured), viewport, null)).toEqual(
+      measured
+    )
+  })
   it("uses actual DOM navigation for a native-search/DOM-navigation mix", () => {
     expect(
       navigationInline(
@@ -99,6 +149,9 @@ describe("exchange navigation layout", () => {
     { route: "/" },
     { provenance: "outer-AX-frame" },
     { available: false },
+    { bodyHeight: NaN },
+    { bodyHeight: 43 },
+    { bodyHeight: 957 },
   ])("rejects invalid or unrelated information %j", (change) => {
     expect(
       exchangeNavigationLayout(event({ ...base, ...change }), viewport, null)

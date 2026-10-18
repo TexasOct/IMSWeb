@@ -18,6 +18,7 @@ Use for changes to `apps/web/tests/e2e/*.spec.ts`, Playwright fixture behavior, 
 5. For visible UI, cover a representative desktop and mobile viewport, keyboard behavior, roles, overflow and accessibility where applicable. Keep secondary project tests specific to invariants they own.
 6. If behavior crosses WebView and system browser, identify what the browser can prove. Tauri system URL opening, deep-link delivery and native callback exchange require simulator/device evidence, outside Playwright's proof.
 7. Run the smallest relevant Playwright project/spec and the source policy test when authoring rules are relevant. Preserve traces/screenshots and report the exact command and first failure cause.
+8. For App/Web UI acceptance matrices, native follow-up, screenshot overviews or result galleries, continue with [imsweb-ui-testing-and-evidence](../imsweb-ui-testing-and-evidence/SKILL.md); keep this skill as the Playwright authoring/configuration owner.
 
 ## Pitfalls
 

@@ -6,6 +6,15 @@ enum ExchangeSearchLayout {
   static let minimumNavigationInset: CGFloat = 20
   static let inputToSubmitSpacing: CGFloat = 12
 
+  // No public UIKit API exposes the painted tab body's height. Keep its
+  // conservative 44pt floor, independent of docking/safe-area bounds.
+  static let collapsedPillHeight: CGFloat = 44
+  static let moreGap: CGFloat = 12
+
+  static func expandedHeight(bottom: CGFloat, safeTop: CGFloat) -> CGFloat {
+    max(0, bottom - safeTop)
+  }
+
   static func expandedMinimumHeight(handle: CGFloat, input: CGFloat, submit: CGFloat) -> CGFloat {
     let handleSpace = handle > 0 ? handle + 4 : 0
     return max(260, handleSpace + max(48, input) + inputToSubmitSpacing + max(44, submit) + 4 + 44 + 12)
@@ -40,8 +49,11 @@ enum ExchangeSearchLayout {
   }
 
   static func horizontalFrame(host: CGRect, collapsed: Bool, portrait: Bool, navigation: CGRect?) -> CGRect {
+    if !collapsed {
+      return CGRect(x: host.minX + 8, y: host.minY, width: host.width - 16, height: host.height)
+    }
     let short = host.height <= 500 && host.width >= 640
-    if short {
+    if short && collapsed {
       return CGRect(x: host.minX + 8, y: host.minY, width: min(420, max(320, host.width * 0.48)), height: host.height)
     }
     if collapsed && portrait && host.width < 768, let navigation,

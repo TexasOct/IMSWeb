@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react"
+import { fireEvent, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { renderPage } from "@/tests/unit/support/harness"
@@ -78,6 +78,57 @@ describe("CommunityExchangePage App search tools", () => {
       items: [],
       pageInfo: { hasNextPage: false, nextCursor: null },
     })
+  })
+
+  it("opens fullscreen and retains the draft and exit content until settling completes", async () => {
+    const user = userEvent.setup()
+    renderPage(<CommunityExchangePage />, { route: "/community/exchange" })
+    const trigger = await screen.findByRole("button", { name: "查找地点" })
+    await user.click(trigger)
+    const card = screen.getByRole("region", { name: "地点查找" })
+    const input = screen.getByRole("textbox", { name: "搜索地点" })
+    expect(card).toHaveAttribute("data-detent", "large")
+    expect(
+      screen.queryByRole("button", { name: "展开结果" })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: "刷新名录" })
+    ).not.toBeInTheDocument()
+    await user.type(input, "上海场馆")
+    await user.click(screen.getByRole("button", { name: "取消" }))
+    expect(card).toHaveAttribute("data-exiting", "true")
+    expect(input).toBeInTheDocument()
+    expect(input).not.toHaveFocus()
+    fireEvent.transitionEnd(card, { propertyName: "height" })
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "查找地点" })).toHaveFocus()
+    )
+    await user.click(screen.getByRole("button", { name: "查找地点" }))
+    expect(screen.getByRole("textbox", { name: "搜索地点" })).toHaveValue(
+      "上海场馆"
+    )
+  })
+
+  it("cancels a pending exit when the handle reopens search", async () => {
+    const user = userEvent.setup()
+    renderPage(<CommunityExchangePage />, { route: "/community/exchange" })
+    await user.click(await screen.findByRole("button", { name: "查找地点" }))
+    const input = screen.getByRole("textbox", { name: "搜索地点" })
+    await user.type(input, "成都")
+    await user.click(screen.getByRole("button", { name: "取消" }))
+    await user.click(screen.getByRole("button", { name: "收起地点查找" }))
+    expect(
+      screen.getByRole("region", { name: "地点查找" })
+    ).not.toHaveAttribute("data-exiting")
+    expect(input).toHaveFocus()
+    fireEvent.transitionEnd(screen.getByRole("region", { name: "地点查找" }), {
+      propertyName: "height",
+    })
+    expect(input).toHaveValue("成都")
+    expect(screen.getByRole("region", { name: "地点查找" })).toHaveAttribute(
+      "data-detent",
+      "large"
+    )
   })
 
   it("refreshes only directories through the shared search tools and omits a tab-root back control", async () => {

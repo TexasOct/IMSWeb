@@ -514,6 +514,9 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
       "viewport": ["width": webview.bounds.width, "height": webview.bounds.height],
       "provenance": "native-public-layout-calibrated"
     ]
+    // UIKit exposes the docking tab-strip, not its painted glass body. Use
+    // the conservative body floor rather than misreporting safe-area height.
+    if available { detail["bodyHeight"] = 44 }
     if let range {
       detail["inline"] = ["x": range.minX - inset.left, "width": range.width]
     } else { detail["inline"] = NSNull() }

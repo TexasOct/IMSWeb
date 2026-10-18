@@ -72,3 +72,7 @@
 本次没有提交、推送、合入、部署、workflow dispatch 或 GitHub 设置变更。任务保留 `in_progress`，未归档；本地实现与独立验收完成，后续 Git 与 hosted 操作不由本记录推定为已授权。
 
 以上为本地验收截止记录。用户随后追加授权“合并到release/v1.1里，然后推送验证”，执行范围见 PRD R9/A7 与 implement.md；本地 PASS 的身份、原始失败及未执行项继续保持原归属，实际发布结果以新阶段的同 SHA 凭据为准。
+
+## 2026-10-14 发布阶段补充
+
+归档复核已补齐 A7：`c326290cae98856aa2a6a5ccdceb75508002b90e` 的 push CI、自动 Preview 候选发布/来源校验/部署及公开只读探测通过。核心验证 8 分 47 秒，含 Preview 的完整 run 14 分 20 秒。原始本地记录保持不变，具体 native/手动 redeploy 限制与发布凭据见 [归档验收](./archive-note.md)。

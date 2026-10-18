@@ -19,6 +19,13 @@ enum ExchangeNavigationLayoutTests {
       check(expanded.minX == 8 && expanded.width == width - 16, "expanded reading unaffected")
     }
     let host = CGRect(x: 0, y: 0, width: 440, height: 956)
+    check(ExchangeSearchLayout.collapsedPillHeight == 44, "pill excludes safe-area/docking height")
+    check(ExchangeSearchLayout.moreGap >= 12, "detached More map-hit gap")
+    check(ExchangeSearchLayout.expandedHeight(bottom: 590, safeTop: 62) == 528, "keyboard large fills full safe host")
+    check(ExchangeSearchLayout.expandedHeight(bottom: 944, safeTop: 62) == 882, "results large fills full safe host")
+    check(ExchangeSearchLayout.expandedHeight(bottom: 20, safeTop: 62) == 0, "empty safe host bounded")
+    let fullLandscape = ExchangeSearchLayout.horizontalFrame(host: CGRect(x: 0, y: 0, width: 874, height: 390), collapsed: false, portrait: false, navigation: nil)
+    check(fullLandscape.width == 858, "expanded landscape fills safe host width")
     let increased = ExchangeSearchLayout.navigationRange(bounds: host, leftMargin: 32, rightMargin: 24, safeLeft: 40, safeRight: 8)!
     check(increased.minX == 40 && increased.maxX == 416, "current margins and safe areas")
     let dom = CGRect(x: 28, y: 880, width: 384, height: 64)
