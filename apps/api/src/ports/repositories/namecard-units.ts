@@ -102,7 +102,6 @@ export interface NamecardUnitRepository {
         input: NamecardUnitListInput,
     ): Promise<NamecardUnitRecord[]>;
     countNamecardUnits(filter: NamecardUnitListFilter): Promise<number>;
-    findNamecardUnitById(id: number): Promise<NamecardUnitRecord | null>;
     /**
      * Every live unit with its agencies and members, without pagination. The
      * public picker offers units as search shortcuts, so the whole catalog is

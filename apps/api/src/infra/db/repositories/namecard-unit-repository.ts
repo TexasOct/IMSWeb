@@ -211,16 +211,6 @@ export class SqlNamecardUnitRepository implements NamecardUnitRepository {
         return row?.total ?? 0;
     }
 
-    async findNamecardUnitById(id: number): Promise<NamecardUnitRecord | null> {
-        const rows = await queryAll<NamecardUnitRow>(
-            this.database,
-            `${UNIT_SELECT} WHERE unit.id=? AND unit.deleted_at IS NULL`,
-            [id]
-        );
-        const [unit] = await attachUnitRelations(this.database, rows);
-        return unit ?? null;
-    }
-
     async listNamecardUnitCatalog(): Promise<NamecardUnitRecord[]> {
         const rows = await queryAll<NamecardUnitRow>(
             this.database,
