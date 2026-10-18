@@ -4,7 +4,7 @@
 > 状态：Active
 > 权威来源：`scripts/development/dev-environment.mjs`、root `package.json` 和各 workspace `.rules`
 
-本指南供 AI 编码代理在 IMSWeb 仓库中初始化、启动和验证本地开发环境。开始前仍须读取根
+本指南供 AI 编码代理在 IMSWeb 仓库中初始化、启动和验证本地开发环境。开始前仍须读取
 根目录、目标 workspace 及 `packages/contracts/` 的 `.rules`；同目录的 `AGENTS.md` 与
 `CLAUDE.md` 均为兼容软链接。
 本指南不授权生产部署、数据迁移或清理用户已有修改。
@@ -220,7 +220,6 @@ API 独立启动时自动读取 `apps/api/.env`，已有 shell 或进程管理�
 `migration:postgresql` 也读取同一文件。`apps/api/.env.example` 是生产和高级配置模板，不能在
 未填写必需值时原样用于开发。
 
-Platform 注册邮箱验证码在 `NODE_ENV=development` 且未设置
 Platform 缓存默认使用 Valkey；开发启动器会注入 `IMS_CACHE_BACKEND=valkey` 和本地
 `IMS_VALKEY_URL`。邮箱验证码哈希、尝试次数和消费仍由 PostgreSQL 保存，Valkey 只保存不含
 邮箱和验证码的短期 cooldown 标记，缓存异常时回退 PostgreSQL。

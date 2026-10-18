@@ -11,6 +11,14 @@ Issue、release record 或私有运维记录中。
 代码目录、workspace 运行方式和组件设计优先写在所属目录的 `README.md`、`DESIGN.md` 或
 `.rules`。仓库级文档链接到这些权威入口，不复制第二份实现说明。
 
+## Workspace 与部署入口
+
+- [API workspace](../apps/api/README.md)：Hono 运行入口、后端脚本和数据依赖。
+- [API domain 导航](../apps/api/src/domains/README.md)：业务域所有权和组合入口。
+- [Web workspace](../apps/web/README.md)：React Router、Web/App 构建和前端开发入口。
+- [共享 contracts](../packages/contracts/README.md)：JSON wire schemas、路径 builders 和 zod 封装。
+- [部署目录](../deploy/README.md)：Compose、配置模板和宿主机入口。
+
 ## 文档地图
 
 | 分类            | 用途                                            | 内容边界                                              |
@@ -38,9 +46,8 @@ Issue、release record 或私有运维记录中。
 - [AI 开发环境](development/ai-environment.md)：安装、启动器、端口覆盖、R2 模式和验证边界。
 - [测试规范](development/testing.md)：按风险选择测试、测试位置和提交前门禁。
 - [静态站点包编写规范](development/static-site-package-authoring.md)：归档、manifest、预览和发布约束。
-- [Tauri 移动端基础设施](development/tauri-mobile.md)：移动外壳现状、前置条件、跨源 API 契约和阻塞项。
+- [Tauri 移动端基础设施](development/tauri-mobile.md)：移动外壳、前置条件、跨源 API 与媒体契约、设备验收边界。
 - [App 设备安装与前置依赖](development/app-device-delivery.md)：设备体检、安装命令矩阵、产物定位和签名边界。
-- [液态玻璃升级与 App 外壳实施计划](development/liquid-glass-app-shell-plan.md)：分层模型、并发轨道编排、三批交付和验证门。
 
 ## 运维与迁移
 
