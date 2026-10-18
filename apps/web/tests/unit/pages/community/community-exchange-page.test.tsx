@@ -63,7 +63,7 @@ const card = {
   producerName: "春香P",
   displayName: "交换会用名片",
   seriesCode: "765",
-  favoriteIdol: "天海春香",
+  favoriteCharacter: "天海春香",
   frontImageUrl: "/brand/series/wall/765pro.webp",
   backImageUrl: "/brand/series/wall/cinderella-girls.webp",
   accent: "#f34e6c",

@@ -51,6 +51,21 @@
       "require": "./dist/fudaba/card-claims.js",
       "default": "./dist/fudaba/card-claims.js"
     },
+    "./fudaba/admin-characters": {
+      "types": "./dist/fudaba/admin-characters.d.ts",
+      "require": "./dist/fudaba/admin-characters.js",
+      "default": "./dist/fudaba/admin-characters.js"
+    },
+    "./fudaba/admin-units": {
+      "types": "./dist/fudaba/admin-units.d.ts",
+      "require": "./dist/fudaba/admin-units.js",
+      "default": "./dist/fudaba/admin-units.js"
+    },
+    "./fudaba/characters": {
+      "types": "./dist/fudaba/characters.d.ts",
+      "require": "./dist/fudaba/characters.js",
+      "default": "./dist/fudaba/characters.js"
+    },
     "./fudaba/location-review": {
       "types": "./dist/fudaba/location-review.d.ts",
       "require": "./dist/fudaba/location-review.js",

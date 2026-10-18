@@ -4,6 +4,7 @@ import type { Page, TestInfo } from "@playwright/test"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { installPlatformOAuthProvidersMock } from "./fixtures/platform-auth"
 import { api, expect, test } from "./fixtures/test"
+import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
 
 const session = {
   success: true,
@@ -36,6 +37,14 @@ async function mockOwnerWorkspace() {
       await route.fulfill({ json: { items: [] } })
     },
     "GET"
+  )
+  await api.mockRoute(
+    "**/api/community/exchange/characters",
+    async (route) => {
+      await route.fulfill({ json: makeCharacterCatalog() })
+    },
+    "GET",
+    { min: 0, max: 2 }
   )
   await api.mockRoute(
     "**/api/community/exchange/me/cards",

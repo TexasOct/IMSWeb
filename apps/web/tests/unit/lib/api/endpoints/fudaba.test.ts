@@ -113,7 +113,7 @@ const cardFields = {
   producerName: "春香P",
   displayName: "交换会用名片",
   seriesCode: "765",
-  favoriteIdolIds: [1],
+  favoriteCharacterIds: [1],
   accent: "#f34e6c",
   bio: "周末参加线下活动",
   tradeNote: "希望交换同系列名片",
@@ -634,7 +634,7 @@ describe("Fudaba Web API contracts", () => {
     expect(create.get("back")).toBe(back)
     expect(create.get("available")).toBe("true")
     expect(create.get("displayName")).toBe(cardFields.displayName)
-    expect(create.get("favoriteIdolIds")).toBe("[1]")
+    expect(create.get("favoriteCharacterIds")).toBe("[1]")
 
     expect(JSON.parse(String(requests[1]?.init?.body))).toEqual({
       ...cardFields,

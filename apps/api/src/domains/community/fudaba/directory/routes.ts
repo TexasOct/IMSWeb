@@ -17,6 +17,7 @@ import {
     handleListFudabaCardReactions
 } from '@/domains/community/fudaba/directory/handlers/card-reactions';
 import { handleGetFudabaMapConfig } from '@/domains/community/fudaba/directory/handlers/get-map-config';
+import { handleGetNamecardCharacterCatalog } from '@/domains/community/fudaba/directory/handlers/get-namecard-character-catalog';
 import { handleGetFudabaPublicOffice } from '@/domains/community/fudaba/directory/handlers/get-public-office';
 import { handleListFudabaFavoriteCards } from '@/domains/community/fudaba/directory/handlers/list-favorite-cards';
 import { handleListFudabaMapOffices } from '@/domains/community/fudaba/directory/handlers/list-map-offices';
@@ -65,6 +66,13 @@ export function fudabaDirectoryRoutes(): ImsCapabilityRouter {
         requireFudabaPublicRead,
         paramSchemaValidator(fudabaCardIdParamsSchema),
         handleListFudabaCardReactions
+    );
+    routes.get(
+        '/characters',
+        requireFudabaPublicRead,
+        optionalPlatformAuth,
+        querySchemaValidator(fudabaEmptyQuerySchema),
+        handleGetNamecardCharacterCatalog
     );
     routes.post(
         '/cards/:cardId/reactions',

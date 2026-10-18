@@ -87,6 +87,7 @@ import {
   fudabaRevisionRequestSchema,
   fudabaSeriesListSchema,
 } from "@imsweb/contracts/fudaba"
+import { namecardCharacterCatalogSchema } from "@imsweb/contracts/fudaba/characters"
 import {
   liveScheduleErrorResponseSchema,
   liveScheduleListSchema,
@@ -166,8 +167,8 @@ const guestSubmissionMultipartSchema = z
     (body) =>
       (body.match(/name="images"/g)?.length ?? 0) === 2 &&
       body.includes('name="seriesCode"') &&
-      body.includes('name="favoriteIdolIds"'),
-    "expected two images, seriesCode, and favoriteIdolIds multipart fields"
+      body.includes('name="favoriteCharacterIds"'),
+    "expected two images, seriesCode, and favoriteCharacterIds multipart fields"
   )
 const aboutAvatarMultipartSchema = z
   .string()
@@ -358,6 +359,10 @@ export function resolveApiContract(
   const exchange = "/api/community/exchange"
   if (method === "GET" && path === `${exchange}/series`)
     return { responses: { 200: fudabaSeriesListSchema, ...fudabaErrors } }
+  if (method === "GET" && path === `${exchange}/characters`)
+    return {
+      responses: { 200: namecardCharacterCatalogSchema, ...fudabaErrors },
+    }
   if (method === "GET" && path === `${exchange}/offices`)
     return {
       query: fudabaOfficeQuerySchema,

@@ -110,6 +110,9 @@ code imports the narrow public module.
 | `@imsweb/contracts/fudaba/map-delivery` | `fudabaMapDelivery` | schema |
 | `@imsweb/contracts/fudaba/runtime` | `fudabaRuntime` | zod-free |
 | `@imsweb/contracts/fudaba/card-claims` | `fudabaCardClaims` | schema |
+| `@imsweb/contracts/fudaba/admin-characters` | `fudabaAdminCharacters` | schema |
+| `@imsweb/contracts/fudaba/admin-units` | `fudabaAdminUnits` | schema |
+| `@imsweb/contracts/fudaba/characters` | `fudabaCharacters` | schema |
 | `@imsweb/contracts/fudaba/location-review` | `fudabaLocationReview` | schema |
 | `@imsweb/contracts/platform/admin` | `platformAdmin` | schema |
 | `@imsweb/contracts/platform/admin-email` | `platformAdminEmail` | schema |

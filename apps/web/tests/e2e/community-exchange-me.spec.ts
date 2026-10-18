@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright"
 import type { FudabaCardPage } from "@imsweb/contracts/fudaba"
 import type { PlatformProfile } from "@imsweb/contracts/platform"
 import { api, expect, test } from "./fixtures/test"
+import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
 import { settleToasts } from "./fixtures/toast"
 
 const avatarFixture = Buffer.from(
@@ -27,8 +28,8 @@ const card = {
   producerName: "浏览器制作人",
   displayName: "浏览器交换名片",
   seriesCode: "765",
-  favoriteIdol: "天海春香",
-  favoriteIdols: [{ id: 1, name: "天海春香", seriesCode: "765" }],
+  favoriteCharacter: "天海春香",
+  favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
   frontImageUrl: "/brand/series/wall/765pro.webp",
   backImageUrl: "/brand/series/wall/cinderella-girls.webp",
   accent: "#f34e6c",
@@ -304,6 +305,13 @@ test.beforeEach(async ({ context, page }) => {
     "GET"
   )
   await api.mockRoute(
+    "**/api/community/exchange/characters",
+    async (route) => {
+      await route.fulfill({ json: makeCharacterCatalog() })
+    },
+    "GET"
+  )
+  await api.mockRoute(
     "**/api/community/exchange/me/claim-envelopes",
     async (route) => {
       await route.fulfill({ json: { items: [] } })
@@ -346,8 +354,8 @@ test.beforeEach(async ({ context, page }) => {
           card: {
             ...card,
             displayName: submission.displayName,
-            favoriteIdol: "天海春香、涩谷凛",
-            favoriteIdols: submission.favoriteIdolIds.map((idolId: number) =>
+            favoriteCharacter: "天海春香、涩谷凛",
+            favoriteCharacters: submission.favoriteCharacterIds.map((idolId: number) =>
               idolId === 1
                 ? { id: 1, name: "天海春香", seriesCode: "765" }
                 : { id: 2, name: "涩谷凛", seriesCode: "cg" }
@@ -647,14 +655,15 @@ test.describe("community exchange me", () => {
 
     const cardName = page.getByRole("textbox", { name: "名片标题" })
     await cardName.fill("更新后的浏览器名片")
-    await page.getByRole("tab", { name: "灰姑娘女孩" }).click()
+    await page.getByRole("combobox", { name: "企划", exact: true }).click()
+    await page.getByRole("option", { name: "CINDERELLA GIRLS" }).click()
     await page.getByRole("searchbox", { name: "" }).fill("凛")
     await page.getByRole("checkbox", { name: /涩谷凛/ }).click()
     await expect(
-      page.getByLabel("已选担当偶像").getByText("天海春香")
+      page.getByLabel("已选担当角色").getByText("天海春香")
     ).toBeVisible()
     await expect(
-      page.getByLabel("已选担当偶像").getByText("涩谷凛")
+      page.getByLabel("已选担当角色").getByText("涩谷凛")
     ).toBeVisible()
     await page.getByRole("button", { name: "保存名片资料" }).click()
     await expect(page.getByText("名片资料已保存。")).toBeVisible()

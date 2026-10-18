@@ -78,7 +78,7 @@ export async function handleCreateFudabaCard(
                 id: cardId,
                 ownerAccountId,
                 ...fields,
-                favoriteIdol: '',
+                favoriteCharacter: '',
                 frontObjectKey: frontKey,
                 backObjectKey: backKey,
                 createdAt: now,

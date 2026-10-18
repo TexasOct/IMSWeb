@@ -33,11 +33,12 @@ import type { CacheStore, RateLimiter } from '@/ports/cache';
 import type { ParsedUpload, UploadedFile, UploadParser } from '@/ports/http';
 import type { ImageInfo, ImageProcessor } from '@/ports/media';
 import type { ListedObject, ObjectStorage, PutObjectOptions, StoredObject } from '@/ports/object-storage';
-import type { AuditLogInput, BackofficeAccountRecord, CreateOwnedFudabaCardInput, CreateOwnedFudabaOfficeInput, FudabaAdminCardClaimRecord, FudabaCardClaimRecord, FudabaCardInteractionStateRecord, FudabaCardPlacementRecord, FudabaCardReactionInput, FudabaCardReactionRecord, FudabaOfficeCreateResult, FudabaOfficeLocationReviewRecord, FudabaOfficeMutationResult, FudabaOfficePublicLocationRecord, FudabaOfficeRecord, FudabaOwnerOfficeRecord, FudabaPublicCardRecord, FudabaPublicMapOfficeRecord, FudabaPublicOfficeDetailRecord, FudabaPublicOfficeRecord, FudabaRegisteredCardReviewRecord, FudabaRepository, ListFudabaPublicCardsInput, ListFudabaPublicMapOfficesInput, ListFudabaPublicOfficesInput, NewFudabaCardInput, NewFudabaOfficeInput, NewPlatformAccountInput, PlatformAccountStatus, PlatformAccountWithProfile, PlatformRefreshSessionRecord, UpdateOwnedFudabaOfficeInput } from '@/ports/repositories';
+import type { AuditLogInput, BackofficeAccountRecord, CreateOwnedFudabaCardInput, CreateOwnedFudabaOfficeInput, FudabaAdminCardClaimRecord, FudabaCardClaimRecord, FudabaCardInteractionStateRecord, FudabaCardPlacementRecord, FudabaCardReactionInput, FudabaCardReactionRecord, FudabaOfficeCreateResult, FudabaOfficeLocationReviewRecord, FudabaOfficeMutationResult, FudabaOfficePublicLocationRecord, FudabaOfficeRecord, FudabaOwnerOfficeRecord, FudabaPublicCardRecord, FudabaPublicMapOfficeRecord, FudabaPublicOfficeDetailRecord, FudabaPublicOfficeRecord, FudabaRegisteredCardReviewRecord, FudabaRepository, ListFudabaPublicCardsInput, ListFudabaPublicMapOfficesInput, ListFudabaPublicOfficesInput, NewFudabaCardInput, NewFudabaOfficeInput, NewPlatformAccountInput, NamecardCharacterRepository, NamecardUnitRepository, PlatformAccountStatus, PlatformAccountWithProfile, PlatformRefreshSessionRecord, UpdateOwnedFudabaOfficeInput } from '@/ports/repositories';
 import type { RuntimeServices } from '@/ports/runtime-services';
 import { FUDABA_MAP_DELIVERY_OBJECT_KEY, namecardOriginalUrlFromObjectKey } from '@/utils/storage/business-object-keys';
 import { fudabaCardDeleteResponseSchema, fudabaCardInteractionResponseSchema, fudabaCardMutationResponseSchema, fudabaCardPageSchema, fudabaCardPlacementDeleteResponseSchema, fudabaCardPlacementSaveResponseSchema, fudabaCardReactionErrorSchema, fudabaCardReactionsResponseSchema, fudabaErrorResponseSchema, fudabaMapConfigSchema, fudabaMapOfficeListSchema, fudabaOfficeDetailSchema, fudabaOfficeMutationResponseSchema, fudabaOfficePageSchema, fudabaOwnerCardDetailSchema, fudabaOwnerCardListSchema, fudabaOwnerLocationDetailSchema, fudabaOwnerLocationMutationResponseSchema, fudabaOwnerLocationWithdrawalResponseSchema, fudabaOwnerOfficeListSchema, fudabaPlaceSearchResponseSchema, fudabaSeriesListSchema } from '@imsweb/contracts/fudaba';
 import { fudabaCardClaimErrorSchema, ownerClaimListSchema, reviewMutationSchema } from '@imsweb/contracts/fudaba/card-claims';
+import { namecardCharacterCatalogSchema } from '@imsweb/contracts/fudaba/characters';
 import { fudabaLocationReviewErrorSchema, fudabaLocationReviewListSchema, fudabaLocationReviewMutationSchema } from '@imsweb/contracts/fudaba/location-review';
 import { fudabaMapDeliveryErrorSchema, fudabaMapDeliveryMutationSchema, fudabaMapDeliverySnapshotSchema } from '@imsweb/contracts/fudaba/map-delivery';
 import { Hono } from 'hono';
@@ -241,12 +242,12 @@ import { describe, onTestFinished, test } from 'vitest';
 
 // fudaba-card-claim-contract.test.ts
 {
-    function registeredFields(favoriteIdolIds: string) {
+    function registeredFields(favoriteCharacterIds: string) {
         return {
             producerName: 'Producer',
             displayName: 'My card',
             seriesCode: '765',
-            favoriteIdolIds,
+            favoriteCharacterIds,
             accent: '#dc2626',
             bio: '',
             tradeNote: '',
@@ -255,82 +256,82 @@ import { describe, onTestFinished, test } from 'vitest';
     }
 
     test.describe('Fudaba card claims', () => {
-        test('registered card fields accept ordered multi-idol JSON and reject invalid sets', () => {
+        test('registered card fields accept ordered multi-character JSON and reject invalid sets', () => {
             assert.deepEqual(
-                parseFudabaCardCreateFields(registeredFields('[3,1,2]')).favoriteIdolIds,
+                parseFudabaCardCreateFields(registeredFields('[3,1,2]')).favoriteCharacterIds,
                 [3, 1, 2]
             );
-            for (const favoriteIdolIds of ['[]', '[1,1]', '[0]', 'not-json']) {
+            for (const favoriteCharacterIds of ['[]', '[1,1]', '[0]', 'not-json']) {
                 assert.throws(
-                    () => parseFudabaCardCreateFields(registeredFields(favoriteIdolIds)),
-                    /favoriteIdolIds/
+                    () => parseFudabaCardCreateFields(registeredFields(favoriteCharacterIds)),
+                    /favoriteCharacterIds/
                 );
             }
             assert.throws(
                 () => parseFudabaCardCreateFields({
                     ...registeredFields('[1]'),
-                    favoriteIdol: 'legacy scalar'
+                    favoriteCharacter: 'legacy scalar'
                 }),
                 /未知字段/
             );
         });
 
-        test('legacy card claims accept cross-series selections and enforce 0..20 unique idols', () => {
+        test('legacy card claims accept cross-series selections and enforce 0..20 unique characters', () => {
             assert.deepEqual(parseLegacyCardClaim({
                 targetCardId: null,
                 seriesCode: '765',
-                favoriteIdolIds: [900_001, 900_002],
+                favoriteCharacterIds: [900_001, 900_002],
                 message: 'same producer'
             }), {
                 targetCardId: null,
                 seriesCode: '765',
-                favoriteIdolIds: [900_001, 900_002],
+                favoriteCharacterIds: [900_001, 900_002],
                 message: 'same producer'
             });
-            // 企划 and 担当偶像 are optional: an absent series and an empty idol
+            // 企划 and 担当角色 are optional: an absent series and an empty character
             // list reach the repository, which then derives the series itself.
             assert.deepEqual(parseLegacyCardClaim({
                 targetCardId: null,
-                favoriteIdolIds: [],
+                favoriteCharacterIds: [],
                 message: ''
             }), {
                 targetCardId: null,
                 seriesCode: null,
-                favoriteIdolIds: [],
+                favoriteCharacterIds: [],
                 message: ''
             });
             assert.deepEqual(parseLegacyCardClaim({
                 targetCardId: null,
                 seriesCode: null,
-                favoriteIdolIds: [],
+                favoriteCharacterIds: [],
                 message: ''
             }), {
                 targetCardId: null,
                 seriesCode: null,
-                favoriteIdolIds: [],
+                favoriteCharacterIds: [],
                 message: ''
             });
-            for (const favoriteIdolIds of [
+            for (const favoriteCharacterIds of [
                 [1, 1],
                 [0],
-                Array.from({ length: 21 }, (_, index) => index + 1)
+                Array.from({ length: 201 }, (_, index) => index + 1)
             ]) {
                 assert.throws(() => parseLegacyCardClaim({
                     targetCardId: null,
                     seriesCode: '765',
-                    favoriteIdolIds,
+                    favoriteCharacterIds,
                     message: ''
-                }), /favoriteIdolIds/);
+                }), /favoriteCharacterIds/);
             }
             assert.throws(() => parseLegacyCardClaim({
                 targetCardId: null,
                 seriesCode: 'Not A Series',
-                favoriteIdolIds: [],
+                favoriteCharacterIds: [],
                 message: ''
             }), /seriesCode/);
         });
 
-        test('namecard and claim views expose structured idol and claim metadata', () => {
+        test('namecard and claim views expose structured character and claim metadata', () => {
             const publicCard = toPublicNamecardResponse({
                 id: 7,
                 image1_url: '/uploads/namecard/original/front.webp',
@@ -338,8 +339,8 @@ import { describe, onTestFinished, test } from 'vitest';
                 status: 'approved',
                 created_at: '2026-08-16T19:30:00.000Z',
                 series_code: '765',
-                favorite_idols: [{
-                    idol_id: 900_001,
+                favorite_characters: [{
+                    character_id: 900_001,
                     agency_code: '765',
                     name_cn: '测试春香',
                     display_order: 0
@@ -349,7 +350,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 claimer_name: null
             });
             assert.equal(publicCard.seriesCode, '765');
-            assert.deepEqual(publicCard.favoriteIdols, [{
+            assert.deepEqual(publicCard.favoriteCharacters, [{
                 id: 900_001,
                 name: '测试春香',
                 seriesCode: '765'
@@ -366,7 +367,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 created_at: null
             });
             assert.equal(historicalCard.seriesCode, null);
-            assert.deepEqual(historicalCard.favoriteIdols, []);
+            assert.deepEqual(historicalCard.favoriteCharacters, []);
             assert.equal(historicalCard.claimStatus, 'unclaimed');
             assert.equal(historicalCard.claimerName, null);
 
@@ -395,14 +396,14 @@ import { describe, onTestFinished, test } from 'vitest';
                 revision: 0,
                 created_at: '2026-08-16T19:30:00.000Z',
                 updated_at: '2026-08-16T19:30:00.000Z',
-                favorite_idols: [{
-                    idol_id: 900_001,
+                favorite_characters: [{
+                    character_id: 900_001,
                     agency_code: '765',
                     name_cn: '测试春香',
                     display_order: 0
                 }]
             };
-            assert.deepEqual(fudabaCardClaimView(claim).favoriteIdols, [{
+            assert.deepEqual(fudabaCardClaimView(claim).favoriteCharacters, [{
                 id: 900_001,
                 name: '测试春香',
                 seriesCode: '765'
@@ -475,8 +476,8 @@ import { describe, onTestFinished, test } from 'vitest';
             producer_name: 'Producer A',
             display_name: 'Card A',
             series_code: '765',
-            favorite_idol: 'Haruka',
-            favorite_idols: [],
+            favorite_character: 'Haruka',
+            favorite_characters: [],
             front_object_key: 'public/cards/card-a/front.webp',
             back_object_key: 'public/cards/card-a/back.webp',
             accent: '#4f64dd',
@@ -900,8 +901,8 @@ import { describe, onTestFinished, test } from 'vitest';
             producerName: `Producer ${ownerAccountId}`,
             displayName: `Card ${id}`,
             seriesCode: '765',
-            favoriteIdol: 'Haruka',
-            favoriteIdolIds: [900_001],
+            favoriteCharacter: 'Haruka',
+            favoriteCharacterIds: [900_001],
             frontObjectKey: `community/fudaba/cards/${id}/front.webp`,
             backObjectKey: `community/fudaba/cards/${id}/back.webp`,
             accent: '#4f64dd',
@@ -1892,9 +1893,9 @@ import { describe, onTestFinished, test } from 'vitest';
 {
     const CREATED_AT = '2026-08-16T19:30:00.000Z';
 
-    function idol() {
+    function character() {
         return {
-            idol_id: 1,
+            character_id: 1,
             agency_code: '765',
             name_cn: '天海春香',
             display_order: 0
@@ -1908,8 +1909,8 @@ import { describe, onTestFinished, test } from 'vitest';
             producer_name: 'Owner',
             display_name: 'Registered card',
             series_code: '765',
-            favorite_idol: '天海春香',
-            favorite_idols: [idol()],
+            favorite_character: '天海春香',
+            favorite_characters: [character()],
             legacy_card_id: null,
             origin: 'exchange',
             front_object_key: 'community/fudaba/cards/registered-review/front.webp',
@@ -1946,7 +1947,7 @@ import { describe, onTestFinished, test } from 'vitest';
             revision: 1,
             created_at: CREATED_AT,
             updated_at: CREATED_AT,
-            favorite_idols: [idol()]
+            favorite_characters: [character()]
         };
     }
 
@@ -2441,8 +2442,8 @@ import { describe, onTestFinished, test } from 'vitest';
             producerName: `Producer ${ownerAccountId}`,
             displayName: `Card ${id}`,
             seriesCode: '765',
-            favoriteIdol: 'ignored compatibility input',
-            favoriteIdolIds: [900_001],
+            favoriteCharacter: 'ignored compatibility input',
+            favoriteCharacterIds: [900_001],
             frontObjectKey: `community/fudaba/cards/${id}/front.webp`,
             backObjectKey: `community/fudaba/cards/${id}/back.webp`,
             accent: '#4f64dd',
@@ -2469,8 +2470,8 @@ import { describe, onTestFinished, test } from 'vitest';
             producerName: card.producerName,
             displayName: card.displayName,
             seriesCode: card.seriesCode,
-            favoriteIdol: card.favoriteIdol,
-            favoriteIdolIds: card.favoriteIdolIds,
+            favoriteCharacter: card.favoriteCharacter,
+            favoriteCharacterIds: card.favoriteCharacterIds,
             frontObjectKey: card.frontObjectKey,
             backObjectKey: card.backObjectKey,
             accent: card.accent,
@@ -2531,7 +2532,7 @@ import { describe, onTestFinished, test } from 'vitest';
         await database.prepare(
             `INSERT INTO fudaba_cards
             (id, card_number, origin, producer_name, display_name,
-             series_code, favorite_idol, accent, bio, trade_note,
+             series_code, favorite_character, accent, bio, trade_note,
              front_object_key, back_object_key, available,
              media_rights_status, publication_status, revision,
              created_at, updated_at)
@@ -2635,7 +2636,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 id: 'wrong-recipient-claim',
                 targetCardId: matchingCardId,
                 seriesCode: '765',
-                idolIds: [900_001],
+                characterIds: [900_001],
                 message: '',
                 createdAt: CREATED_AT,
                 updatedAt: CREATED_AT,
@@ -2649,7 +2650,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 id: claimId,
                 targetCardId: matchingCardId,
                 seriesCode: 'cg',
-                idolIds: [900_001, 900_002],
+                characterIds: [900_001, 900_002],
                 message: '这是我的旧名片',
                 createdAt: CREATED_AT,
                 updatedAt: CREATED_AT,
@@ -2660,7 +2661,7 @@ import { describe, onTestFinished, test } from 'vitest';
             assert.equal(confirmed.envelope.action_state, 'confirmed');
             assert.equal(confirmed.envelope.claim_id, claimId);
             assert.deepEqual(
-                confirmed.claim.favorite_idols.map((idol) => idol.idol_id),
+                confirmed.claim.favorite_characters.map((character) => character.character_id),
                 [900_001, 900_002]
             );
             assert.deepEqual(await fudaba.listLegacyNamecardClaimStatuses(
@@ -2682,7 +2683,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 id: claimId,
                 targetCardId: matchingCardId,
                 seriesCode: 'cg',
-                idolIds: [900_001, 900_002],
+                characterIds: [900_001, 900_002],
                 message: '重放',
                 createdAt: CREATED_AT,
                 updatedAt: CREATED_AT,
@@ -2695,7 +2696,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 claimantAccountId: ownerB,
                 targetCardId: null,
                 seriesCode: '765',
-                idolIds: [900_001],
+                characterIds: [900_001],
                 message: '',
                 createdAt: CREATED_AT,
                 updatedAt: CREATED_AT
@@ -2790,7 +2791,7 @@ import { describe, onTestFinished, test } from 'vitest';
                     claimantAccountId: ownerA,
                     targetCardId: null,
                     seriesCode: '765',
-                    idolIds: [900_001],
+                    characterIds: [900_001],
                     message: '',
                     createdAt: CREATED_AT,
                     updatedAt: CREATED_AT
@@ -2801,7 +2802,7 @@ import { describe, onTestFinished, test } from 'vitest';
                     claimantAccountId: ownerB,
                     targetCardId: null,
                     seriesCode: 'cg',
-                    idolIds: [900_002],
+                    characterIds: [900_002],
                     message: '',
                     createdAt: CREATED_AT,
                     updatedAt: CREATED_AT
@@ -2812,10 +2813,10 @@ import { describe, onTestFinished, test } from 'vitest';
                 ['conflict', 'created']
             );
 
-            for (const [suffix, idolIds] of [
+            for (const [suffix, characterIds] of [
                 ['d', [900_001, 900_001]],
                 ['m', [999_999]],
-                ['x', Array.from({ length: 21 }, (_, index) => 910_000 + index)]
+                ['x', Array.from({ length: 201 }, (_, index) => 910_000 + index)]
             ] as const) {
                 const invalidLegacyId = await insertLegacyCard(database, suffix);
                 assert.deepEqual(await fudaba.createCardClaimForOwner({
@@ -2824,15 +2825,15 @@ import { describe, onTestFinished, test } from 'vitest';
                     claimantAccountId: ownerA,
                     targetCardId: null,
                     seriesCode: '765',
-                    idolIds: [...idolIds],
+                    characterIds: [...characterIds],
                     message: '',
                     createdAt: CREATED_AT,
                     updatedAt: CREATED_AT
                 }), { status: 'unavailable' });
             }
 
-            // 企划 and 担当偶像 are optional on a claim. The server derives the
-            // series from the selected idols' agency, the legacy card's own
+            // 企划 and 担当角色 are optional on a claim. The server derives the
+            // series from the selected characters' agency, the legacy card's own
             // series, or the bound target card, and only asks when none exist.
             const noSeriesLegacyId = await insertLegacyCard(database, 'e');
             assert.deepEqual(await fudaba.createCardClaimForOwner({
@@ -2841,27 +2842,27 @@ import { describe, onTestFinished, test } from 'vitest';
                 claimantAccountId: ownerA,
                 targetCardId: null,
                 seriesCode: null,
-                idolIds: [],
+                characterIds: [],
                 message: '',
                 createdAt: CREATED_AT,
                 updatedAt: CREATED_AT
             }), { status: 'series-required' });
 
-            const idolDerivedLegacyId = await insertLegacyCard(database, 'i');
-            const idolDerived = await fudaba.createCardClaimForOwner({
-                id: 'idol-derived-series-claim',
-                legacyCardId: idolDerivedLegacyId,
+            const characterDerivedLegacyId = await insertLegacyCard(database, 'i');
+            const characterDerived = await fudaba.createCardClaimForOwner({
+                id: 'character-derived-series-claim',
+                legacyCardId: characterDerivedLegacyId,
                 claimantAccountId: ownerA,
                 targetCardId: null,
                 seriesCode: null,
-                idolIds: [900_001],
+                characterIds: [900_001],
                 message: '',
                 createdAt: CREATED_AT,
                 updatedAt: CREATED_AT
             });
-            assert.equal(idolDerived.status, 'created');
-            if (idolDerived.status !== 'created') return;
-            assert.equal(idolDerived.claim.series_code, '765');
+            assert.equal(characterDerived.status, 'created');
+            if (characterDerived.status !== 'created') return;
+            assert.equal(characterDerived.claim.series_code, '765');
 
             const legacyDerivedLegacyId = await insertLegacyCard(database, 'l');
             await database.prepare(
@@ -2873,7 +2874,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 claimantAccountId: ownerA,
                 targetCardId: null,
                 seriesCode: null,
-                idolIds: [],
+                characterIds: [],
                 message: '',
                 createdAt: CREATED_AT,
                 updatedAt: CREATED_AT
@@ -2881,7 +2882,7 @@ import { describe, onTestFinished, test } from 'vitest';
             assert.equal(legacyDerived.status, 'created');
             if (legacyDerived.status !== 'created') return;
             assert.equal(legacyDerived.claim.series_code, 'cg');
-            assert.deepEqual(legacyDerived.claim.favorite_idols, []);
+            assert.deepEqual(legacyDerived.claim.favorite_characters, []);
 
             const wrongOwnerLegacyId = await insertLegacyCard(database, 'w');
             assert.deepEqual(await fudaba.createCardClaimForOwner({
@@ -2890,7 +2891,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 claimantAccountId: ownerB,
                 targetCardId: matchingCardId,
                 seriesCode: '765',
-                idolIds: [900_001],
+                characterIds: [900_001],
                 message: '',
                 createdAt: CREATED_AT,
                 updatedAt: CREATED_AT
@@ -2903,7 +2904,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 claimantAccountId: ownerB,
                 targetCardId: null,
                 seriesCode: 'cg',
-                idolIds: [900_001, 900_002],
+                characterIds: [900_001, 900_002],
                 message: '请创建绑定后的名片',
                 createdAt: CREATED_AT,
                 updatedAt: CREATED_AT
@@ -2956,7 +2957,7 @@ import { describe, onTestFinished, test } from 'vitest';
             assert.equal(createdCardResult.card?.series_code, 'cg');
             assert.equal(createdCardResult.card?.publication_status, 'published');
             assert.equal(createdCardResult.card?.media_rights_status, 'approved');
-            assert.equal(createdCardResult.card?.favorite_idol, '测试春香、测试卯月');
+            assert.equal(createdCardResult.card?.favorite_character, '测试春香、测试卯月');
             assert.equal(
                 createdCardResult.card?.front_object_key,
                 `community/fudaba/cards/${boundCreateCardId}/front.webp`
@@ -2982,7 +2983,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 claimantAccountId: ownerC,
                 targetCardId: null,
                 seriesCode: '765',
-                idolIds: [900_001],
+                characterIds: [900_001],
                 message: '',
                 createdAt: CREATED_AT,
                 updatedAt: CREATED_AT
@@ -3061,8 +3062,8 @@ import { describe, onTestFinished, test } from 'vitest';
                 producerName: 'Blocked while reviewing',
                 displayName: 'Blocked',
                 seriesCode: '765',
-                favoriteIdol: '',
-                favoriteIdolIds: [900_001],
+                favoriteCharacter: '',
+                favoriteCharacterIds: [900_001],
                 accent: '#4f64dd',
                 bio: '',
                 tradeNote: '',
@@ -3132,7 +3133,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 claimantAccountId: ownerC,
                 targetCardId: null,
                 seriesCode: '765',
-                idolIds: [900_001],
+                characterIds: [900_001],
                 message: '',
                 createdAt: CREATED_AT,
                 updatedAt: CREATED_AT
@@ -3208,8 +3209,8 @@ import { describe, onTestFinished, test } from 'vitest';
             producerName: `Producer ${ownerAccountId}`,
             displayName: `Card ${id}`,
             seriesCode: '765',
-            favoriteIdol: '',
-            favoriteIdolIds: [900_001],
+            favoriteCharacter: '',
+            favoriteCharacterIds: [900_001],
             frontObjectKey: `community/fudaba/cards/${id}/front.webp`,
             backObjectKey: `community/fudaba/cards/${id}/back.webp`,
             accent: '#4f64dd',
@@ -4945,7 +4946,7 @@ import { describe, onTestFinished, test } from 'vitest';
                     body: JSON.stringify({
                         targetCardId: null,
                         seriesCode: "765",
-                        favoriteIdolIds: [1],
+                        favoriteCharacterIds: [1],
                         message: "claim this card",
                         unexpected: true,
                     }),
@@ -4962,7 +4963,7 @@ import { describe, onTestFinished, test } from 'vitest';
                     body: JSON.stringify({
                         targetCardId: null,
                         seriesCode: "765",
-                        favoriteIdolIds: [1],
+                        favoriteCharacterIds: [1],
                         message: "claim this card",
                     }),
                 },
@@ -7643,7 +7644,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 assert.equal(fixture.images.conversions.length, 2);
                 assert.equal(fixture.storage.puts.length, 2);
                 assert.equal(fixture.createInputs[0]?.ownerAccountId, ACCOUNT_ID);
-                assert.deepEqual(fixture.createInputs[0]?.favoriteIdolIds, [900001]);
+                assert.deepEqual(fixture.createInputs[0]?.favoriteCharacterIds, [900001]);
                 for (const put of fixture.storage.puts) {
                     assert.equal(put.options.contentType, 'image/webp');
                     assert.equal(put.options.protectedAccess, true);
@@ -7657,11 +7658,11 @@ import { describe, onTestFinished, test } from 'vitest';
                 );
             });
 
-            test('rejects empty idol selections before object writes', async () => {
+            test('rejects empty character selections before object writes', async () => {
                 const fixture = new OwnerRouteFixture();
                 fixture.uploads.next = {
                     ...cardUpload(),
-                    fields: { ...cardFields(), favoriteIdolIds: '[]' }
+                    fields: { ...cardFields(), favoriteCharacterIds: '[]' }
                 };
 
                 const response = await postCard(fixture);
@@ -8238,8 +8239,8 @@ import { describe, onTestFinished, test } from 'vitest';
             producerName: `Producer ${ownerAccountId}`,
             displayName: `Card ${id}`,
             seriesCode,
-            favoriteIdol: 'Haruka',
-            favoriteIdolIds: [900_001],
+            favoriteCharacter: 'Haruka',
+            favoriteCharacterIds: [900_001],
             frontObjectKey: `community/fudaba/cards/${id}/front.webp`,
             backObjectKey: `community/fudaba/cards/${id}/back.webp`,
             accent: '#4f64dd',
@@ -8343,16 +8344,16 @@ import { describe, onTestFinished, test } from 'vitest';
         await fixture.platform.createAccountWithProfile(account(restrictedId, 'restricted'));
 
         assert.deepEqual(await fixture.fudaba.createCardForOwner({
-            ...ownedCard(`${fixture.dialect}-empty-idols-card`, ownerId),
-            favoriteIdolIds: []
+            ...ownedCard(`${fixture.dialect}-empty-characters-card`, ownerId),
+            favoriteCharacterIds: []
         }), { status: 'unavailable' });
         assert.deepEqual(await fixture.fudaba.createCardForOwner({
-            ...ownedCard(`${fixture.dialect}-duplicate-idols-card`, ownerId),
-            favoriteIdolIds: [900_001, 900_001]
+            ...ownedCard(`${fixture.dialect}-duplicate-characters-card`, ownerId),
+            favoriteCharacterIds: [900_001, 900_001]
         }), { status: 'unavailable' });
         assert.deepEqual(await fixture.fudaba.createCardForOwner({
-            ...ownedCard(`${fixture.dialect}-missing-idol-card`, ownerId),
-            favoriteIdolIds: [999_999]
+            ...ownedCard(`${fixture.dialect}-missing-character-card`, ownerId),
+            favoriteCharacterIds: [999_999]
         }), { status: 'unavailable' });
 
         assert.deepEqual(await fixture.fudaba.createCardForOwner(ownedCard(
@@ -8377,9 +8378,9 @@ import { describe, onTestFinished, test } from 'vitest';
         assert.equal(created.card.publication_status, 'pending');
         assert.equal(created.card.revision, 0);
         assert.equal(created.card.source_url, null);
-        assert.equal(created.card.favorite_idol, '测试春香');
+        assert.equal(created.card.favorite_character, '测试春香');
         assert.deepEqual(
-            created.card.favorite_idols.map((idol) => idol.idol_id),
+            created.card.favorite_characters.map((character) => character.character_id),
             [900_001]
         );
 
@@ -8397,8 +8398,8 @@ import { describe, onTestFinished, test } from 'vitest';
             producerName: 'Intruder',
             displayName: 'Intruder',
             seriesCode: '765',
-            favoriteIdol: '',
-            favoriteIdolIds: [900_001],
+            favoriteCharacter: '',
+            favoriteCharacterIds: [900_001],
             accent: '#ffffff',
             bio: '',
             tradeNote: '',
@@ -8421,8 +8422,8 @@ import { describe, onTestFinished, test } from 'vitest';
             producerName: 'Updated Producer',
             displayName: 'Updated Card',
             seriesCode: 'cg',
-            favoriteIdol: 'Uzuki',
-            favoriteIdolIds: [900_001, 900_002] as number[],
+            favoriteCharacter: 'Uzuki',
+            favoriteCharacterIds: [900_001, 900_002] as number[],
             accent: '#ef5b6c',
             bio: 'Updated bio',
             tradeNote: 'Updated note',
@@ -8440,11 +8441,11 @@ import { describe, onTestFinished, test } from 'vitest';
 
         assert.deepEqual(await fixture.fudaba.updateCardMetadataForOwner({
             ...metadataInput,
-            favoriteIdolIds: [900_001, 900_001]
+            favoriteCharacterIds: [900_001, 900_001]
         }), { status: 'unavailable' });
         assert.deepEqual(await fixture.fudaba.updateCardMetadataForOwner({
             ...metadataInput,
-            favoriteIdolIds: [999_999]
+            favoriteCharacterIds: [999_999]
         }), { status: 'unavailable' });
 
         const metadataSaved = await fixture.fudaba.updateCardMetadataForOwner(metadataInput);
@@ -8452,11 +8453,11 @@ import { describe, onTestFinished, test } from 'vitest';
         if (metadataSaved.status !== 'saved') return;
         assert.equal(metadataSaved.card.revision, 1);
         assert.equal(metadataSaved.card.series_code, 'cg');
-        assert.equal(metadataSaved.card.favorite_idol, '测试春香、测试卯月');
+        assert.equal(metadataSaved.card.favorite_character, '测试春香、测试卯月');
         assert.deepEqual(
-            metadataSaved.card.favorite_idols.map((idol) => ({
-                id: idol.idol_id,
-                agency: idol.agency_code
+            metadataSaved.card.favorite_characters.map((character) => ({
+                id: character.character_id,
+                agency: character.agency_code
             })),
             [
                 { id: 900_001, agency: '765' },
@@ -8580,8 +8581,8 @@ import { describe, onTestFinished, test } from 'vitest';
             ownerAccountId: accountId,
             producerName: 'CAS Producer',
             seriesCode: '765',
-            favoriteIdol: '',
-            favoriteIdolIds: [900_001] as number[],
+            favoriteCharacter: '',
+            favoriteCharacterIds: [900_001] as number[],
             accent: '#4f64dd',
             bio: '',
             tradeNote: '',
@@ -8692,8 +8693,8 @@ import { describe, onTestFinished, test } from 'vitest';
             producerName: `Producer ${id}`,
             displayName: `Card ${id}`,
             seriesCode: "765",
-            favoriteIdol: "Haruka",
-            favoriteIdolIds: [900_001],
+            favoriteCharacter: "Haruka",
+            favoriteCharacterIds: [900_001],
             frontObjectKey: `community/fudaba/cards/${id}/front.webp`,
             backObjectKey: `community/fudaba/cards/${id}/back.webp`,
             accent: "#4f64dd",
@@ -9418,8 +9419,8 @@ import { describe, onTestFinished, test } from 'vitest';
             producer_name: "Producer A",
             display_name: "Card A",
             series_code: "765",
-            favorite_idol: "Haruka",
-            favorite_idols: [],
+            favorite_character: "Haruka",
+            favorite_characters: [],
             front_object_key: "public/cards/card-a/front.webp",
             back_object_key: "public/cards/card-a/back.webp",
             accent: "#4f64dd",
@@ -9460,6 +9461,64 @@ import { describe, onTestFinished, test } from 'vitest';
         lastCardInput: ListFudabaPublicCardsInput | null = null;
         officeVisible = true;
         card = publicCard();
+
+        readonly characters = {
+            listNamecardCharacterAgencies: async () => [
+                {
+                    id: 1,
+                    code: "765",
+                    name_cn: "765PRO",
+                    color: "#f34f6d",
+                    wiki_enabled: true,
+                },
+            ],
+            listNamecardCharacterCatalog: async () => [
+                {
+                    id: 1,
+                    agency_id: 1,
+                    agency_code: "765",
+                    agency_name: "765PRO",
+                    agency_color: "#f34f6d",
+                    category: "idol",
+                    is_fallback: false,
+                    name_cn: "天海春香",
+                    name_ja: "天海春香",
+                    name_en: "Haruka Amami",
+                    aliases: "春香",
+                    display_order: 0,
+                    revision: 1,
+                    created_at: CREATED_AT,
+                    updated_at: CREATED_AT,
+                },
+            ],
+        } as unknown as NamecardCharacterRepository;
+        readonly units = {
+            listNamecardUnitCatalog: async () => [
+                {
+                    id: 1,
+                    name_cn: "765PRO ALLSTARS",
+                    name_ja: null,
+                    name_en: null,
+                    aliases: null,
+                    display_order: 0,
+                    revision: 1,
+                    created_at: CREATED_AT,
+                    updated_at: CREATED_AT,
+                    agencies: [
+                        { id: 1, code: "765", name_cn: "765PRO", color: "#f34f6d" },
+                    ],
+                    members: [
+                        {
+                            character_id: 1,
+                            name_cn: "天海春香",
+                            name_ja: "天海春香",
+                            name_en: "Haruka Amami",
+                            category: "idol",
+                        },
+                    ],
+                },
+            ],
+        } as unknown as NamecardUnitRepository;
 
         readonly repository = {
             listPublicSeries: async () => [
@@ -9536,6 +9595,8 @@ import { describe, onTestFinished, test } from 'vitest';
         const status = options.accountStatus ?? "active";
         return {
             fudaba: fudaba.repository,
+            namecardCharacters: fudaba.characters,
+            namecardUnits: fudaba.units,
             storage: new PublicMediaStorage(),
             platformTokens: {
                 async sign() {
@@ -9613,6 +9674,65 @@ import { describe, onTestFinished, test } from 'vitest';
             assert.match(response.headers.get("content-type") ?? "", /^text\/plain/i);
             assert.equal(await response.text(), "Not Found");
             assert.equal(response.headers.get("cache-control"), "private, no-store");
+        });
+
+        test("public character catalog carries agencies, ordered categories, characters and units", async () => {
+            const fudaba = new PublicFudabaFixture();
+            const app = createTestApp(() => runtime(fudaba));
+            const response = await testRequest(
+                app,
+                "/api/community/exchange/characters",
+            );
+            assert.equal(response.status, 200);
+            assert.equal(response.headers.get("cache-control"), "private, no-store");
+            assert.deepEqual(
+                await contractJson(response, namecardCharacterCatalogSchema),
+                {
+                    agencies: [
+                        { id: 1, code: "765", name: "765PRO", color: "#f34f6d" },
+                    ],
+                    categories: [
+                        "idol",
+                        "staff",
+                        "rival",
+                        "mascot",
+                        "chara",
+                        "other",
+                    ],
+                    characters: [
+                        {
+                            id: 1,
+                            agencyId: 1,
+                            agencyCode: "765",
+                            agencyName: "765PRO",
+                            agencyColor: "#f34f6d",
+                            category: "idol",
+                            isFallback: false,
+                            nameCn: "天海春香",
+                            nameJa: "天海春香",
+                            nameEn: "Haruka Amami",
+                            aliases: "春香",
+                        },
+                    ],
+                    units: [
+                        {
+                            id: 1,
+                            nameCn: "765PRO ALLSTARS",
+                            nameJa: null,
+                            nameEn: null,
+                            aliases: null,
+                            agencyIds: [1],
+                            memberIds: [1],
+                        },
+                    ],
+                },
+            );
+
+            const gated = createTestApp(() => runtime(fudaba, { enabled: false }));
+            assert.equal(
+                (await testRequest(gated, "/api/community/exchange/characters")).status,
+                404,
+            );
         });
 
         test("Fudaba public series fails closed when icon storage is unavailable", async () => {

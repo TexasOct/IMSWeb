@@ -177,6 +177,18 @@ test.describe('PostgreSQL migration', () => {
                 {
                     version: '20260918120000_platform_oauth_app_exchange',
                     phase: 'post-data'
+                },
+                {
+                    version: '20261018120000_namecard_character_catalog',
+                    phase: 'post-data'
+                },
+                {
+                    version: '20261018150000_namecard_unit_catalog',
+                    phase: 'post-data'
+                },
+                {
+                    version: '20261018160000_namecard_favorite_characters',
+                    phase: 'post-data'
                 }
             ]
         );
@@ -706,11 +718,11 @@ test.describe('PostgreSQL migration', () => {
 
     test('catalog is available without a database connection', () => {
         const catalog = migrationCatalog();
-        assert.equal(catalog.count, 50);
+        assert.equal(catalog.count, 53);
         assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
         assert.equal(
             catalog.migrations.at(-1).version,
-            '20260918120000_platform_oauth_app_exchange'
+            '20261018160000_namecard_favorite_characters'
         );
         assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
     });
@@ -1040,7 +1052,10 @@ test.describe('PostgreSQL migration', () => {
                 '20260912210000_platform_email_configuration',
                 '20260913120000_platform_email_delivery_jobs',
                 '20260913130000_platform_email_request_cooldowns',
-                '20260918120000_platform_oauth_app_exchange'
+                '20260918120000_platform_oauth_app_exchange',
+                '20261018120000_namecard_character_catalog',
+                '20261018150000_namecard_unit_catalog',
+                '20261018160000_namecard_favorite_characters'
             ]);
             const second = await applyMigrations(client, { migrations });
             assert.deepEqual(second.executed, []);

@@ -2,6 +2,7 @@ import { installCommunityContentMock } from "./fixtures/community-content"
 import AxeBuilder from "@axe-core/playwright"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { api, expect, test } from "./fixtures/test"
+import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
 
 const series = {
   items: [
@@ -59,8 +60,8 @@ const card = {
   producerName: "春香P",
   displayName: "周末交换会名片",
   seriesCode: "765",
-  favoriteIdol: "天海春香",
-  favoriteIdols: [{ id: 1, name: "天海春香", seriesCode: "765" }],
+  favoriteCharacter: "天海春香",
+  favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
   frontImageUrl: "/brand/series/wall/765pro.webp",
   backImageUrl: "/brand/series/wall/cinderella-girls.webp",
   accent: "#f34e6c",
@@ -445,8 +446,8 @@ test.describe("community exchange", () => {
         producerName: "春香P",
         displayName: "周末交换会名片",
         seriesCode: "765",
-        favoriteIdol: "天海春香",
-        favoriteIdols: [{ id: 1, name: "天海春香", seriesCode: "765" }],
+        favoriteCharacter: "天海春香",
+        favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
         frontImageUrl: "/brand/series/wall/765pro.webp",
         backImageUrl: "/brand/series/wall/cinderella-girls.webp",
         accent: "#f34e6c",
@@ -464,8 +465,8 @@ test.describe("community exchange", () => {
         producerName: "春香P",
         displayName: "第二张公开名片",
         seriesCode: "765",
-        favoriteIdol: "天海春香",
-        favoriteIdols: [{ id: 1, name: "天海春香", seriesCode: "765" }],
+        favoriteCharacter: "天海春香",
+        favoriteCharacters: [{ id: 1, name: "天海春香", seriesCode: "765" }],
         frontImageUrl: "/brand/series/wall/cinderella-girls.webp",
         backImageUrl: "/brand/series/wall/765pro.webp",
         accent: "#2581c7",
@@ -505,8 +506,8 @@ test.describe("community exchange", () => {
         producerName: ownerCard.producerName,
         displayName: ownerCard.displayName,
         seriesCode: ownerCard.seriesCode,
-        favoriteIdol: ownerCard.favoriteIdol,
-        favoriteIdols: ownerCard.favoriteIdols,
+        favoriteCharacter: ownerCard.favoriteCharacter,
+        favoriteCharacters: ownerCard.favoriteCharacters,
         frontImageUrl: ownerCard.frontImageUrl,
         backImageUrl: ownerCard.backImageUrl,
         accent: ownerCard.accent,
@@ -565,6 +566,14 @@ test.describe("community exchange", () => {
       },
       "GET",
       2
+    )
+    await api.mockRoute(
+      "**/api/community/exchange/characters",
+      async (route) => {
+        await route.fulfill({ json: makeCharacterCatalog() })
+      },
+      "GET",
+      { min: 0, max: 2 }
     )
     await api.mockRoute(
       "**/api/community/exchange/me/cards",

@@ -18,6 +18,8 @@ import type {
     FudabaRepository,
     HomepageLinkRepository,
     NamecardRepository,
+    NamecardCharacterRepository,
+    NamecardUnitRepository,
     NewsRepository,
     PlatformAccountRepository,
     ReactionRepository,
@@ -79,6 +81,8 @@ import { SqlEditorialRepository } from "@/infra/db/repositories/editorial-reposi
 import { SqlEventRepository } from "@/infra/db/repositories/event-repository";
 import { SqlFudabaRepository } from "@/infra/db/repositories/fudaba-repository";
 import { SqlHomepageLinkRepository } from "@/infra/db/repositories/homepage-link-repository";
+import { SqlNamecardCharacterRepository } from "@/infra/db/repositories/namecard-character-repository";
+import { SqlNamecardUnitRepository } from "@/infra/db/repositories/namecard-unit-repository";
 import { SqlNewsRepository } from "@/infra/db/repositories/news-repository";
 import { SqlPlatformAccountRepository } from "@/infra/db/repositories/platform-account-repository";
 import { SqlPlatformEmailConfigurationRepository } from "@/infra/db/repositories/platform-email-configuration-repository";
@@ -142,6 +146,8 @@ interface NodeRepositories {
     reactions: ReactionRepository;
     homepageLinks: HomepageLinkRepository;
     sitePackages: SitePackageRepository;
+    namecardCharacters: NamecardCharacterRepository;
+    namecardUnits: NamecardUnitRepository;
     platform: PlatformAccountRepositoryAdapter;
     fudaba: FudabaRepositoryAdapter;
     story: StoryRepositoryAdapter;
@@ -206,6 +212,8 @@ function createNodeRepositories(config: NodeDatabaseConfig): NodeRepositories {
         reactions: new SqlReactionRepository(database),
         homepageLinks: new SqlHomepageLinkRepository(database),
         sitePackages: new SqlSitePackageRepository(database),
+        namecardCharacters: new SqlNamecardCharacterRepository(database),
+        namecardUnits: new SqlNamecardUnitRepository(database),
         platform: new SqlPlatformAccountRepository(database, schema),
         fudaba: new SqlFudabaRepository(database, schema),
         story: new SqlStoryRepository(database, schema),
@@ -408,6 +416,8 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
         reactions,
         homepageLinks,
         sitePackages,
+        namecardCharacters,
+        namecardUnits,
         platform,
         fudaba,
         story,
@@ -471,6 +481,8 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
             reactions,
             homepageLinks,
             sitePackages,
+            namecardCharacters,
+            namecardUnits,
             story,
             ...objectStorageInfrastructure,
             cache,

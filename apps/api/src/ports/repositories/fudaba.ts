@@ -33,8 +33,8 @@ export type FudabaClaimEnvelopeActionState =
     | "declined"
     | "none";
 
-export interface CardIdolSelectionRecord {
-    idol_id: number;
+export interface CardFavoriteSelectionRecord {
+    character_id: number;
     agency_code: string;
     name_cn: string;
     display_order: number;
@@ -156,8 +156,8 @@ export interface FudabaCardRecord {
     producer_name: string;
     display_name: string;
     series_code: string;
-    favorite_idol: string;
-    favorite_idols: CardIdolSelectionRecord[];
+    favorite_character: string;
+    favorite_characters: CardFavoriteSelectionRecord[];
     legacy_card_id: number | null;
     origin: FudabaCardOrigin;
     front_object_key: string;
@@ -183,8 +183,8 @@ export interface NewFudabaCardInput {
     producerName: string;
     displayName: string;
     seriesCode: string;
-    favoriteIdol: string;
-    favoriteIdolIds?: number[];
+    favoriteCharacter: string;
+    favoriteCharacterIds?: number[];
     legacyCardId?: number | null;
     frontObjectKey: string;
     backObjectKey: string;
@@ -209,8 +209,8 @@ export interface CreateOwnedFudabaCardInput {
     producerName: string;
     displayName: string;
     seriesCode: string;
-    favoriteIdol: string;
-    favoriteIdolIds?: number[];
+    favoriteCharacter: string;
+    favoriteCharacterIds?: number[];
     frontObjectKey: string;
     backObjectKey: string;
     accent: string;
@@ -227,8 +227,8 @@ export interface UpdateOwnedFudabaCardMetadataInput {
     producerName: string;
     displayName: string;
     seriesCode: string;
-    favoriteIdol: string;
-    favoriteIdolIds?: number[];
+    favoriteCharacter: string;
+    favoriteCharacterIds?: number[];
     accent: string;
     bio: string;
     tradeNote: string;
@@ -291,7 +291,7 @@ export interface FudabaCardClaimRecord {
     revision: number;
     created_at: string;
     updated_at: string;
-    favorite_idols: CardIdolSelectionRecord[];
+    favorite_characters: CardFavoriteSelectionRecord[];
 }
 
 export interface FudabaRegisteredCardReviewRecord extends FudabaCardRecord {
@@ -317,7 +317,7 @@ export interface CreateFudabaCardClaimInput {
     claimantAccountId: string;
     targetCardId: string | null;
     seriesCode: string | null;
-    idolIds: number[];
+    characterIds: number[];
     message: string;
     createdAt: string;
     updatedAt: string;
@@ -560,8 +560,8 @@ export interface FudabaPublicCardRecord {
     producer_name: string;
     display_name: string;
     series_code: string;
-    favorite_idol: string;
-    favorite_idols: CardIdolSelectionRecord[];
+    favorite_character: string;
+    favorite_characters: CardFavoriteSelectionRecord[];
     front_object_key: string;
     back_object_key: string;
     accent: string;
@@ -758,13 +758,13 @@ export interface FudabaRepository {
     createCard(input: NewFudabaCardInput): Promise<FudabaCardRecord>;
     findCardById(id: string): Promise<FudabaCardRecord | null>;
     listCardsForOwner(ownerAccountId: string): Promise<FudabaCardRecord[]>;
-    listCardIdols(
+    listCardFavorites(
         cardIds: string[],
-    ): Promise<Map<string, CardIdolSelectionRecord[]>>;
-    attachCardIdols(
+    ): Promise<Map<string, CardFavoriteSelectionRecord[]>>;
+    attachCardFavorites(
         cardId: string,
-        idolIds: number[],
-    ): Promise<CardIdolSelectionRecord[] | null>;
+        characterIds: number[],
+    ): Promise<CardFavoriteSelectionRecord[] | null>;
     findCardForOwner(
         cardId: string,
         ownerAccountId: string,

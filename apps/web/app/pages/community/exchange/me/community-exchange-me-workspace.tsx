@@ -25,13 +25,11 @@ import {
   getFudabaOwnerCards,
   getFudabaOwnerSeries,
   getPlatformProfile,
-  getWikiCatalog,
   hasPlatformSessionHint,
   type FudabaOwnerCard,
   type FudabaSeries,
   type PlatformAccountStatus,
   type PlatformProfile,
-  type WikiPublicSearchEntry,
 } from "~/lib/api"
 import { cn } from "~/lib/utils"
 import { CardWorkspace } from "./card-workspace"
@@ -54,7 +52,6 @@ type WorkspaceState = {
   accountStatus: PlatformAccountStatus | null
   writeEnabled: boolean
   series: FudabaSeries[]
-  idols: WikiPublicSearchEntry[]
   cards: FudabaOwnerCard[]
   error: string | null
 }
@@ -65,7 +62,6 @@ const initialState: WorkspaceState = {
   accountStatus: null,
   writeEnabled: false,
   series: [],
-  idols: [],
   cards: [],
   error: null,
 }
@@ -129,13 +125,11 @@ function ProfileWorkspace({
       error: null,
     }))
     try {
-      const [profileResult, seriesResult, cardResult, catalogResult] =
-        await Promise.all([
-          getPlatformProfile().send(),
-          getFudabaOwnerSeries().send(),
-          getFudabaOwnerCards().send(),
-          getWikiCatalog().send(),
-        ])
+      const [profileResult, seriesResult, cardResult] = await Promise.all([
+        getPlatformProfile().send(),
+        getFudabaOwnerSeries().send(),
+        getFudabaOwnerCards().send(),
+      ])
       if (workspaceGeneration.current !== generation) return
       const canCreate =
         profileResult.account.status === "active" &&
@@ -146,7 +140,6 @@ function ProfileWorkspace({
         accountStatus: profileResult.account.status,
         writeEnabled: profileResult.capabilities.fudabaWrite,
         series: seriesResult.items,
-        idols: catalogResult.searchEntries,
         cards: cardResult.items,
         error: null,
       })
@@ -487,7 +480,7 @@ function ProfileWorkspace({
                 交换名片
               </h2>
               <p className="mt-2 text-sm/6 text-muted-foreground">
-                管理双面名片素材、担当偶像和公开交换状态。
+                管理双面名片素材、担当角色和公开交换状态。
               </p>
             </div>
             <div className="mt-6">
@@ -498,7 +491,6 @@ function ProfileWorkspace({
                 loadingDetail={loadingDetail}
                 profile={state.profile}
                 series={state.series}
-                idols={state.idols}
                 readOnly={exchangeReadOnly}
                 readOnlyReason={exchangeReadOnlyReason}
                 onSelect={(cardId) => void loadCard(cardId)}

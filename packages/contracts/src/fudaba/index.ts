@@ -10,6 +10,7 @@ import {
   successFlagSchema,
 } from "../common.js";
 
+import { NAMECARD_FAVORITE_CHARACTER_LIMIT } from "./characters.js";
 import { NAMECARD_REACTION_EMOJIS } from "./reactions-runtime.js";
 import { isFudabaMapStyleUrl } from "./runtime.js";
 
@@ -27,6 +28,7 @@ export {
   fudabaMapStyleUrlSchema,
 } from "./map-delivery.js";
 export { NAMECARD_REACTION_EMOJIS } from "./reactions-runtime.js";
+export { NAMECARD_FAVORITE_CHARACTER_LIMIT } from "./characters.js";
 export { isFudabaMapStyleUrl } from "./runtime.js";
 export type {
   FudabaMapDeliveryMutation,
@@ -92,7 +94,7 @@ export const fudabaOfficeSchema = exactJsonResponse({
   seriesCodes: z.array(seriesCodeSchema),
 });
 
-export const fudabaIdolSelectionSchema = z
+export const fudabaCharacterSelectionSchema = z
   .object({
     id: z.number().int().positive(),
     name: z.string().min(1),
@@ -125,8 +127,10 @@ export const fudabaCardSchema = exactJsonResponse({
   producerName: z.string().min(1),
   displayName: z.string().min(1),
   seriesCode: seriesCodeSchema,
-  favoriteIdol: z.string(),
-  favoriteIdols: z.array(fudabaIdolSelectionSchema).max(20),
+  favoriteCharacter: z.string(),
+  favoriteCharacters: z
+    .array(fudabaCharacterSelectionSchema)
+    .max(NAMECARD_FAVORITE_CHARACTER_LIMIT),
   frontImageUrl: publicMediaUrlSchema,
   backImageUrl: publicMediaUrlSchema,
   accent: accentSchema,
@@ -288,8 +292,10 @@ export const fudabaOwnerCardSchema = z
     producerName: ownerCardTextSchema(80, true),
     displayName: ownerCardTextSchema(120, true),
     seriesCode: seriesCodeSchema.max(64),
-    favoriteIdol: ownerCardTextSchema(200),
-    favoriteIdols: z.array(fudabaIdolSelectionSchema).max(20),
+    favoriteCharacter: ownerCardTextSchema(200),
+    favoriteCharacters: z
+      .array(fudabaCharacterSelectionSchema)
+      .max(NAMECARD_FAVORITE_CHARACTER_LIMIT),
     frontImageUrl: publicMediaUrlSchema,
     backImageUrl: publicMediaUrlSchema,
     accent: accentSchema,
@@ -469,7 +475,10 @@ export const fudabaCardFieldsRequestSchema = z.object({
   producerName: ownerCardRequestTextSchema(80, true),
   displayName: ownerCardRequestTextSchema(120, true),
   seriesCode: seriesCodeSchema.max(64),
-  favoriteIdolIds: z.array(z.number().int().positive()).min(1).max(20)
+  favoriteCharacterIds: z
+    .array(z.number().int().positive())
+    .min(1)
+    .max(NAMECARD_FAVORITE_CHARACTER_LIMIT)
     .refine((ids) => new Set(ids).size === ids.length),
   accent: accentSchema,
   bio: ownerCardRequestTextSchema(2000),
@@ -538,7 +547,7 @@ export const fudabaErrorResponseSchema = z.union([
 
 export type FudabaSeries = z.infer<typeof fudabaSeriesSchema>;
 export type FudabaSeriesList = z.infer<typeof fudabaSeriesListSchema>;
-export type FudabaIdolSelection = z.infer<typeof fudabaIdolSelectionSchema>;
+export type FudabaCharacterSelection = z.infer<typeof fudabaCharacterSelectionSchema>;
 export type FudabaOffice = z.infer<typeof fudabaOfficeSchema>;
 export type FudabaCard = z.infer<typeof fudabaCardSchema>;
 export type FudabaCardPlacement = z.infer<typeof fudabaCardPlacementSchema>;

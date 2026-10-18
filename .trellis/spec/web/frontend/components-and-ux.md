@@ -226,16 +226,16 @@ decorative calendar icon (`max-md:hidden`) so the date and a short producer
 name fit side by side on a 390px Card. A longer name wraps instead of being
 truncated, since a touch device cannot recover a truncated name.
 
-The claim dialog treats 企划 and 担当偶像 as optional: a producer may submit the
+The claim dialog treats 企划 and 担当角色 as optional: a producer may submit the
 claim with neither and fill them in from the owner card editor after approval.
 A claim row's `series_code` is `NOT NULL` and foreign-keyed into `agencies`, so
 the API derives one rather than demanding a choice, taking the first candidate
 that is a live, wiki-enabled agency: the explicit request value, the card the
-claim binds to, the selected idols' agency, then the legacy card's own series.
-Only when none of those resolve does it answer `409`
+claim binds to, the selected characters' agency, then the legacy card's own
+series. Only when none of those resolve does it answer `409`
 `FUDABA_CLAIM_SERIES_REQUIRED`, which the dialog surfaces so the producer can
-pick one. An empty idol selection skips validation in the claim path only;
-owner-card writes still require between 1 and 20 idols.
+pick one. An empty character selection skips validation in the claim path only;
+owner-card writes still require between 1 and 200 characters.
 
 Desktop list summaries remain compact pills with natural width (`md:min-w-0`),
 20px graphics, 14px counts and `md:px-3`. The add control appears in desktop Web

@@ -89,7 +89,7 @@ export {
   fudabaSeriesSchema,
   fudabaSeriesListSchema,
   fudabaOfficeSchema,
-  fudabaIdolSelectionSchema,
+  fudabaCharacterSelectionSchema,
   fudabaCardInteractionsSchema,
   fudabaCardInteractionKindSchema,
   namecardReactionEmojiSchema,
@@ -699,7 +699,7 @@ function appendCardFields(form: FormData, fields: FudabaCardFields) {
   form.append("producerName", fields.producerName)
   form.append("displayName", fields.displayName)
   form.append("seriesCode", fields.seriesCode)
-  form.append("favoriteIdolIds", JSON.stringify(fields.favoriteIdolIds))
+  form.append("favoriteCharacterIds", JSON.stringify(fields.favoriteCharacterIds))
   form.append("accent", fields.accent)
   form.append("bio", fields.bio)
   form.append("tradeNote", fields.tradeNote)

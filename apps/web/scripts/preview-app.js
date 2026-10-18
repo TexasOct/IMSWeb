@@ -37,11 +37,13 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   if (!["web", "app"].includes(target)) {
     throw new Error("Preview target must be web or app")
   }
-  const command = process.platform === "win32" ? "pnpm.cmd" : "pnpm"
   const result = spawnSync(
-    command,
+    "pnpm",
     ["--filter", "@imsweb/api", "run", "test:app-preview"],
     {
+      // Windows exposes pnpm as a `pnpm.cmd` shim, which Node 22.13+ only
+      // spawns through a shell.
+      shell: process.platform === "win32",
       env: {
         ...process.env,
         IMS_E2E_PREVIEW_TARGET: target,
