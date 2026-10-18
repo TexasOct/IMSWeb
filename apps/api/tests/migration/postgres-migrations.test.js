@@ -189,6 +189,10 @@ test.describe('PostgreSQL migration', () => {
                 {
                     version: '20261018160000_namecard_favorite_characters',
                     phase: 'post-data'
+                },
+                {
+                    version: '20261018180000_namecard_character_wiki_backfill',
+                    phase: 'post-data'
                 }
             ]
         );
@@ -718,11 +722,11 @@ test.describe('PostgreSQL migration', () => {
 
     test('catalog is available without a database connection', () => {
         const catalog = migrationCatalog();
-        assert.equal(catalog.count, 53);
+        assert.equal(catalog.count, 54);
         assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
         assert.equal(
             catalog.migrations.at(-1).version,
-            '20261018160000_namecard_favorite_characters'
+            '20261018180000_namecard_character_wiki_backfill'
         );
         assert.match(catalog.migrations[0].checksum, /^[a-f0-9]{64}$/);
     });
@@ -1055,7 +1059,8 @@ test.describe('PostgreSQL migration', () => {
                 '20260918120000_platform_oauth_app_exchange',
                 '20261018120000_namecard_character_catalog',
                 '20261018150000_namecard_unit_catalog',
-                '20261018160000_namecard_favorite_characters'
+                '20261018160000_namecard_favorite_characters',
+                '20261018180000_namecard_character_wiki_backfill'
             ]);
             const second = await applyMigrations(client, { migrations });
             assert.deepEqual(second.executed, []);
