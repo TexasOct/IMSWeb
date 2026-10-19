@@ -45,6 +45,10 @@ function renderAdminLayout(initialEntry = "/admin") {
           <Route path="community/exchange" element={<h1>位置审核</h1>} />
           <Route path="stories" element={<h1>Wiki 剧情管理</h1>} />
           <Route path="stories/assets" element={<h1>Wiki 素材管理</h1>} />
+          <Route path="idols" element={<h1>偶像管理入口</h1>} />
+          <Route path="idols/agencies" element={<h1>企划资料</h1>} />
+          <Route path="idols/groups" element={<h1>栏目资料</h1>} />
+          <Route path="idols/entries" element={<h1>条目资料</h1>} />
           <Route path="cards" element={<h1>名片审核列表</h1>} />
           <Route path="cards/characters" element={<h1>角色列表</h1>} />
         </Route>
@@ -154,6 +158,38 @@ describe("AdminLayout", () => {
         expect(
           screen.getByRole("heading", { name: "无法访问管理工作台" })
         ).toBeVisible()
+    }
+  )
+
+  it.each(["editor", "op"])(
+    "keeps %s access to the independent catalog",
+    (dept) => {
+      mocks.useRequest.mockReturnValue({
+        data: {
+          success: true,
+          user: {
+            id: 4,
+            username: "editor",
+            producername: "Editor",
+            dept,
+            adminRole: null,
+          },
+        },
+        loading: false,
+        error: undefined,
+        onError: mocks.onError,
+        send: mocks.send,
+      })
+      renderAdminLayout("/admin/idols/entries")
+      expect(screen.getByRole("heading", { name: "条目资料" })).toBeVisible()
+      expect(screen.getByRole("link", { name: "条目管理" })).toHaveAttribute(
+        "aria-current",
+        "page"
+      )
+      expect(screen.getByRole("link", { name: "企划管理" })).toHaveAttribute(
+        "href",
+        "/admin/idols/agencies"
+      )
     }
   )
 

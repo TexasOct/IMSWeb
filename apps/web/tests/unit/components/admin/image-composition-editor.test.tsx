@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { I18nTestProvider } from "@/tests/unit/support/harness"
 import { i18n } from "~/i18n/config"
 import { defaultLanguage } from "~/i18n/resources"
-import { ImageCompositionEditor } from "~/pages/admin/stories/components/image-composition-editor"
+import { ImageCompositionEditor } from "~/components/admin/image-composition-editor"
 import { defaultWikiImageTransform, type WikiImageTransform } from "~/lib/api"
 
 function EditorHarness({

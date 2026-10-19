@@ -11,7 +11,7 @@ import { setCsrfCookie } from "@/tests/unit/support/auth-cookies"
 import { I18nTestProvider } from "@/tests/unit/support/harness"
 import { i18n } from "~/i18n/config"
 import { defaultLanguage } from "~/i18n/resources"
-import { WikiEntityEditorDialog } from "~/pages/admin/stories/components/wiki-entity-editor-sheet"
+import { WikiEntityEditorDialog } from "~/pages/admin/idols/components/wiki-entity-editor-dialog"
 import {
   defaultWikiImageTransform,
   type WikiAdminAgency,

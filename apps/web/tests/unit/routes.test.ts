@@ -61,7 +61,7 @@ describe("Web route metadata", () => {
     )
 
     expect(manifest).toEqual(descriptors)
-    expect(manifest).toHaveLength(56)
+    expect(manifest).toHaveLength(60)
   })
 
   it("registers every Web prerender and preserves the 30-document set", () => {
@@ -100,6 +100,20 @@ describe("Web route metadata", () => {
   it("uses the modern Wiki and story pages by default", () => {
     expect(routeFile("wiki")).toBe("pages/wiki/modern/index.tsx")
     expect(routeFile("story")).toBe("pages/wiki/modern/story-page.tsx")
+  })
+
+  it("delivers idol management only to the Web admin layout", () => {
+    for (const page of ["agencies", "groups", "entries"]) {
+      expect(routeFile(`admin/idols/${page}`)).toBe(
+        `pages/admin/idols/${page}.tsx`
+      )
+    }
+    expect(routeFile("admin/idols")).toBe("pages/admin/idols/index.tsx")
+    expect(
+      routeDescriptorsForTarget("app").some((entry) =>
+        entry.file.startsWith("pages/admin/idols/")
+      )
+    ).toBe(false)
   })
 
   it("opens saved editorial drafts in a public-style preview page", () => {

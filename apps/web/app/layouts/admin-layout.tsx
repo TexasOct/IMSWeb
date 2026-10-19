@@ -157,9 +157,22 @@ const navigation: Array<{
     accent: "bg-franchise-sidem",
   },
   {
+    to: "/admin/idols",
+    label: "偶像管理",
+    description: "企划、栏目与条目资料",
+    icon: UserRoundIcon,
+    accent: "bg-franchise-sc",
+    editorOnly: true,
+    children: [
+      { to: "/admin/idols/agencies", label: "企划管理" },
+      { to: "/admin/idols/groups", label: "栏目管理" },
+      { to: "/admin/idols/entries", label: "条目管理" },
+    ],
+  },
+  {
     to: "/admin/stories",
     label: "剧情内容",
-    description: "剧情角色素材",
+    description: "剧情卡片、来源与封面",
     icon: BookOpenTextIcon,
     accent: "bg-franchise-sc",
     editorOnly: true,
@@ -337,6 +350,8 @@ function isExpiredSession(error: unknown): boolean {
 function isEditorContentRoute(pathname: string): boolean {
   return (
     pathname === "/admin/community" ||
+    pathname === "/admin/idols" ||
+    pathname.startsWith("/admin/idols/") ||
     pathname === "/admin/stories" ||
     pathname.startsWith("/admin/stories/")
   )
@@ -555,7 +570,9 @@ export default function AdminLayout() {
                             aria-hidden="true"
                           />
                         </TooltipTrigger>
-                        <TooltipContent side="right">{item.label}</TooltipContent>
+                        <TooltipContent side="right">
+                          {item.label}
+                        </TooltipContent>
                       </Tooltip>
                     )
                   }
@@ -598,7 +615,7 @@ export default function AdminLayout() {
                             </span>
                           </span>
                           <ChevronRightIcon
-                            className="ml-auto hidden size-3 opacity-50 transition-transform duration-200 group-data-panel-open:rotate-90 lg:block motion-reduce:transition-none"
+                            className="ml-auto hidden size-3 opacity-50 transition-transform duration-200 group-data-panel-open:rotate-90 motion-reduce:transition-none lg:block"
                             aria-hidden="true"
                           />
                         </CollapsibleTrigger>

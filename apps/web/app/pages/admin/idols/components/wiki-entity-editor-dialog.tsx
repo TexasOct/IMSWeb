@@ -38,7 +38,7 @@ import {
 } from "~/components/ui/field"
 import { Input } from "~/components/ui/input"
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group"
-import { ImageCompositionEditor } from "~/pages/admin/stories/components/image-composition-editor"
+import { ImageCompositionEditor } from "~/components/admin/image-composition-editor"
 import {
   createWikiAgency,
   createWikiGroup,
@@ -163,7 +163,7 @@ export function WikiEntityEditorDialog({
   if (!target) return null
   return (
     <WikiEntityEditorDialogContent
-      key={`${target.kind}-${target.entity?.id ?? "new"}`}
+      key={`${target.kind}-${target.kind === "agency" ? "" : target.agency.id}-${target.entity?.id ?? "new"}`}
       target={target}
       open={open}
       onOpenChange={onOpenChange}
@@ -334,7 +334,7 @@ function WikiEntityEditorDialogContent({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-    <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-2xl">
+        <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-2xl">
           <form
             className="flex max-h-[calc(100svh-2rem)] min-h-0 flex-col"
             onSubmit={submit}
