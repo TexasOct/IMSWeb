@@ -44,3 +44,26 @@ export function isFudabaMapStyleUrl(value: string): boolean {
   if (value.startsWith("/")) return !value.includes("//");
   return isAbsoluteMapUrl(value);
 }
+
+/** Public JS API key; the security code belongs only to the proxy server. */
+export function isFudabaAMapKey(value: string): boolean {
+  return /^[a-zA-Z0-9_-]{16,128}$/.test(value);
+}
+
+export function isFudabaAMapStyle(value: string): boolean {
+  return /^amap:\/\/styles\/[a-zA-Z0-9_-]{1,128}$/.test(value);
+}
+
+export function isFudabaAMapSecurityProxyUrl(value: string): boolean {
+  return isFudabaMapStyleUrl(value) &&
+    (value.startsWith('/') || value.startsWith('https://')) &&
+    value.endsWith('/_AMapService');
+}
+
+export function isFudabaMapboxToken(value: string): boolean {
+  return /^pk\.[A-Za-z0-9._-]{16,2048}$/.test(value);
+}
+
+export function isFudabaMapboxStyle(value: string): boolean {
+  return /^mapbox:\/\/styles\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+$/.test(value) && value.length <= 2048;
+}

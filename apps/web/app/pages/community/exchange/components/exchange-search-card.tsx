@@ -25,7 +25,8 @@ import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { suppressNativeTabBar } from "~/lib/native-tab-bar-suppression"
-import type { FudabaPlaceSearchResult } from "~/lib/api"
+import type { MapSearchPlace } from "~/lib/maps/map-search"
+import type { PlaceSearchDisplay } from "../hooks/use-place-search"
 import {
   shouldUseNativeGlassControls,
   type NativeGlassFrame,
@@ -55,10 +56,12 @@ export interface ExchangeSearchCardTools {
   modalOpen?: boolean
 }
 
-export interface ExchangeSearchCardProps extends ExchangeSearchCardTools {
-  model: ExchangePlaceSearchModel
-  selectedPlace: FudabaPlaceSearchResult | null
-  onSelect: (place: FudabaPlaceSearchResult) => void
+export interface ExchangeSearchCardProps<
+  Place extends PlaceSearchDisplay = MapSearchPlace,
+> extends ExchangeSearchCardTools {
+  model: ExchangePlaceSearchModel<Place>
+  selectedPlace: Place | null
+  onSelect: (place: Place) => void
   onClear: () => void
   pointCount: number
   feedback?: React.ReactNode
@@ -68,7 +71,7 @@ export interface ExchangeSearchCardProps extends ExchangeSearchCardTools {
   onExpandedChange?: (expanded: boolean) => void
 }
 
-export function ExchangeSearchCard({
+export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
   model,
   selectedPlace,
   onSelect,
@@ -80,7 +83,7 @@ export function ExchangeSearchCard({
   onOcclusion,
   onExpandedChange,
   ...tools
-}: ExchangeSearchCardProps) {
+}: ExchangeSearchCardProps<Place>) {
   const id = useId()
   const navigate = useNavigation()
   const cardRef = useRef<HTMLElement>(null)
@@ -188,20 +191,24 @@ export function ExchangeSearchCard({
             ]
               .filter(Boolean)
               .join("\n"),
-            attribution:
-              model.attribution ||
-              (selectedPlace ? "© OpenStreetMap contributors" : ""),
+            attribution: expanded
+              ? model.attribution
+              : (selectedPlace?.attribution ?? model.attribution),
             selected: selectedPlace ? `已定位：${selectedPlace.label}` : "",
             selectedLabel: selectedPlace?.label ?? "",
             selectedAddress: selectedPlace?.address ?? "",
             filterApplied: Boolean(tools.filterApplied),
             pointCount,
             hasAttribution: Boolean(tools.onOpenAttribution),
-            results: model.results,
+            results: model.results.map(({ id, label, address }) => ({
+              id,
+              label,
+              address,
+            })),
             labels: {
               search: "查找地点",
               input: "搜索地点",
-              placeholder: "场馆、商圈或完整地址",
+              placeholder: "城市、地名或完整地址",
               resultsHeading: "地点",
               resultsSubtitle: "搜索结果",
               more: "更多",
@@ -983,7 +990,7 @@ export function ExchangeSearchCard({
                   <span>{selectedPlace.address}</span>
                   {!IS_APP_TARGET ? (
                     <span>
-                      {model.attribution || "© OpenStreetMap contributors"}
+                      {selectedPlace.attribution ?? model.attribution}
                     </span>
                   ) : null}
                 </span>
@@ -1118,7 +1125,7 @@ export function ExchangeSearchCard({
 
         {more ? (
           <div
-            className="exchange-search-content"
+            className="exchange-search-content exchange-search-menu"
             aria-label="更多地图工具内容"
           >
             <p>当前范围：{pointCount} 个区域点</p>

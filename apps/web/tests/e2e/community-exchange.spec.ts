@@ -130,6 +130,8 @@ test.beforeEach(async ({ page, api }, testInfo) => {
     (route) =>
       route.fulfill({
         json: {
+          provider: "maplibre",
+          search: { provider: "nominatim" },
           styleUrl: "/maps/exchange-test-style.json",
         },
       }),

@@ -5,7 +5,8 @@
 > 权威来源：`apps/web/public/maps/`、地图资源信任策略、后台 map-delivery 配置和部署入口配置
 > 适用环境：公开 Producer Map、Fudaba exchange map 与可选自托管地图资源
 
-公开地图需要稳定、可审计且不泄露 provider key 的资源链。Fudaba exchange map 默认从官方
+公开地图需要稳定、可审计的资源链。公开 JS API Key/Token 可由 map-config 交付；高德安全密钥等
+服务端凭据不得交付浏览器。Fudaba exchange map 默认从官方
 OpenFreeMap HTTPS 服务读取 style、tile、glyph 和 sprite；App 只内置小型合规边界 GeoJSON，
 不包含 PMTiles 归档。Web 代码不硬编码第三方 token 或临时 host。
 
@@ -19,7 +20,7 @@ OpenFreeMap HTTPS 服务读取 style、tile、glyph 和 sprite；App 只内置�
 | Sprite             | 底图图标和 symbol                          | style 声明的 OpenFreeMap sprite                |
 | 行政边界           | Producer Map 和合规边界显示                | `apps/web/public/maps/` 中登记来源的 GeoJSON   |
 
-在线资源必须与 API 返回的 style origin 一致并通过客户端 allowlist。自托管时，tile、glyph、sprite
+MapLibre 在线资源必须与 API 返回的 style origin 一致并通过客户端 allowlist。自托管时，tile、glyph、sprite
 和 style 必须整体迁移，不能只镜像其中一部分。
 
 ## 当前生产合同
@@ -41,7 +42,10 @@ IMS_FUDABA_MAP_STYLE_URLS=/maps/exchange-style.json
 
 默认 style URL 和 `IMS_FUDABA_MAP_STYLE_URLS` 中的完整 URL 只用于首次生成后台配置集合，或在
 持久化对象缺失、损坏时恢复。管理员在“系统配置 > 交换地图源”中新增、编辑、删除配置，并选择
-唯一的线上激活项；修改保存后无需重启 API。公共 map-config API 只返回激活项的完整 `styleUrl`。
+默认源或国内外模式；修改保存后无需重启 API，已打开的地图需要刷新。
+统一模式的公共 map-config API 只返回当前选中的
+provider 配置及其搜索策略。三种服务商均显式声明 `provider`；MapLibre 包含 `styleUrl`，
+高德与 Mapbox 包含各自严格校验的公开选项。
 需要自托管时按下文准备独立地图 release，再在后台新增其 style URL。
 S3-compatible storage 的对象键、CORS、上传和验证合同见
 [OpenMap S3 发布规范](openmap-s3-publication.md)。
@@ -66,6 +70,96 @@ S3-compatible storage 的对象键、CORS、上传和验证合同见
 API 返回官方 HTTPS style URL。客户端仅信任 App/Web document origin 和 style origin，style 中的
 source、glyph 与 sprite 必须位于这两个 origin。该方案不会增加 App 包体，也不需要发布地图主机；
 运行时依赖终端能够访问 `tiles.openfreemap.org`。
+
+### 高德与 Mapbox
+
+后台“系统配置 > 交换地图源 > 添加地图源”支持三种服务商：
+
+| 服务商 | 后台填写 | 渲染方式 |
+| --- | --- | --- |
+| OpenFreeMap / MapLibre | 完整 style URL 或站点根路径 | 原有 MapLibre，兼容 PMTiles |
+| 高德地图 | Web 端 JS API Key、安全代理地址、`amap://styles/...` 样式 | 在线高德 JS API 2.0 |
+| Mapbox | `pk.` 开头的公开 Token、`mapbox://styles/<owner>/<id>` | 官方 Mapbox GL JS |
+
+高德安全代理地址以 `/_AMapService` 结尾，支持 HTTPS 完整地址或 API origin 下的根路径。
+App 使用根路径时会解析到 API origin。按[高德安全密钥说明](https://developer.amap.com/api/javascript-api-v2/guide/abc/jscode)
+配置代理；可将 [Nginx 代理示例](../../deploy/nginx/amap-service.conf.example) 的私有副本包含在
+应用 TLS server 中。安全密钥仅放在该私有配置中，并为 JS API Key 配置允许的域名。
+多 Key 部署应在代理中按 Key 映射相应安全密钥。修改后先验证 Nginx 配置再重载。
+客户端按需在线加载 SDK，保留高德默认 logo/版权；Key 或代理地址变更后，已加载 SDK 的页面需要刷新。
+
+如果 SDK 返回 `INVALID_USER_DOMAIN`，说明当前页面的访问域名未通过 Key 的域名校验，需在高德控制台
+调整绑定域名。[高德本地调试说明](https://lbs.amap.com/faq/js-api/map-js-api/create-project/46515)
+建议调试时去掉域名白名单；使用独立的本地调试 Key，并保留上线 Key 的域名限制。
+域名校验通过后，还需验证 `/_AMapService` 确实由代理服务器处理。普通 Web 的根路径解析到页面
+origin。Vite 开发服务器提供专用本地代理：在 Git 忽略的 `apps/web/.env.local` 填写
+`IMS_DEV_AMAP_JS_API_KEY` 和 `IMS_DEV_AMAP_SECURITY_JS_CODE`，前者须与后台地图源的 Key 一致，
+后台安全代理地址填 `/_AMapService`。只有开发服务器读取该文件；安全密钥不进入浏览器或生产产物。
+未配置时本地代理返回 503；也可在后台直接填写已部署代理的完整 HTTPS 地址。
+
+事务所数据、自有 API、地址写入与规范会话视角以 WGS84 解释。高德适配器使用
+[`AMap.convertFrom(..., "gps", ...)`](https://developer.amap.com/api/javascript-api-v2/guide/transform/convertfrom)
+转换公开区域点、规范坐标搜索结果和设备定位；每批最多 40 对坐标，复用有界缓存中的转换任务。
+高德视口查询使用保守 WGS84 包围范围，避免边缘遗漏；App 的高德视角仅保存在适配器独立的本地会话区，
+不通过联网逆向转换保存视角。不会将 GCJ-02 写入业务数据，也不会提高公开点的 0.1 度精度。
+Mapbox 与 MapLibre 直接使用 WGS84。地图内查找由选中地图源的 provider policy 下发搜索配置：
+高德复用 JS Key 和安全代理调用 `AMap.PlaceSearch`，原生搜索坐标直接定位；Mapbox 复用公开 Token
+调用 Geocoding v6 查询地址／地名；MapLibre 沿用自有 API/Nominatim-compatible 代理。搜索结果使用
+各自署名，地图搜索不执行独立地区识别，也不会在失败时静默更换来源。事务所编辑仍调用原规范坐标
+搜索 API，避免高德坐标或 Mapbox 临时结果写入业务数据。搜索与底图服务会接收相应关键词或资源请求，
+高德转换服务会接收规范坐标，包括用户主动定位后的设备坐标；公开事务所只传区域坐标。
+
+Mapbox 临时搜索结果不缓存、不写入数据库，搜索定位视口也不写入 App 会话存储。
+Mapbox Geocoding 提供地址和地名查询，不能据此宣称完整 POI 覆盖。Token 的来源限制和账户
+Geocoding 可用性需同时检查；不需要录入私密 Token 或另行添加高德 Web 服务 Key。
+
+地图缩放上限由各 SDK 的原生范围决定，客户端不再统一限制为 z11。聚合截止层级独立于相机上限，
+搜索地点默认聚焦到 z13；继续放大不会改变公开事务所的区域坐标精度。自托管 z0–11 归档可由
+MapLibre 继续放大显示已有瓦片，其街道细节仍取决于归档中实际保存的数据。
+
+独立地图模式下，OpenFreeMap 和 Mapbox 官方 `streets-v12`、`light-v11`、`outdoors-v12` 共用站点浅蓝灰配色：
+水面、道路、建筑和文字通过各自图层规则映射至相同颜色。Mapbox 在每次 `style.load` 后应用配色，
+不修改业务点位、原生图标或版权控件；Studio 自定义样式与 import-based Standard 样式按发布配置显示。
+高德新增源默认使用 `amap://styles/whitesmoke`，已有 `normal` 配置在显示时也使用该浅色主题；
+其他显式主题与自定义样式地址按原样使用。高德官方主题与站点配色为近似匹配，精确匹配需要在
+高德控制台发布自定义样式，再把其 URI 填入后台“高德地图样式”。客户端不通过滤镜修改底图或版权。
+
+Mapbox 保留官方 logo、版权链接和反馈控件；Token 应限制允许的 URL，禁止录入 `sk.` 私密 Token。
+独立 Mapbox GL 以 `mul` 请求未指定翻译语言的瓦片，并在每次样式加载后，对已识别的 Streets v8 名称层
+应用当地原名优先规则；原名为空时保留可用名称回退。字体使用样式 glyph，RTL 按需加载官方插件。
+经典、自定义与 Standard/import 样式的适配边界见[地图渲染与当地语言策略](../architecture/map-rendering.md)。
+App WebView 的 origin、Token URL 限制与上游网络可达性需在目标设备验证。高德和 Mapbox 都按需加载，
+保留默认 OpenFreeMap 的使用方式。
+
+### 国内外底图聚合
+
+后台“地图分发”支持“统一地图源”和“国内外地图”。国内外模式分别选择中国大陆高德源和海外
+Mapbox 源，以高德作为唯一地图引擎，官方 Flexible 图层加载 Mapbox Static Tiles。港澳台使用
+海外层。业务标记、交互相机与搜索共用一套接口，切换模式不会删除地图源、授权或自定义样式。
+高分屏请求官方 `@2x` 瓦片并使用最多两倍的输出像素，保持原地理层级和逻辑瓦片尺寸。
+
+国内外模式必须使用已发布且可通过 Static Tiles 读取的 Mapbox 样式。需要当地地名、指定字体
+和站点配色时，先在 Mapbox Studio 配置并发布，再把样式 URI 填入海外源。Mapbox GL 模式的
+运行时语言和配色适配不会改变栅格影像。只读公开 Token 可读取获准资源，不代表具备创建或
+发布样式所需的 `styles:write` 权限；客户端不接收私密 Token。
+
+高德 Key、安全代理与原生样式 URI 不用于导出高德瓦片。海外瓦片只在视图内有界缓存，地图
+关闭时取消请求；失败时海外使用中性占位，保留大陆底图与业务交互。两家标识、版权与纠错
+入口必须保持可达。裁剪轮廓由同一高德 JS Key 的官方行政区插件读取国家及港澳台边界，
+只保存在当前视图中；不使用展示级简化省界代替街道级裁剪。边界源、重采样和实际设备的
+地图显示需随发布验收。
+
+单 Canvas 的数据接入条件与验收约束见[地图渲染策略](../architecture/map-rendering.md#单渲染器约束)。
+按访问者网络地区只选一个源不能实现这一目标；部署不再使用访问者国家 header 选择底图。
+源与配置仍通过 ETag 条件写入，冲突后后台重新读取，避免覆盖另一位管理员的操作。
+
+map-config 响应保持 `private, no-store`，只交付运行模式需要的公开配置。
+地图服务异常时显示现有重试/名录入口；重试会重新读取 map-config。
+
+地图分发对象仅使用版本 4，源必须显式提供 `provider`，公开 map-config 必须包含搜索配置。
+部署环境中的样式 URL 在运行时组装入口转为显式 MapLibre 初始化配置；集合初始化不再解析 URL
+推断服务商，也不导入早期单样式对象或版本 1–3。格式不符或损坏时恢复部署初始化集合并保留对象
+revision，后续覆盖仍受 CAS 保护。存量配置需独立替换成当前格式，部署时不依赖自动兼容读取。
 
 ### 解包静态 tile
 
@@ -181,4 +275,5 @@ curl --fail --silent --show-error --dump-header - --output /dev/null \
 - 在线模式在上游不可达时显示可重试错误，自托管模式在断开上游网络后仍可加载；
 - 回滚到前一版本不要求重新构建应用。
 
-任何需要第三方运行时 token、未登记来源或无法原子回滚的方案，都不能作为生产默认值。
+第三方公开 Key/Token 由后台配置交付，服务端安全密钥只保留在私有部署配置。生产默认源必须登记来源、
+保留 attribution，并能通过后台配置切换回已验证的可用源。

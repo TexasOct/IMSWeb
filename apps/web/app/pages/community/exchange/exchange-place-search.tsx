@@ -10,6 +10,7 @@ import {
   useExchangePlaceSearch,
   type ExchangePlaceSearchModel,
 } from "./hooks/use-exchange-place-search"
+import type { PlaceSearchDisplay } from "./hooks/use-place-search"
 
 export function ExchangePlaceSearch({
   disabled = false,
@@ -20,9 +21,32 @@ export function ExchangePlaceSearch({
   onSelect: (place: FudabaPlaceSearchResult) => void
   model?: ExchangePlaceSearchModel
 }) {
+  const localModel = useExchangePlaceSearch()
+  return (
+    <MapPlaceSearch
+      disabled={disabled}
+      onSelect={onSelect}
+      model={model ?? localModel}
+      resetLocal={!model}
+    />
+  )
+}
+
+export function MapPlaceSearch<Place extends PlaceSearchDisplay>({
+  disabled = false,
+  onSelect,
+  model,
+  resetLocal = false,
+  placeholder = "场馆、商圈或完整地址",
+}: {
+  disabled?: boolean
+  onSelect: (place: Place) => void
+  model: ExchangePlaceSearchModel<Place>
+  resetLocal?: boolean
+  placeholder?: string
+}) {
   const inputId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
-  const localModel = useExchangePlaceSearch()
   const {
     query,
     edit,
@@ -33,11 +57,11 @@ export function ExchangePlaceSearch({
     searched,
     submit,
     resetResults,
-  } = model ?? localModel
+  } = model
 
-  function select(place: FudabaPlaceSearchResult) {
+  function select(place: Place) {
     edit(place.label)
-    if (!model) resetResults(true)
+    if (resetLocal) resetResults(true)
     inputRef.current?.focus()
     onSelect(place)
   }
@@ -55,10 +79,10 @@ export function ExchangePlaceSearch({
               minLength={2}
               maxLength={120}
               disabled={disabled || busy}
-              placeholder="场馆、商圈或完整地址"
+              placeholder={placeholder}
               onChange={(event) => {
                 edit(event.currentTarget.value)
-                if (!model) resetResults()
+                if (resetLocal) resetResults()
               }}
               onKeyDown={(event) => {
                 if (event.key !== "Enter" || event.nativeEvent.isComposing)

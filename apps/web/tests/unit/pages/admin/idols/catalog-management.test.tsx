@@ -1,7 +1,9 @@
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { createMemoryRouter, RouterProvider } from "react-router"
-import { beforeEach, describe, expect, it } from "vitest"
+import { act } from "@testing-library/react"
+import { toast } from "sonner"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   makeWikiAdminAgency,
@@ -25,6 +27,7 @@ function renderCatalog(section: CatalogSection = "entries", search = "") {
         path: "/admin/idols/:section",
         element: <CatalogManager section={section} />,
       },
+      { path: "/admin/elsewhere", element: <p>其他页面</p> },
     ],
     { initialEntries: [`/admin/idols/${section}${search}`] }
   )
@@ -228,4 +231,74 @@ describe("independent idol catalog management", () => {
       "/admin/idols/agencies"
     )
   })
+
+  it.each([false, true])(
+    "creates from all agencies and locates the returned ID when view is clicked after navigation=%s",
+    async (navigateAway) => {
+      const idol = makeWikiAdminIdol({ id: 88, groupIds: [], name: "新条目" })
+      const fetchMock = installFetchMock((...args) => {
+        const request = requestDetails(args)
+        return Promise.resolve(
+          Response.json(
+            request.method === "POST"
+              ? { status: "success", idol }
+              : makeWikiAdminCatalog({
+                  agencies: [makeWikiAdminAgency({ idols: [idol] })],
+                })
+          )
+        )
+      })
+      const success = vi.spyOn(toast, "success")
+      const search = "?type=unit&query=old&page=3&returnTo=%2Fadmin%2Fstories"
+      const router = renderCatalog("entries", search)
+      const user = userEvent.setup()
+      await waitFor(() =>
+        expect(screen.queryByRole("status")).not.toBeInTheDocument()
+      )
+      await user.click(screen.getByRole("button", { name: "新增内容页" }))
+      expect(screen.queryByLabelText("名称")).not.toBeInTheDocument()
+      await user.click(
+        screen.getByRole("combobox", { name: "所属企划（必选）" })
+      )
+      await user.keyboard("{ArrowDown}")
+      await user.click(await screen.findByRole("option", { name: "765PRO" }))
+      await user.type(screen.getByLabelText("名称"), "新条目")
+      await user.type(screen.getByLabelText("素材目录"), "new_entry")
+      await user.click(screen.getByRole("button", { name: "创建内容页" }))
+      await waitFor(() => expect(success).toHaveBeenCalled())
+      expect(router.state.location.search).toBe(search)
+      const options = success.mock.calls.at(-1)?.[1]
+      expect(options?.action).toMatchObject({ label: "查看条目" })
+      const action = options?.action
+      if (
+        typeof action !== "object" ||
+        action === null ||
+        !("onClick" in action)
+      )
+        throw new Error("Missing view action")
+      if (navigateAway)
+        await act(async () => {
+          await router.navigate("/admin/elsewhere?query=later")
+        })
+      await act(async () =>
+        action.onClick({} as React.MouseEvent<HTMLButtonElement>)
+      )
+      const params = new URLSearchParams(router.state.location.search)
+      expect(router.state.location.pathname).toBe("/admin/idols/entries")
+      expect(params.get("agencyId")).toBe("1")
+      expect(params.get("idolId")).toBe("88")
+      expect(params.get("returnTo")).toBe("/admin/stories")
+      expect(
+        params.has("query") || params.has("type") || params.has("page")
+      ).toBe(false)
+      expect(
+        await screen.findByRole("button", { name: "编辑内容页 新条目" })
+      ).toBeVisible()
+      expect(
+        fetchMock.mock.calls
+          .map(requestDetails)
+          .filter(({ method }) => method === "POST")
+      ).toHaveLength(1)
+    }
+  )
 })

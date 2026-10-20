@@ -16,10 +16,6 @@ import {
 } from "~/components/ui/alert-dialog"
 import { Checkbox } from "~/components/ui/checkbox"
 import {
-  wikiEntryKindOptions,
-  wikiStoryEntrySubtypeOptions,
-} from "~/components/wiki/wiki-entry-kind"
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -37,7 +33,6 @@ import {
   FieldSet,
 } from "~/components/ui/field"
 import { Input } from "~/components/ui/input"
-import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group"
 import { ImageCompositionEditor } from "~/components/admin/image-composition-editor"
 import {
   createWikiAgency,
@@ -54,10 +49,18 @@ import {
   type WikiAdminAgency,
   type WikiAdminGroup,
   type WikiAdminIdol,
-  type WikiEntryKind,
   type WikiImageTransform,
-  type WikiStoryEntrySubtype,
 } from "~/lib/api"
+import {
+  entryPayload,
+  initialEntryDraft,
+  type WikiEntryDraft,
+} from "../wiki-entry-draft-model"
+import {
+  ColorField,
+  WikiEntryGroupFields,
+  WikiEntryTypeFields,
+} from "./wiki-entry-fields"
 
 export type WikiEntityEditorTarget =
   | { kind: "agency"; entity: WikiAdminAgency | null }
@@ -72,18 +75,9 @@ export type WikiEntityEditorTarget =
       entity: WikiAdminIdol | null
     }
 
-type EntityForm = {
+type EntityForm = WikiEntryDraft & {
   code: string
-  name: string
   bannerTitle: string
-  folderName: string
-  wikiUrl: string
-  color: string
-  textColor: string
-  wikiEnabled: boolean
-  groupIds: number[]
-  entryKind: WikiEntryKind
-  entrySubtype: WikiStoryEntrySubtype | null
 }
 
 function initialForm(target: WikiEntityEditorTarget): EntityForm {
@@ -118,17 +112,9 @@ function initialForm(target: WikiEntityEditorTarget): EntityForm {
     }
   }
   return {
+    ...initialEntryDraft(target.agency, target.entity),
     code: "",
-    name: target.entity?.name ?? "",
     bannerTitle: "",
-    folderName: target.entity?.folderName ?? "",
-    wikiUrl: target.entity?.wikiUrl ?? "",
-    color: target.entity?.color ?? target.agency.color ?? "#777777",
-    textColor: target.entity?.textColor ?? "#ffffff",
-    wikiEnabled: target.entity?.wikiEnabled ?? true,
-    groupIds: target.entity?.groupIds ?? [],
-    entryKind: target.entity?.entryKind ?? "idol",
-    entrySubtype: target.entity?.entrySubtype ?? null,
   }
 }
 
@@ -204,15 +190,6 @@ function WikiEntityEditorDialogContent({
     setForm((current) => ({ ...current, [key]: value }))
   }
 
-  function updateEntryKind(entryKind: WikiEntryKind) {
-    setForm((current) => ({
-      ...current,
-      entryKind,
-      entrySubtype:
-        entryKind === "story" ? (current.entrySubtype ?? "main") : null,
-    }))
-  }
-
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setSaving(true)
@@ -247,16 +224,7 @@ function WikiEntityEditorDialogContent({
           savedId = result.group.id
         }
       } else {
-        const payload = {
-          name: form.name.trim(),
-          color: form.color || null,
-          textColor: form.textColor,
-          wikiUrl: form.wikiUrl.trim() || null,
-          wikiEnabled: form.wikiEnabled,
-          groupIds: form.groupIds,
-          entryKind: form.entryKind,
-          entrySubtype: form.entrySubtype,
-        }
+        const payload = entryPayload(form)
         if (target.entity) {
           await updateWikiIdol(target.entity.id, payload).send()
         } else {
@@ -379,70 +347,12 @@ function WikiEntityEditorDialogContent({
                 </Field>
 
                 {target.kind === "idol" ? (
-                  <FieldSet>
-                    <FieldLegend>内容页类型</FieldLegend>
-                    <FieldDescription>
-                      类型决定目录中的标识；真实组合和剧情专题也作为内容页维护。
-                    </FieldDescription>
-                    <ToggleGroup
-                      value={[form.entryKind]}
-                      variant="outline"
-                      spacing={0}
-                      className="grid w-full grid-cols-2 sm:grid-cols-4"
-                      aria-label="内容页类型"
-                      onValueChange={(values) => {
-                        const entryKind = values[0] as WikiEntryKind | undefined
-                        if (entryKind) updateEntryKind(entryKind)
-                      }}
-                    >
-                      {wikiEntryKindOptions.map(
-                        ({ value, label, icon: Icon }) => (
-                          <ToggleGroupItem
-                            key={value}
-                            value={value}
-                            className="min-w-0"
-                          >
-                            <Icon data-icon="inline-start" aria-hidden="true" />
-                            {label}
-                          </ToggleGroupItem>
-                        )
-                      )}
-                    </ToggleGroup>
-                  </FieldSet>
-                ) : null}
-
-                {target.kind === "idol" && form.entryKind === "story" ? (
-                  <FieldSet>
-                    <FieldLegend>剧情类型</FieldLegend>
-                    <FieldDescription>
-                      用于在目录中区分主线、活动和特殊剧情。
-                    </FieldDescription>
-                    <ToggleGroup
-                      value={[form.entrySubtype ?? "main"]}
-                      variant="outline"
-                      spacing={0}
-                      className="grid w-full grid-cols-4"
-                      aria-label="剧情类型"
-                      onValueChange={(values) => {
-                        const entrySubtype = values[0] as
-                          | WikiStoryEntrySubtype
-                          | undefined
-                        if (entrySubtype) {
-                          update("entrySubtype", entrySubtype)
-                        }
-                      }}
-                    >
-                      {wikiStoryEntrySubtypeOptions.map(({ value, label }) => (
-                        <ToggleGroupItem
-                          key={value}
-                          value={value}
-                          className="min-w-0"
-                        >
-                          {label}
-                        </ToggleGroupItem>
-                      ))}
-                    </ToggleGroup>
-                  </FieldSet>
+                  <WikiEntryTypeFields
+                    draft={form}
+                    onChange={(patch) =>
+                      setForm((current) => ({ ...current, ...patch }))
+                    }
+                  />
                 ) : null}
 
                 {target.kind === "agency" ? (
@@ -537,47 +447,11 @@ function WikiEntityEditorDialogContent({
                 ) : null}
 
                 {target.kind === "idol" ? (
-                  <FieldSet>
-                    <FieldLegend>所属栏目</FieldLegend>
-                    <FieldDescription>
-                      可选择多个栏目，也可以留空；未归档内容会在企划末尾展示。
-                    </FieldDescription>
-                    <FieldGroup className="grid gap-2 sm:grid-cols-2">
-                      {target.agency.groups.map((group) => {
-                        const checked = form.groupIds.includes(group.id)
-                        return (
-                          <Field key={group.id} orientation="horizontal">
-                            <Checkbox
-                              id={`wiki-idol-group-${group.id}`}
-                              checked={checked}
-                              onCheckedChange={(nextChecked) =>
-                                update(
-                                  "groupIds",
-                                  nextChecked
-                                    ? [...form.groupIds, group.id]
-                                    : form.groupIds.filter(
-                                        (id) => id !== group.id
-                                      )
-                                )
-                              }
-                            />
-                            <FieldContent>
-                              <FieldLabel
-                                htmlFor={`wiki-idol-group-${group.id}`}
-                              >
-                                {group.name}
-                              </FieldLabel>
-                            </FieldContent>
-                          </Field>
-                        )
-                      })}
-                      {!target.agency.groups.length ? (
-                        <p className="text-sm text-muted-foreground sm:col-span-2">
-                          当前企划没有栏目，保存后内容页会进入未归档区域。
-                        </p>
-                      ) : null}
-                    </FieldGroup>
-                  </FieldSet>
+                  <WikiEntryGroupFields
+                    groups={target.agency.groups}
+                    value={form.groupIds}
+                    onChange={(ids) => update("groupIds", ids)}
+                  />
                 ) : null}
 
                 <FieldSet>
@@ -678,38 +552,5 @@ function WikiEntityEditorDialogContent({
         </AlertDialogContent>
       </AlertDialog>
     </>
-  )
-}
-
-function ColorField({
-  id,
-  label,
-  value,
-  onChange,
-}: {
-  id: string
-  label: string
-  value: string
-  onChange: (value: string) => void
-}) {
-  return (
-    <Field>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <div className="flex items-center gap-2">
-        <Input
-          id={id}
-          type="color"
-          className="size-8 shrink-0 p-1"
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-        />
-        <Input
-          aria-label={`${label}色值`}
-          pattern="#[0-9A-Fa-f]{6}"
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-        />
-      </div>
-    </Field>
   )
 }

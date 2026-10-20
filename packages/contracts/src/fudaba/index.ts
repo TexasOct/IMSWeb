@@ -17,6 +17,7 @@ import { isFudabaMapStyleUrl } from "./runtime.js";
 import { wikiImageTransformSchema } from "../wiki.js";
 
 export {
+  fudabaMapConfigSchema,
   fudabaMapDeliveryMutationSchema,
   fudabaMapDeliverySnapshotSchema,
   fudabaMapSourceActivationSchema,
@@ -26,17 +27,24 @@ export {
   fudabaMapSourceSchema,
   fudabaMapSourceWriteSchema,
   fudabaMapStyleUrlSchema,
+  fudabaMapProviderConfigSchema,
+  fudabaMapRoutingSchema,
+  fudabaMapSearchConfigSchema,
 } from "./map-delivery.js";
 export { NAMECARD_REACTION_EMOJIS } from "./reactions-runtime.js";
 export { NAMECARD_FAVORITE_CHARACTER_LIMIT } from "./characters.js";
 export { isFudabaMapStyleUrl } from "./runtime.js";
 export type {
+  FudabaMapConfig,
   FudabaMapDeliveryMutation,
   FudabaMapDeliverySnapshot,
   FudabaMapSource,
   FudabaMapSourceActivation,
   FudabaMapSourceDelete,
   FudabaMapSourceWrite,
+  FudabaMapProviderConfig,
+  FudabaMapRouting,
+  FudabaMapSearchConfig,
 } from "./map-delivery.js";
 export { hasAsciiControl };
 
@@ -237,22 +245,6 @@ export const fudabaPlaceSearchResponseSchema = successEnvelope({
   items: z.array(fudabaPlaceSearchResultSchema).max(5),
   attribution: z.string().min(1),
 }).strict();
-
-export const fudabaMapConfigSchema = z
-  .object({
-    styleUrl: z
-      .string()
-      .refine(
-        (value) => !hasAsciiControl(value),
-        "map style URL must not contain ASCII control characters",
-      )
-      .refine(
-        isFudabaMapStyleUrl,
-        "map style URL must be a same-origin absolute path or an absolute " +
-          "http(s) URL without credentials, query, or hash",
-      ),
-  })
-  .strict();
 
 export const ownerCardIdSchema = z
   .string()
@@ -560,7 +552,6 @@ export type FudabaOfficeDetailResponse = z.infer<
 export type FudabaOfficeDetail = FudabaOfficeDetailResponse["office"];
 export type FudabaMapOffice = z.infer<typeof fudabaMapOfficeSchema>;
 export type FudabaMapOfficeList = z.infer<typeof fudabaMapOfficeListSchema>;
-export type FudabaMapConfig = z.infer<typeof fudabaMapConfigSchema>;
 export type FudabaPlaceSearchResult = z.infer<
   typeof fudabaPlaceSearchResultSchema
 >;

@@ -30,7 +30,6 @@ import {
 import {
   getFudabaChinaBoundaryDashSource,
   resolveMapTransportOrigin,
-  type FudabaPlaceSearchResult,
 } from "~/lib/api"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { GeolocationFailure, getCurrentCoordinates } from "~/lib/geolocation"
@@ -49,13 +48,20 @@ import {
   type ExchangeMapAttribution,
 } from "./exchange-map-attribution"
 import type { FudabaMapOfficeGroup } from "./exchange-map-model"
+import type { ExchangeMapInteractionProps } from "./exchange-map-provider"
+import { exchangeMapColors as palette } from "~/lib/maps/map-theme"
+import {
+  createClusterMarker,
+  createOfficeGroupMarker,
+} from "./exchange-map-markers"
 import {
   createMapDeliveryContext,
   DEFAULT_EXCHANGE_MAP_VIEWPORT,
   exchangeMapInitialViewport,
   EXCHANGE_MAP_FLOATING_GROUP,
-  EXCHANGE_MAP_MAX_ZOOM,
+  EXCHANGE_MAP_CLUSTER_MAX_ZOOM,
   EXCHANGE_MAP_MIN_ZOOM,
+  EXCHANGE_MAP_SEARCH_ZOOM,
   rememberExchangeMapViewport,
   resolveAllowedMapResourceUrl,
   resolveMapStyleResourceUrls,
@@ -83,52 +89,52 @@ type PaintPropertyValue = Parameters<MapLibreMap["setPaintProperty"]>[2]
 const portalMapLayerPaint: Readonly<
   Record<string, Readonly<Record<string, unknown>>>
 > = {
-  background: { "background-color": "#edf3f8" },
-  "landcover-glacier": { "fill-color": "#f9fbfd" },
-  "landuse-residential": { "fill-color": "#f5f8fb" },
-  "landuse-suburb": { "fill-color": "#f3f7fa" },
-  "landuse-commercial": { "fill-color": "#f6f2f7" },
-  "landuse-industrial": { "fill-color": "#f0f2f7" },
-  "landuse-cemetery": { "fill-color": "#e2efe9" },
-  "landuse-hospital": { "fill-color": "#f8eef3" },
-  "landuse-school": { "fill-color": "#f7f4e8" },
-  "landuse-railway": { "fill-color": "#edf1f5" },
-  park: { "fill-color": "#e0f0e7", "fill-opacity": 0.86 },
-  "landcover-wood": { "fill-color": "#d9ece3", "fill-opacity": 0.78 },
-  "landcover-grass": { "fill-color": "#e4f2e9", "fill-opacity": 0.9 },
+  background: { "background-color": palette.background },
+  "landcover-glacier": { "fill-color": palette.glacier },
+  "landuse-residential": { "fill-color": palette.residential },
+  "landuse-suburb": { "fill-color": palette.suburb },
+  "landuse-commercial": { "fill-color": palette.commercial },
+  "landuse-industrial": { "fill-color": palette.industrial },
+  "landuse-cemetery": { "fill-color": palette.cemetery },
+  "landuse-hospital": { "fill-color": palette.hospital },
+  "landuse-school": { "fill-color": palette.school },
+  "landuse-railway": { "fill-color": palette.railwayLand },
+  park: { "fill-color": palette.park, "fill-opacity": 0.86 },
+  "landcover-wood": { "fill-color": palette.wood, "fill-opacity": 0.78 },
+  "landcover-grass": { "fill-color": palette.grass, "fill-opacity": 0.9 },
   "landcover-grass-park": {
-    "fill-color": "#deeee5",
+    "fill-color": palette.parkGrass,
     "fill-opacity": 0.9,
   },
-  "landcover-sand": { "fill-color": "#f5efd9" },
-  water: { "fill-color": "#d9ecf8" },
-  "water-intermittent": { "fill-color": "#e5f3fb" },
+  "landcover-sand": { "fill-color": palette.sand },
+  water: { "fill-color": palette.water },
+  "water-intermittent": { "fill-color": palette.intermittentWater },
   building: {
-    "fill-color": "#e9eef4",
-    "fill-outline-color": "#dbe4ed",
+    "fill-color": palette.building,
+    "fill-outline-color": palette.buildingOutline,
   },
   "building-top": {
-    "fill-color": "#eef2f6",
-    "fill-outline-color": "#dde6ef",
+    "fill-color": palette.buildingTop,
+    "fill-outline-color": palette.buildingTopOutline,
   },
-  boundary_2: { "line-color": "#afbed0", "line-opacity": 0.68 },
+  boundary_2: { "line-color": palette.boundary, "line-opacity": 0.68 },
   // 中国主张国界线与其余国界同色，视觉上不可区分。
   [CHINA_CLAIM_BOUNDARY_LAYER_ID]: {
-    "line-color": "#afbed0",
+    "line-color": palette.boundary,
     "line-opacity": 0.68,
   },
   // 南海断续线：fill 填实，outline 保证低缩放下仍可见，两者同色。
   [CHINA_DASH_FILL_LAYER_ID]: {
-    "fill-color": "#afbed0",
+    "fill-color": palette.boundary,
     "fill-opacity": 0.68,
   },
   [CHINA_DASH_LINE_LAYER_ID]: {
-    "line-color": "#afbed0",
+    "line-color": palette.boundary,
     "line-opacity": 0.68,
   },
-  boundary_3: { "line-color": "#c5d1df", "line-opacity": 0.58 },
+  boundary_3: { "line-color": palette.regionalBoundary, "line-opacity": 0.58 },
   boundary_disputed: {
-    "line-color": "#b7c3d1",
+    "line-color": palette.disputedBoundary,
     "line-opacity": 0.54,
   },
 }
@@ -233,16 +239,8 @@ interface RenderedMarker {
   signature: string
 }
 
-export interface ExchangeOfficeMapProps {
+export interface ExchangeOfficeMapProps extends ExchangeMapInteractionProps {
   styleUrl: string
-  groups: FudabaMapOfficeGroup[]
-  selectedGroupKey: string | null
-  selectedPlace?: FudabaPlaceSearchResult | null
-  occlusion?: { x: number; y: number; width: number; height: number } | null
-  onSelectGroup: (groupKey: string) => void
-  onViewportChange: (bounds: ReturnType<typeof splitViewportBounds>) => void
-  onFatalError: (error: Error) => void
-  onAttributionChange?: (value: ExchangeMapAttribution | null) => void
 }
 
 function mapError(error: unknown) {
@@ -284,49 +282,6 @@ function featureCollection(groups: readonly FudabaMapOfficeGroup[]) {
       },
     })),
   }
-}
-
-function createClusterMarker(count: number) {
-  const marker = document.createElement("button")
-  marker.type = "button"
-  marker.className =
-    "z-1 flex size-11 items-center justify-center rounded-full border-2 border-background bg-primary text-sm font-semibold text-primary-foreground shadow-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-  marker.setAttribute("aria-label", `${count} 个区域点，放大查看`)
-  marker.textContent = String(count)
-  return marker
-}
-
-function createOfficeGroupMarker(
-  group: FudabaMapOfficeGroup,
-  selected: boolean
-) {
-  const marker = document.createElement("button")
-  marker.type = "button"
-  marker.className =
-    "z-1 flex h-11 min-w-11 items-center justify-center overflow-hidden rounded-lg border-2 border-background bg-background px-2 text-sm font-semibold text-foreground shadow-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-  marker.dataset.mapOfficeGroup = group.key
-  marker.setAttribute("aria-pressed", String(selected))
-  marker.setAttribute(
-    "aria-label",
-    `${group.offices.map((office) => office.name).join("、")}，${group.offices.length} 个事务所`
-  )
-  if (selected) marker.classList.add("ring-3", "ring-primary/60")
-
-  const count = document.createElement("span")
-  count.textContent = String(group.offices.length)
-  marker.append(count)
-
-  const strip = document.createElement("span")
-  strip.className = "absolute inset-x-0 bottom-0 flex h-1"
-  strip.setAttribute("aria-hidden", "true")
-  for (const color of group.colors.slice(0, 6)) {
-    const segment = document.createElement("span")
-    segment.className = "h-full flex-1"
-    segment.style.backgroundColor = color
-    strip.append(segment)
-  }
-  marker.append(strip)
-  return marker
 }
 
 function currentViewport(map: MapLibreMap): MapViewportBounds {
@@ -407,50 +362,50 @@ function portalPaintForLayer(layerId: string) {
   }
   if (waterwayLayerIds.includes(layerId)) {
     Object.assign(paint, {
-      "line-color": "#a8d6ed",
+      "line-color": palette.waterway,
       "line-opacity": 0.84,
     })
   }
   if (roadCasingLayerIds.includes(layerId)) {
     Object.assign(paint, {
-      "line-color": "#c7d4e2",
+      "line-color": palette.roadCasing,
       "line-opacity": 0.58,
     })
   }
   if (minorRoadLayerIds.includes(layerId)) {
     Object.assign(paint, {
-      "line-color": "#ffffff",
+      "line-color": palette.minorRoad,
       "line-opacity": 0.88,
     })
   }
   if (collectorRoadLayerIds.includes(layerId)) {
     Object.assign(paint, {
-      "line-color": "#edf3f9",
+      "line-color": palette.collectorRoad,
       "line-opacity": 0.94,
     })
   }
   if (arterialRoadLayerIds.includes(layerId)) {
     Object.assign(paint, {
-      "line-color": "#d6dff0",
+      "line-color": palette.arterialRoad,
       "line-opacity": 0.96,
     })
   }
   if (motorwayLayerIds.includes(layerId)) {
     Object.assign(paint, {
-      "line-color": "#adcbea",
+      "line-color": palette.motorway,
       "line-opacity": 0.96,
     })
   }
   if (railwayLayerIds.includes(layerId)) {
     Object.assign(paint, {
-      "line-color": "#bdc8d5",
+      "line-color": palette.railway,
       "line-opacity": 0.5,
     })
   }
   if (labelLayerIds.includes(layerId)) {
     Object.assign(paint, {
-      "text-color": "#687489",
-      "text-halo-color": "#f7faff",
+      "text-color": palette.label,
+      "text-halo-color": palette.labelHalo,
       "text-halo-width": 1.35,
       "text-opacity": 0.86,
     })
@@ -463,16 +418,16 @@ function portalPaintForLayer(layerId: string) {
   }
   if (cityLabelLayerIds.includes(layerId)) {
     Object.assign(paint, {
-      "text-color": "#3d485b",
-      "text-halo-color": "#f7faff",
+      "text-color": palette.cityLabel,
+      "text-halo-color": palette.labelHalo,
       "text-halo-width": 1.6,
       "text-opacity": 0.94,
     })
   }
   if (waterLabelLayerIds.includes(layerId)) {
     Object.assign(paint, {
-      "text-color": "#5b89a5",
-      "text-halo-color": "#e8f5fb",
+      "text-color": palette.waterLabel,
+      "text-halo-color": palette.waterLabelHalo,
       "text-halo-width": 1.2,
       "text-opacity": 0.88,
     })
@@ -715,9 +670,6 @@ export function ExchangeOfficeMap({
         center: initialViewport.center,
         zoom: initialViewport.zoom,
         minZoom: EXCHANGE_MAP_MIN_ZOOM,
-        // 公开点为 0.1 度网格（约 11 km），再放大既无信息增益，也会让
-        // 区域位置在视觉上退化为近似精确位置，违反区域投影的隐私合同。
-        maxZoom: EXCHANGE_MAP_MAX_ZOOM,
         bearing: 0,
         pitch: 0,
         roll: 0,
@@ -894,7 +846,7 @@ export function ExchangeOfficeMap({
           data: featureCollection(groupsRef.current),
           cluster: true,
           clusterRadius: 56,
-          clusterMaxZoom: 10,
+          clusterMaxZoom: EXCHANGE_MAP_CLUSTER_MAX_ZOOM,
           clusterProperties: {
             officeCount: ["+", ["get", "officeCount"]],
           },
@@ -1004,10 +956,8 @@ export function ExchangeOfficeMap({
     searchMarkerRef.current?.remove()
     searchMarkerRef.current = null
     if (!map || !selectedPlace) return
-    const center: [number, number] = [
-      selectedPlace.location.longitude,
-      selectedPlace.location.latitude,
-    ]
+    if (selectedPlace.target.kind !== "wgs84") return
+    const center = selectedPlace.target.position
     const element = document.createElement("div")
     element.className =
       "size-5 rounded-full border-3 border-background bg-primary shadow-md"
@@ -1018,7 +968,7 @@ export function ExchangeOfficeMap({
       .addTo(map)
     map.easeTo({
       center,
-      zoom: 13,
+      zoom: EXCHANGE_MAP_SEARCH_ZOOM,
       padding: occlusionRef.current
         ? occlusionRef.current.width <
           (containerRef.current?.clientWidth ?? 0) * 0.65

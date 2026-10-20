@@ -51,7 +51,6 @@ import {
     FUDABA_GEOCODING_CONFIG,
     FUDABA_MAP_ENABLED,
     FUDABA_MAP_STYLE_URLS,
-    FUDABA_MAP_STYLE_URL,
     FUDABA_PUBLIC_READ_ENABLED,
     FUDABA_WRITE_ENABLED,
     IS_PRODUCTION,
@@ -524,8 +523,7 @@ export async function createNodeServices(): Promise<NodeRuntimeServices> {
                 fudabaPublicReadEnabled: FUDABA_PUBLIC_READ_ENABLED,
                 fudabaWriteEnabled: FUDABA_WRITE_ENABLED,
                 fudabaMapEnabled: FUDABA_MAP_ENABLED,
-                fudabaMapStyleUrl: FUDABA_MAP_STYLE_URL,
-                fudabaMapStyleUrls: FUDABA_MAP_STYLE_URLS,
+                fudabaMapSources: FUDABA_MAP_STYLE_URLS.map((styleUrl) => ({ provider: 'maplibre', styleUrl })),
                 fudabaGeocoding: FUDABA_GEOCODING_CONFIG,
             },
         };

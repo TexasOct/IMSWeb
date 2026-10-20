@@ -29,17 +29,23 @@ const place: FudabaPlaceSearchResult = {
 function Harness({
   feedbackMessage,
   refreshing = false,
+  selectedAttribution,
 }: {
   feedbackMessage?: string
   refreshing?: boolean
+  selectedAttribution?: string
 }) {
   const model = useExchangePlaceSearch()
-  const [selected, setSelected] = useState<FudabaPlaceSearchResult | null>(null)
+  const [selected, setSelected] = useState<
+    (FudabaPlaceSearchResult & { attribution?: string }) | null
+  >(null)
   return (
     <ExchangeSearchCard
       model={model}
       selectedPlace={selected}
-      onSelect={setSelected}
+      onSelect={(place) =>
+        setSelected({ ...place, attribution: selectedAttribution })
+      }
       onClear={() => {
         mocks.clear()
         setSelected(null)
@@ -59,7 +65,10 @@ function Harness({
 describe("ExchangeSearchCard", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.search.mockReturnValue({ send: mocks.send })
+    mocks.search.mockReturnValue({
+      send: mocks.send,
+      abort: vi.fn().mockResolvedValue(undefined),
+    })
     mocks.send.mockResolvedValue({
       success: true,
       items: [place],
@@ -192,5 +201,24 @@ describe("ExchangeSearchCard", () => {
     )
     await user.click(screen.getByRole("button", { name: "收起地点查找" }))
     expect(screen.getByRole("button", { name: "查找地点" })).toBeVisible()
+  })
+  it("shows the selected provider in the summary and retains combined credits for the result list", async () => {
+    const combined = "© 高德地图 · © Mapbox"
+    mocks.send.mockResolvedValue({ items: [place], attribution: combined })
+    const user = userEvent.setup()
+    renderPage(<Harness selectedAttribution="© Mapbox" />)
+    await user.click(screen.getByRole("button", { name: "查找地点" }))
+    await user.type(screen.getByRole("textbox", { name: "搜索地点" }), "西岸")
+    await user.click(screen.getByRole("button", { name: "查找" }))
+    await user.click(
+      await screen.findByRole("button", { name: /西岸艺术中心.*上海/ })
+    )
+    const summary = await screen.findByRole("button", {
+      name: "已定位：西岸艺术中心，展开地点查找",
+    })
+    expect(within(summary).getByText("© Mapbox")).toBeVisible()
+    expect(within(summary).queryByText(combined)).not.toBeInTheDocument()
+    await user.click(summary)
+    expect(screen.getByText(combined)).toBeVisible()
   })
 })

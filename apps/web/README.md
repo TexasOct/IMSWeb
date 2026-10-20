@@ -36,7 +36,12 @@ pnpm dev
 只启动 Web，适合已经单独启动 API 或只修改静态界面的场景。
 
 开发代理和 Playwright 的环境变量模板位于 [`.env.example`](.env.example)。工具只读取启动
-进程已有的环境变量，不会把 `IMS_API_ORIGIN` 暴露给浏览器代码：
+进程已有的环境变量，不会把 `IMS_API_ORIGIN` 暴露给浏览器代码。高德本地安全代理是文件读取的
+独立例外：在 Git 忽略的 `apps/web/.env.local` 填写 `IMS_DEV_AMAP_JS_API_KEY` 和
+`IMS_DEV_AMAP_SECURITY_JS_CODE`，开发服务器会处理 `/_AMapService/`，并仅在发往高德的请求中
+附加安全密钥。JS API Key 须与后台高德地图源一致，后台安全代理地址填写 `/_AMapService`。
+该代理只在开发 serve 模式生效，不进入生产产物；生产按
+[地图资源交付](../../docs/operations/map-delivery.md)配置入口代理。
 
 默认 API 代理目标已经是 `http://127.0.0.1:3000`。只有 API 使用非默认端口时才需要在启动
 Web 的进程中设置 `IMS_API_ORIGIN`；根 `pnpm dev` 会根据实际 API 端口自动完成同步。

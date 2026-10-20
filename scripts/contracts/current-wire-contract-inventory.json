@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "b3d89d3994ba9357217c7be94f1b864e5b65cc4f8cd60bfb59bd4131b8fcb16d",
+    "semanticDigest": "6a62c5a621122c245907dc2ddb5dcdab2b1615458f821fbabf4248acbce7ede7",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -21,14 +21,14 @@
     "noInputRoutes": 91,
     "requestCarriers": 339,
     "policies": {
-      "reject": 61,
+      "reject": 62,
       "accept-and-project": 183,
-      "passthrough": 18,
+      "passthrough": 17,
       "non-object-applicable": 77
     },
     "responses": {
-      "total": 697,
-      "json": 633,
+      "total": 698,
+      "json": 634,
       "nonJson": 64
     },
     "unresolved": 0
@@ -77,7 +77,7 @@
         "module": "@imsweb/contracts/fudaba/map-delivery",
         "symbol": "fudabaMapDeliveryQuerySchema",
         "carriers": 1,
-        "policy": "passthrough",
+        "policy": "reject",
         "actualCarriers": 1,
         "routes": [
           "GET /api/admin/community/exchange/map-delivery"
@@ -2575,8 +2575,8 @@
           "schemaLocation": {
             "file": "apps/api/src/domains/community/fudaba/map-delivery/routes.ts"
           },
-          "policy": "passthrough",
-          "syntaxPolicy": "passthrough"
+          "policy": "reject",
+          "syntaxPolicy": "reject"
         }
       ],
       "responses": [
@@ -3551,17 +3551,22 @@
         {
           "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
           "kind": "json",
-          "expression": "{ styleUrl } satisfies FudabaMapConfig"
+          "expression": "fallback ( )"
         },
         {
           "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
           "kind": "json",
-          "expression": "{ styleUrl : active ?. styleUrl ?? styleUrl } satisfies FudabaMapConfig"
+          "expression": "describeGeographicMap ( mainland , overseas )"
         },
         {
           "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
           "kind": "json",
-          "expression": "{ styleUrl } satisfies FudabaMapConfig"
+          "expression": "config"
+        },
+        {
+          "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
+          "kind": "json",
+          "expression": "fallback ( )"
         }
       ]
     },
@@ -14469,8 +14474,8 @@
       "schemaLocation": {
         "file": "apps/api/src/domains/community/fudaba/map-delivery/routes.ts"
       },
-      "policy": "passthrough",
-      "syntaxPolicy": "passthrough"
+      "policy": "reject",
+      "syntaxPolicy": "reject"
     },
     {
       "method": "GET",
@@ -20526,7 +20531,7 @@
       "handlerSymbol": "handleGetFudabaMapConfig",
       "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
       "kind": "json",
-      "expression": "{ styleUrl } satisfies FudabaMapConfig"
+      "expression": "fallback ( )"
     },
     {
       "method": "GET",
@@ -20534,7 +20539,7 @@
       "handlerSymbol": "handleGetFudabaMapConfig",
       "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
       "kind": "json",
-      "expression": "{ styleUrl : active ?. styleUrl ?? styleUrl } satisfies FudabaMapConfig"
+      "expression": "describeGeographicMap ( mainland , overseas )"
     },
     {
       "method": "GET",
@@ -20542,7 +20547,15 @@
       "handlerSymbol": "handleGetFudabaMapConfig",
       "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
       "kind": "json",
-      "expression": "{ styleUrl } satisfies FudabaMapConfig"
+      "expression": "config"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community/exchange/map/config",
+      "handlerSymbol": "handleGetFudabaMapConfig",
+      "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
+      "kind": "json",
+      "expression": "fallback ( )"
     },
     {
       "method": "GET",

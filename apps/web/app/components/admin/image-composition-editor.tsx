@@ -369,7 +369,7 @@ function TransformSlider({
         max={max}
         step={step}
         disabled={disabled}
-        aria-label={label}
+        thumbLabel={label}
         onValueChange={(values) =>
           onChange(
             Number(typeof values === "number" ? values : (values[0] ?? value))

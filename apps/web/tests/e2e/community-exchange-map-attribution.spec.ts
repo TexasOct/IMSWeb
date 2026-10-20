@@ -115,7 +115,14 @@ function installMapMocks(api: ApiDispatcher, configuredStyleUrl = styleUrl) {
     path: "/api/community/exchange/map/config",
     responses: { 200: fudabaMapConfigSchema },
     times: 1,
-    handle: () => ({ status: 200, json: { styleUrl: configuredStyleUrl } }),
+    handle: () => ({
+      status: 200,
+      json: {
+        provider: "maplibre",
+        search: { provider: "nominatim" },
+        styleUrl: configuredStyleUrl,
+      },
+    }),
   })
   api.expect({
     name: "attribution map offices",
@@ -436,6 +443,13 @@ test.describe("community exchange map attribution", () => {
       ).toBeLessThanOrEqual(0)
       const more = card.getByRole("button", { name: "更多地图工具" })
       await more.click()
+      await expect(
+        card.getByRole("link", { name: "我的交换账号" })
+      ).toBeInViewport()
+      await expect(attributionTrigger(card)).toBeInViewport()
+      await page.screenshot({
+        path: `/tmp/exchange-search-menu-web-${width}x${height}.png`,
+      })
       await attributionTrigger(card).click()
       const dialog = await expectAttributionDialog(page)
       await page.keyboard.press("Escape")

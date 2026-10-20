@@ -7,8 +7,9 @@ import {
   RefreshCwIcon,
   UsersRoundIcon,
 } from "lucide-react"
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useSearchParams } from "react-router"
+import { toast } from "sonner"
 
 import {
   AdminEmptyState,
@@ -43,6 +44,7 @@ import {
   wikiEntryKindOptions,
 } from "~/components/wiki/wiki-entry-kind"
 import { getAdminWikiCatalog, isApiError } from "~/lib/api"
+import { useNavigation } from "~/lib/navigation/use-navigation"
 import {
   catalogRows,
   catalogSections,
@@ -55,12 +57,19 @@ import {
   WikiEntityEditorDialog,
   type WikiEntityEditorTarget,
 } from "./wiki-entity-editor-dialog"
+import {
+  WikiEntryCreateDialog,
+  type WikiEntryCreated,
+} from "./wiki-entry-create-dialog"
 
 const PAGE_SIZE = 20
 
 export function CatalogManager({ section }: { section: CatalogSection }) {
   const [params, setParams] = useSearchParams()
+  const navigate = useNavigation()
   const [target, setTarget] = useState<WikiEntityEditorTarget | null>(null)
+  const [creatingEntry, setCreatingEntry] = useState(false)
+  const createButton = useRef<HTMLButtonElement>(null)
   const { data, loading, error, send, onError } = useRequest(
     getAdminWikiCatalog(),
     {
@@ -96,7 +105,8 @@ export function CatalogManager({ section }: { section: CatalogSection }) {
   )
   const visibleRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const canCreate =
-    !loading && !error && (section === "agencies" || Boolean(agency))
+    section === "entries" ||
+    (!loading && !error && (section === "agencies" || Boolean(agency)))
 
   function setFilter(key: string, value: string) {
     setParams(
@@ -113,10 +123,11 @@ export function CatalogManager({ section }: { section: CatalogSection }) {
   }
 
   function createEntity() {
-    if (section === "agencies") setTarget({ kind: "agency", entity: null })
+    if (section === "entries") setCreatingEntry(true)
+    else if (section === "agencies") setTarget({ kind: "agency", entity: null })
     else if (agency)
       setTarget({
-        kind: section === "groups" ? "group" : "idol",
+        kind: "group",
         agency,
         entity: null,
       })
@@ -124,6 +135,28 @@ export function CatalogManager({ section }: { section: CatalogSection }) {
 
   function refresh() {
     void send().catch(() => undefined)
+  }
+
+  function entryCreated({ idol, imageError }: WikiEntryCreated) {
+    setCreatingEntry(false)
+    refresh()
+    // A toast may outlive this page. Its link targets the entry explicitly,
+    // retaining the return context from the creation session.
+    const next = new URLSearchParams(params)
+    for (const key of ["query", "type", "page"]) next.delete(key)
+    next.set("agencyId", String(idol.agencyId))
+    next.set("idolId", String(idol.id))
+    const action = {
+      label: "查看条目",
+      onClick: () =>
+        navigate(`/admin/idols/entries?${next}`, { preventScrollReset: true }),
+    }
+    if (imageError)
+      toast.error(
+        `“${idol.name}”已创建，但头像未保存：${imageError}。可查看条目后编辑头像。`,
+        { action, duration: 10000 }
+      )
+    else toast.success(`“${idol.name}”已创建`, { action })
   }
 
   const agencyOptions = [
@@ -159,7 +192,11 @@ export function CatalogManager({ section }: { section: CatalogSection }) {
               <RefreshCwIcon data-icon="inline-start" />
               刷新
             </Button>
-            <Button disabled={!canCreate} onClick={createEntity}>
+            <Button
+              ref={createButton}
+              disabled={!canCreate}
+              onClick={createEntity}
+            >
               <PlusIcon data-icon="inline-start" />
               新增{noun}
             </Button>
@@ -177,8 +214,8 @@ export function CatalogManager({ section }: { section: CatalogSection }) {
       <AdminPanel
         title={`${noun}列表`}
         description={
-          section !== "agencies" && !agency
-            ? "新增栏目或内容页前，请先选择所属企划。"
+          section === "groups" && !agency
+            ? "新增栏目前，请先选择所属企划。"
             : `共 ${rows.length} 项`
         }
         contentClassName="flex min-w-0 flex-col gap-4"
@@ -421,6 +458,22 @@ export function CatalogManager({ section }: { section: CatalogSection }) {
         }}
         onSaved={refresh}
       />
+      {creatingEntry ? (
+        <WikiEntryCreateDialog
+          agencies={data.agencies}
+          initialAgencyId={
+            Number.isSafeInteger(Number(agencyId)) && Number(agencyId) > 0
+              ? Number(agencyId)
+              : undefined
+          }
+          loading={loading}
+          catalogError={error}
+          onRetry={refresh}
+          onClose={() => setCreatingEntry(false)}
+          onCreated={entryCreated}
+          returnFocus={createButton}
+        />
+      ) : null}
     </div>
   )
 }

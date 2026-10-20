@@ -640,4 +640,50 @@
     height: 44px;
     border-radius: 22px;
   }
+  /* Page controls must win over the shared Button utility layer. */
+  .exchange-search-card:not([data-app-search])[data-detent="collapsed"]
+    .exchange-search-handle {
+    background: transparent;
+    border-radius: 24px;
+  }
+  .exchange-search-card:not([data-app-search])[data-detent="collapsed"]
+    .exchange-search-input {
+    background: transparent;
+    border-radius: 24px;
+  }
+  .exchange-search-card:not([data-app-search])[data-detent="collapsed"]
+    .exchange-search-input:hover {
+    background: var(--secondary);
+  }
+  .exchange-search-card > .exchange-search-menu {
+    padding: 12px;
+    border-radius: 24px;
+  }
+  .exchange-search-menu > p {
+    margin: 0 4px 8px;
+    padding: 4px 8px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+    line-height: 1.5;
+  }
+  .exchange-search-card .exchange-search-menu-item {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%;
+    height: auto;
+    min-height: 44px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.5;
+    white-space: normal;
+    text-align: left;
+  }
+  .exchange-search-card .exchange-search-menu-item:hover {
+    background: var(--secondary);
+    color: var(--secondary-foreground);
+  }
 }

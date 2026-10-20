@@ -1,12 +1,17 @@
 import type { StyleSpecification } from "maplibre-gl"
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 
 import type { FudabaMapOffice, FudabaSeries } from "~/lib/api"
 import {
   createMapDeliveryContext,
+  DEFAULT_EXCHANGE_MAP_VIEWPORT,
+  exchangeMapInitialViewport,
+  exchangeMapProviderViewport,
   groupMapOffices,
   mapDeliveryPrefixFromStyleUrl,
   mergeMapOfficeResponses,
+  rememberExchangeMapProviderViewport,
+  rememberExchangeMapViewport,
   resolveAllowedMapResourceUrl,
   resolveMapStyleResourceUrls,
   resolveMapStyleUrl,
@@ -97,6 +102,30 @@ const seriesCatalog: FudabaSeries[] = [
 ]
 
 describe("exchange map model", () => {
+  afterEach(() => window.sessionStorage.clear())
+
+  it("retains detailed zooms above the former limit for canonical and provider viewports", () => {
+    const canonical = { center: [121.5, 31.2] as [number, number], zoom: 18.75 }
+    const amap = { center: [121.505, 31.197] as [number, number], zoom: 19.5 }
+    rememberExchangeMapViewport(canonical)
+    rememberExchangeMapProviderViewport("amap", amap)
+    expect(exchangeMapInitialViewport()).toEqual(canonical)
+    expect(exchangeMapProviderViewport("amap")).toEqual(amap)
+  })
+
+  it.each([NaN, Infinity, -Infinity, 2])(
+    "ignores invalid retained zoom %s",
+    (zoom) => {
+      const viewport = { center: [121.5, 31.2] as [number, number], zoom }
+      rememberExchangeMapViewport(viewport)
+      rememberExchangeMapProviderViewport("amap", viewport)
+      expect(exchangeMapInitialViewport()).toEqual(
+        DEFAULT_EXCHANGE_MAP_VIEWPORT
+      )
+      expect(exchangeMapProviderViewport("amap")).toBeNull()
+    }
+  )
+
   it("keeps URL resolution separate from the trusted origin set", () => {
     const scope = {
       base: "https://ims.test",

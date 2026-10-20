@@ -9,6 +9,7 @@ import {
   PUBLIC_SITE_PROXY_PATH_PREFIXES,
 } from "./app/lib/bundle-path-policy"
 import { mockWorkerScriptPlugin } from "./mocks/worker-script-plugin"
+import { localAMapServiceProxy } from "./vite-amap-service-proxy"
 import {
   localExchangeMapAssets,
   TAURI_MAP_ORIGINS,
@@ -80,6 +81,7 @@ export default defineConfig({
   },
   plugins: [
     mockWorkerScriptPlugin(),
+    localAMapServiceProxy(fileURLToPath(new URL(".", import.meta.url))),
     localExchangeMapAssets(workspaceRoot),
     tailwindcss(),
     reactRouter(),

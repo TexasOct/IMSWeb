@@ -36,6 +36,10 @@ describe("ImageCompositionEditor", () => {
   it("updates the existing focal fields from pointer and keyboard input", () => {
     render(<EditorHarness />, { wrapper: I18nTestProvider })
 
+    // jsdom has no layout; edge-aligned Base UI thumbs stay hidden there.
+    // Browser Axe covers visibility, while this verifies the native input label.
+    expect(screen.getByLabelText("缩放")).toHaveAttribute("type", "range")
+
     const preview = screen.getByTestId("image-composition-preview")
     vi.spyOn(preview, "getBoundingClientRect").mockReturnValue({
       bottom: 400,
@@ -83,8 +87,8 @@ describe("ImageCompositionEditor", () => {
     expect(preciseButton).toHaveAttribute("aria-expanded", "false")
     await user.click(preciseButton)
     expect(preciseButton).toHaveAttribute("aria-expanded", "true")
-    expect(screen.getByLabelText("水平焦点")).toBeVisible()
-    expect(screen.getByLabelText("垂直焦点")).toBeVisible()
+    expect(screen.getByLabelText("水平焦点")).toHaveAttribute("type", "range")
+    expect(screen.getByLabelText("垂直焦点")).toHaveAttribute("type", "range")
 
     await user.click(screen.getByRole("button", { name: "向右旋转" }))
     expect(screen.getByRole("img", { name: "图片构图预览" })).toHaveStyle({

@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { CommunityExchangeMapSection } from "~/pages/community/exchange/community-exchange-map-section"
+import { MapDisplayError } from "~/lib/maps/map-errors"
 
 const apiMocks = vi.hoisted(() => ({
   getFudabaMapConfig: vi.fn(),
@@ -112,6 +113,8 @@ describe("CommunityExchangeMapSection", () => {
       send: apiMocks.sendOffices,
     })
     apiMocks.sendConfig.mockResolvedValue({
+      provider: "maplibre",
+      search: { provider: "nominatim" },
       styleUrl: "/api/community/exchange/map/style.json",
     })
     apiMocks.sendOffices.mockResolvedValue({ items: [], truncated: false })
@@ -294,5 +297,21 @@ describe("CommunityExchangeMapSection", () => {
     expect(apiMocks.getFudabaMapOffices).not.toHaveBeenCalled()
     await user.click(screen.getByRole("button", { name: "查看事务所名录" }))
     expect(switchDirectory).toHaveBeenCalledOnce()
+  })
+
+  it("explains a known map authorization failure while retaining directory access", async () => {
+    apiMocks.sendConfig.mockRejectedValue(
+      new MapDisplayError(
+        "authorization",
+        "高德地图未授权当前网站，请联系管理员检查域名白名单。"
+      )
+    )
+    renderSection()
+    expect(
+      await screen.findByText(
+        "高德地图未授权当前网站，请联系管理员检查域名白名单。公开事务所和名片仍可在名录中查看。"
+      )
+    ).toBeVisible()
+    expect(screen.getByRole("button", { name: "查看事务所名录" })).toBeVisible()
   })
 })

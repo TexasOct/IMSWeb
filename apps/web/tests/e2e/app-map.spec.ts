@@ -88,7 +88,11 @@ function installMapMocks(api: ApiDispatcher) {
     times: { min: 1, max: 2 },
     handle: () => ({
       status: 200,
-      json: { styleUrl: "/maps/exchange-test-style.json" },
+      json: {
+        provider: "maplibre",
+        search: { provider: "nominatim" },
+        styleUrl: "/maps/exchange-test-style.json",
+      },
     }),
   })
   api.expect({

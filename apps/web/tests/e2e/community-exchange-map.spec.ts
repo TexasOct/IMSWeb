@@ -194,7 +194,11 @@ test.describe("community exchange map", () => {
         "/api/community/exchange/map/config",
         (route) =>
           route.fulfill({
-            json: { styleUrl: "/maps/exchange-test-style.json" },
+            json: {
+              provider: "maplibre",
+              search: { provider: "nominatim" },
+              styleUrl: "/maps/exchange-test-style.json",
+            },
           }),
         "GET"
       )
@@ -320,7 +324,11 @@ test.describe("community exchange map", () => {
         "/api/community/exchange/map/config",
         (route) =>
           route.fulfill({
-            json: { styleUrl: "/maps/exchange-test-style.json" },
+            json: {
+              provider: "maplibre",
+              search: { provider: "nominatim" },
+              styleUrl: "/maps/exchange-test-style.json",
+            },
           }),
         "GET"
       )

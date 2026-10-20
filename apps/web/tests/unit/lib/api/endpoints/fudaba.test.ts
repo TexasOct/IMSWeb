@@ -371,13 +371,44 @@ describe("Fudaba Web API contracts", () => {
       ).toThrow()
     }
 
-    expect(
-      fudabaMapConfigSchema.parse({
-        styleUrl: "/api/community/exchange/map/style.json",
-      })
-    ).toEqual({ styleUrl: "/api/community/exchange/map/style.json" })
+    const currentMapConfig = {
+      provider: "maplibre" as const,
+      search: { provider: "nominatim" as const },
+      styleUrl: "/api/community/exchange/map/style.json",
+    }
+    expect(() =>
+      fudabaMapConfigSchema.parse({ styleUrl: currentMapConfig.styleUrl })
+    ).toThrow()
     expect(() =>
       fudabaMapConfigSchema.parse({
+        provider: "maplibre",
+        styleUrl: currentMapConfig.styleUrl,
+      })
+    ).toThrow()
+    expect(() =>
+      fudabaMapConfigSchema.parse({
+        ...currentMapConfig,
+        search: {
+          provider: "mapbox",
+          accessToken: "pk.public-test-token-1234567890",
+        },
+      })
+    ).toThrow()
+    expect(
+      fudabaMapConfigSchema.parse({
+        provider: "maplibre",
+        search: { provider: "nominatim" },
+        styleUrl: "/api/community/exchange/map/style.json",
+      })
+    ).toEqual({
+      provider: "maplibre",
+      search: { provider: "nominatim" },
+      styleUrl: "/api/community/exchange/map/style.json",
+    })
+    expect(() =>
+      fudabaMapConfigSchema.parse({
+        provider: "maplibre",
+        search: { provider: "nominatim" },
         styleUrl: " /api/community/exchange/map/style.json ",
       })
     ).toThrow()
@@ -393,7 +424,13 @@ describe("Fudaba Web API contracts", () => {
       "/styles/map\n.json",
       `/styles/${"x".repeat(2048)}`,
     ]) {
-      expect(() => fudabaMapConfigSchema.parse({ styleUrl })).toThrow()
+      expect(() =>
+        fudabaMapConfigSchema.parse({
+          provider: "maplibre",
+          search: { provider: "nominatim" },
+          styleUrl,
+        })
+      ).toThrow()
     }
   })
 
@@ -404,6 +441,8 @@ describe("Fudaba Web API contracts", () => {
       requests.push({ url, init })
       if (url.pathname.endsWith("/map/config")) {
         return Response.json({
+          provider: "maplibre",
+          search: { provider: "nominatim" },
           styleUrl: "/api/community/exchange/map/style.json",
         })
       }

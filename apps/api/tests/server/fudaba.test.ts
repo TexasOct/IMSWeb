@@ -4669,7 +4669,7 @@ import { describe, onTestFinished, test } from 'vitest';
                     fudabaPublicReadEnabled: this.publicReadEnabled,
                     fudabaWriteEnabled: this.writeEnabled,
                     fudabaMapEnabled: this.mapEnabled,
-                    fudabaMapStyleUrl: "/api/community/exchange/map/style.json",
+                    fudabaMapSources: [{ provider: 'maplibre', styleUrl: '/api/community/exchange/map/style.json' }],
                     fudabaGeocoding: {
                         enabled: this.geocodingEnabled,
                         endpoint: this.geocodingEnabled
@@ -4730,7 +4730,9 @@ import { describe, onTestFinished, test } from 'vitest';
             );
             assert.equal(config.status, 200);
             assert.deepEqual(await contractJson(config, fudabaMapConfigSchema), {
+                provider: 'maplibre',
                 styleUrl: "/api/community/exchange/map/style.json",
+                search: { provider: 'nominatim' },
             });
             assert.equal(config.headers.get("cache-control"), "private, no-store");
 
@@ -5486,12 +5488,7 @@ import { describe, onTestFinished, test } from 'vitest';
             config: {
                 fudabaPublicReadEnabled: true,
                 fudabaMapEnabled: true,
-                fudabaMapStyleUrl: OFFICIAL_STYLE,
-                fudabaMapStyleUrls: [
-                    OFFICIAL_STYLE,
-                    SELF_HOSTED_STYLE,
-                    OBJECT_STORAGE_STYLE,
-                ],
+                fudabaMapSources: [OFFICIAL_STYLE, SELF_HOSTED_STYLE, OBJECT_STORAGE_STYLE].map((styleUrl) => ({ provider: 'maplibre', styleUrl })),
             },
             backofficeTokens: {
                 async sign() {
@@ -5569,6 +5566,117 @@ import { describe, onTestFinished, test } from 'vitest';
     }
 
     test.describe('map delivery', () => {
+        test('rejects unknown query fields and source writes without an explicit provider', async () => {
+            const { request, mutation, authHeaders } = fixture();
+            const response = await request('/api/admin/community/exchange/map-delivery?ignored=1', { headers: authHeaders() });
+            assert.equal(response.status, 400);
+            await contractJson(response, fudabaMapDeliveryErrorSchema);
+            const missingProvider = await mutation('/api/admin/community/exchange/map-delivery/sources', 'POST', { name: 'Explicit provider required', styleUrl: DYNAMIC_STYLE, revision: null });
+            assert.equal(missingProvider.status, 422);
+            await contractJson(missingProvider, fudabaMapDeliveryErrorSchema);
+        });
+        test('delivers both geographic renderers and search authorizations independently of visitor headers', async () => {
+                const { request, mutation } = fixture();
+                const amap = { provider: 'amap', apiKey: 'public-amap-key-1234567890', securityProxyUrl: '/_AMapService', mapStyle: 'amap://styles/normal' };
+                const mapbox = { provider: 'mapbox', accessToken: 'pk.public-mapbox-token-1234567890', styleUrl: 'mapbox://styles/mapbox/streets-v12' };
+                const publicMapbox = { ...mapbox, search: { provider: 'mapbox', accessToken: mapbox.accessToken } };
+                const geographic = { provider: 'geographic', mainland: amap, overseas: mapbox, search: { provider: 'federated', mainland: { provider: 'amap', apiKey: amap.apiKey, securityProxyUrl: amap.securityProxyUrl }, overseas: { provider: 'mapbox', accessToken: mapbox.accessToken } } };
+                const create = async (name: string, config: object, revision: string | null) => {
+                    const response = await mutation('/api/admin/community/exchange/map-delivery/sources', 'POST', { name, ...config, revision });
+                    assert.equal(response.status, 201);
+                    return contractJson(response, fudabaMapDeliveryMutationSchema);
+                };
+                const first = await create('高德', amap, null);
+                const second = await create('Mapbox', mapbox, first.delivery.revision);
+                const mainland = second.delivery.sources.find((source) => source.name === '高德')!;
+                const overseas = second.delivery.sources.find((source) => source.name === 'Mapbox')!;
+                const routing = { mainlandSourceId: mainland.id, overseasSourceId: overseas.id };
+                const selected = await mutation('/api/admin/community/exchange/map-delivery/active', 'PUT', { sourceId: second.delivery.activeSourceId, routing, revision: second.delivery.revision });
+                assert.equal(selected.status, 200);
+                const snapshot = await contractJson(selected, fudabaMapDeliveryMutationSchema);
+                assert.deepEqual(snapshot.delivery.routing, routing);
+                const headerCases: Record<string, string>[] = [{}, { 'x-ims-visitor-country': 'CN' }, { 'cf-ipcountry': 'US' }];
+                for (const headers of headerCases) {
+                    const response = await request('/api/community/exchange/map/config', { headers });
+                    assert.match(response.headers.get('cache-control') ?? '', /no-store/);
+                    assert.deepEqual(await contractJson(response, fudabaMapConfigSchema), geographic);
+                }
+                const referenced = await mutation(`/api/admin/community/exchange/map-delivery/sources/${mainland.id}`, 'DELETE', { revision: snapshot.delivery.revision });
+                assert.equal(referenced.status, 409);
+                const invalid = await mutation('/api/admin/community/exchange/map-delivery/active', 'PUT', { sourceId: snapshot.delivery.activeSourceId, routing: { ...routing, mainlandSourceId: 'missing' }, revision: snapshot.delivery.revision });
+                assert.equal(invalid.status, 409);
+                const wrongProvider = await mutation('/api/admin/community/exchange/map-delivery/active', 'PUT', { sourceId: snapshot.delivery.activeSourceId, routing: { ...routing, mainlandSourceId: snapshot.delivery.activeSourceId }, revision: snapshot.delivery.revision });
+                assert.equal(wrongProvider.status, 422);
+                const singleSourceMode = await mutation('/api/admin/community/exchange/map-delivery/active', 'PUT', { sourceId: overseas.id, revision: snapshot.delivery.revision, routing: null });
+                const manual = await contractJson(singleSourceMode, fudabaMapDeliveryMutationSchema);
+                assert.equal(manual.delivery.routing, undefined);
+                assert.deepEqual(await contractJson(await request('/api/community/exchange/map/config', { headers: { 'x-ims-visitor-country': 'CN' } }), fudabaMapConfigSchema), publicMapbox);
+                const secret = await mutation('/api/admin/community/exchange/map-delivery/sources', 'POST', {
+                    name: 'Secret', ...mapbox, accessToken: 'sk.secret-1234567890', revision: manual.delivery.revision,
+                });
+                assert.equal(secret.status, 422);
+        });
+
+        test('persists, activates and edits AMap without exposing security codes or provider internals to business APIs', async () => {
+            const { storage, request, authHeaders, mutation, audit } = fixture();
+            const config = {
+                provider: 'amap', apiKey: 'public-amap-key-1234567890',
+                securityProxyUrl: 'https://maps.example.test/_AMapService',
+                mapStyle: 'amap://styles/normal',
+            };
+            const created = await mutation('/api/admin/community/exchange/map-delivery/sources', 'POST', {
+                ...config, name: '高德', revision: null,
+            });
+            assert.equal(created.status, 201);
+            const payload = await contractJson(created, fudabaMapDeliveryMutationSchema);
+            const source = payload.delivery.sources.find((item) => item.name === '高德')!;
+            assert.deepEqual(source, { id: source.id, name: '高德', ...config });
+            const active = await mutation('/api/admin/community/exchange/map-delivery/active', 'PUT', {
+                sourceId: source.id, revision: payload.delivery.revision,
+            });
+            const activated = await contractJson(active, fudabaMapDeliveryMutationSchema);
+            assert.equal(activated.delivery.effectiveStyleUrl, null);
+            assert.deepEqual(await contractJson(await request('/api/community/exchange/map/config'), fudabaMapConfigSchema), { ...config, search: { provider: 'amap', apiKey: config.apiKey, securityProxyUrl: config.securityProxyUrl } });
+            const reread = await request('/api/admin/community/exchange/map-delivery', { headers: authHeaders() });
+            assert.deepEqual(await contractJson(reread, fudabaMapDeliverySnapshotSchema), activated.delivery);
+            const object = await storage.get(FUDABA_MAP_DELIVERY_OBJECT_KEY);
+            assert.equal(JSON.parse(new TextDecoder().decode(object!.body)).version, 4);
+            const stale = await mutation(`/api/admin/community/exchange/map-delivery/sources/${source.id}`, 'PUT', {
+                ...config, name: '高德新样式', revision: payload.delivery.revision,
+            });
+            assert.equal(stale.status, 409);
+            for (const invalid of [
+                { ...config, securityJsCode: 'must-stay-on-server' },
+                { ...config, securityProxyUrl: 'https://user:secret@maps.test/_AMapService' },
+                { ...config, securityProxyUrl: 'https://maps.test/other' },
+                { ...config, mapStyle: 'javascript:alert(1)' },
+                { ...config, provider: 'unknown' },
+                { ...config, styleUrl: OFFICIAL_STYLE },
+            ]) {
+                const response = await mutation('/api/admin/community/exchange/map-delivery/sources', 'POST', {
+                    ...invalid, name: '无效源', revision: activated.delivery.revision,
+                });
+                assert.equal(response.status, 422);
+            }
+            const edited = await mutation(`/api/admin/community/exchange/map-delivery/sources/${source.id}`, 'PUT', {
+                ...config, name: '高德新样式', mapStyle: 'amap://styles/whitesmoke', revision: activated.delivery.revision,
+            });
+            const updated = await contractJson(edited, fudabaMapDeliveryMutationSchema);
+            assert.deepEqual(await contractJson(await request('/api/community/exchange/map/config'), fudabaMapConfigSchema), {
+                ...config, mapStyle: 'amap://styles/whitesmoke',
+                search: { provider: 'amap', apiKey: config.apiKey, securityProxyUrl: config.securityProxyUrl },
+            });
+            const switchedBack = await mutation(`/api/admin/community/exchange/map-delivery/sources/${source.id}`, 'PUT', {
+                provider: 'maplibre', name: '切回 OpenFreeMap', styleUrl: DYNAMIC_STYLE, revision: updated.delivery.revision,
+            });
+            const switched = await contractJson(switchedBack, fudabaMapDeliveryMutationSchema);
+            assert.deepEqual(switched.delivery.sources.find((item) => item.id === source.id), {
+                provider: 'maplibre', id: source.id, name: '切回 OpenFreeMap', styleUrl: DYNAMIC_STYLE,
+            });
+            assert.deepEqual(await contractJson(await request('/api/community/exchange/map/config'), fudabaMapConfigSchema), { provider: 'maplibre', styleUrl: DYNAMIC_STYLE, search: { provider: 'nominatim' } });
+            assert.ok(audit.every((entry) => !JSON.stringify(entry).includes(config.apiKey)));
+        });
+
         test('validates raw JSON responses without projecting emitted fields', async () => {
             const { request, authHeaders, mutation } = fixture();
 
@@ -5585,7 +5693,7 @@ import { describe, onTestFinished, test } from 'vitest';
             const created = await mutation(
                 '/api/admin/community/exchange/map-delivery/sources',
                 'POST',
-                { name: 'Boundary source', styleUrl: DYNAMIC_STYLE, revision: null },
+                { provider: 'maplibre', name: 'Boundary source', styleUrl: DYNAMIC_STYLE, revision: null },
             );
             assert.equal(created.status, 201);
             await contractJson(created, fudabaMapDeliveryMutationSchema);
@@ -5616,6 +5724,7 @@ import { describe, onTestFinished, test } from 'vitest';
                         headers: authHeaders({ 'content-type': 'application/json' }),
                         body: JSON.stringify({
                             name: 'Boundary source',
+                            provider: 'maplibre',
                             styleUrl: DYNAMIC_STYLE,
                             revision: null,
                             unexpected: true,
@@ -5630,6 +5739,7 @@ import { describe, onTestFinished, test } from 'vitest';
                         headers: authHeaders({ 'content-type': 'application/json' }),
                         body: JSON.stringify({
                             name: 'Boundary\u0001source',
+                            provider: 'maplibre',
                             styleUrl: DYNAMIC_STYLE,
                             revision: null,
                         }),
@@ -5643,6 +5753,7 @@ import { describe, onTestFinished, test } from 'vitest';
                         headers: authHeaders({ 'content-type': 'application/json' }),
                         body: JSON.stringify({
                             name: 'Boundary source',
+                            provider: 'maplibre',
                             styleUrl: DYNAMIC_STYLE,
                             revision: null,
                         }),
@@ -5659,12 +5770,12 @@ import { describe, onTestFinished, test } from 'vitest';
             }
         });
 
-        test('manages a dynamic source collection with CAS and legacy fallback', async () => {
+        test('manages a version 4 collection with CAS and rejects old stored formats', async () => {
             const { storage, audit, request, authHeaders, mutation } = fixture();
 
             const coldConfig = await request('/api/community/exchange/map/config');
             assert.equal(coldConfig.status, 200);
-            assert.deepEqual(await coldConfig.json(), { styleUrl: OFFICIAL_STYLE });
+            assert.deepEqual(await coldConfig.json(), { provider: 'maplibre', styleUrl: OFFICIAL_STYLE, search: { provider: 'nominatim' } });
 
             const unauthorized = await request(
                 '/api/admin/community/exchange/map-delivery',
@@ -5679,7 +5790,7 @@ import { describe, onTestFinished, test } from 'vitest';
             const coldSnapshot =
                 (await coldAdmin.json()) as DeliveryPayload['delivery'];
             assert.equal(coldSnapshot.sources.length, 3);
-            assert.equal(coldSnapshot.sources[0]?.name, 'OpenFreeMap Positron');
+            assert.equal(coldSnapshot.sources[0]?.name, 'MapLibre · tiles.openfreemap.org');
             assert.equal(coldSnapshot.activeSourceId, coldSnapshot.sources[0]?.id);
             assert.equal(coldSnapshot.effectiveStyleUrl, OFFICIAL_STYLE);
             assert.equal(coldSnapshot.revision, null);
@@ -5687,14 +5798,14 @@ import { describe, onTestFinished, test } from 'vitest';
             const malformed = await mutation(
                 '/api/admin/community/exchange/map-delivery/sources',
                 'POST',
-                { name: 'Broken', styleUrl: 'maps/style.json', revision: null },
+                { provider: 'maplibre', name: 'Broken', styleUrl: 'maps/style.json', revision: null },
             );
             assert.equal(malformed.status, 422);
 
             const created = await mutation(
                 '/api/admin/community/exchange/map-delivery/sources',
                 'POST',
-                { name: 'Dynamic edge', styleUrl: DYNAMIC_STYLE, revision: null },
+                { provider: 'maplibre', name: 'Dynamic edge', styleUrl: DYNAMIC_STYLE, revision: null },
             );
             assert.equal(created.status, 201);
             const createdPayload = (await created.json()) as DeliveryPayload;
@@ -5709,7 +5820,7 @@ import { describe, onTestFinished, test } from 'vitest';
             const stored = JSON.parse(
                 new TextDecoder().decode(storedObject.body),
             ) as Record<string, unknown>;
-            assert.equal(stored.version, 2);
+            assert.equal(stored.version, 4);
             assert.ok(Array.isArray(stored.sources));
 
             const duplicate = await mutation(
@@ -5717,6 +5828,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 'POST',
                 {
                     name: 'Dynamic edge',
+                    provider: 'maplibre',
                     styleUrl: 'https://other.example.test/style.json',
                     revision: createdPayload.delivery.revision,
                 },
@@ -5728,6 +5840,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 'PUT',
                 {
                     name: 'Dynamic edge v5',
+                    provider: 'maplibre',
                     styleUrl: EDITED_DYNAMIC_STYLE,
                     revision: createdPayload.delivery.revision,
                 },
@@ -5764,7 +5877,9 @@ import { describe, onTestFinished, test } from 'vitest';
             const selectedConfig = await request('/api/community/exchange/map/config');
             assert.equal(selectedConfig.status, 200);
             assert.deepEqual(await selectedConfig.json(), {
+                provider: 'maplibre',
                 styleUrl: EDITED_DYNAMIC_STYLE,
+                search: { provider: 'nominatim' },
             });
 
             const deleteActive = await mutation(
@@ -5827,23 +5942,24 @@ import { describe, onTestFinished, test } from 'vitest';
             );
             const legacySnapshot =
                 (await legacyAdmin.json()) as DeliveryPayload['delivery'];
-            assert.equal(legacySnapshot.effectiveStyleUrl, OBJECT_STORAGE_STYLE);
+            assert.equal(legacySnapshot.effectiveStyleUrl, OFFICIAL_STYLE);
             assert.equal(
                 legacySnapshot.sources.find(
                     (source) => source.id === legacySnapshot.activeSourceId,
                 )?.styleUrl,
-                OBJECT_STORAGE_STYLE,
+                OFFICIAL_STYLE,
             );
 
             await storage.put(
                 FUDABA_MAP_DELIVERY_OBJECT_KEY,
                 new TextEncoder().encode(
                     JSON.stringify({
-                        version: 2,
+                        version: 4,
                         sources: [
                             {
                                 id: 'poisoned',
                                 name: 'Poisoned',
+                                provider: 'maplibre',
                                 styleUrl:
                                     'https://user:secret@attacker.example/style.json',
                             },
@@ -5856,7 +5972,7 @@ import { describe, onTestFinished, test } from 'vitest';
 
             const poisonedConfig = await request('/api/community/exchange/map/config');
             assert.equal(poisonedConfig.status, 200);
-            assert.deepEqual(await poisonedConfig.json(), { styleUrl: OFFICIAL_STYLE });
+            assert.deepEqual(await poisonedConfig.json(), { provider: 'maplibre', styleUrl: OFFICIAL_STYLE, search: { provider: 'nominatim' } });
 
             const poisonedAdmin = await request(
                 '/api/admin/community/exchange/map-delivery',

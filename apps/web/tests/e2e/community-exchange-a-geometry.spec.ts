@@ -46,7 +46,11 @@ test.describe("A exchange DOM geometry", () => {
         "/api/community/exchange/map/config",
         (route) =>
           route.fulfill({
-            json: { styleUrl: "/maps/exchange-test-style.json" },
+            json: {
+              provider: "maplibre",
+              search: { provider: "nominatim" },
+              styleUrl: "/maps/exchange-test-style.json",
+            },
           }),
         "GET",
         1

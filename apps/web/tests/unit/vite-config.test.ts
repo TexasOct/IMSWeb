@@ -33,6 +33,17 @@ describe("Vite dependency optimization", () => {
   })
 })
 
+it("registers the local AMap security proxy without requiring credentials at build time", () => {
+  expect(viteConfig.plugins).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        name: "imsweb-local-amap-service-proxy",
+        apply: "serve",
+      }),
+    ])
+  )
+})
+
 describe("local exchange map asset delivery", () => {
   it("parses closed, open-ended, and suffix byte ranges", () => {
     expect(parseByteRange("bytes=2-5", 10)).toEqual({ start: 2, end: 5 })

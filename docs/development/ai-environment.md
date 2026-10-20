@@ -161,8 +161,10 @@ node scripts/maps/prepare-exchange-map.mjs --apply --activate
 glyph、sprite、Natural Earth raster，至少需要 12 GiB 可用空间。Vite 只在开发 serve 模式把
 `data/maps/current/` 映射为 `/maps/exchange/`，不会把大型地图资源复制进 Web 或 App build。
 可用 `IMS_DEV_FUDABA_MAP_STYLE_URLS` 首次生成 `/maps/exchange-style.json` 配置，也可以在后台
-直接新增该自分发源；保存后无需重启开发服务。
-完整合同见[地图资源交付](../operations/map-delivery.md)。
+直接新增该自分发源；保存后无需重启开发服务。高德与 Mapbox 的配置、安全代理和单引擎运行要求见
+[地图资源交付](../operations/map-delivery.md)。国内外模式只创建一个高德地图实例，海外使用
+Mapbox 发布样式的栅格瓦片；语言和配色必须在该样式发布前确定。验收同时检查实际影像、边界、
+搜索、连续拖动和版权入口，Canvas 数量不能单独证明功能完成。
 
 需要在 API/Web 热更新期间使用 Cloudflare R2 测试桶时，使用显式入口：
 

@@ -7,14 +7,7 @@ import {
   SearchIcon,
   XIcon,
 } from "lucide-react"
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ComponentType,
-} from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Badge } from "~/components/ui/badge"
@@ -33,7 +26,7 @@ import {
   type FudabaMapBounds,
   type FudabaMapOffice,
   type FudabaSeries,
-  type FudabaPlaceSearchResult,
+  type FudabaMapConfig,
 } from "~/lib/api"
 import { APP_FLOATING_CONTROL_OFFSET, IS_APP_TARGET } from "~/lib/app-target"
 import { cn } from "~/lib/utils"
@@ -43,21 +36,30 @@ import {
   type FudabaMapOfficeGroup,
 } from "./exchange-map-model"
 import type { ExchangeMapAttribution } from "./exchange-map-attribution"
-import type { ExchangeOfficeMapProps } from "./exchange-office-map"
+import { mapFailureDescription } from "~/lib/maps/map-errors"
+import {
+  loadExchangeMapRenderer,
+  type ExchangeMapRenderer,
+} from "./exchange-map-renderer"
 import { NavigationLink } from "~/components/navigation/navigation-link"
-import { ExchangePlaceSearch } from "./exchange-place-search"
-import { useExchangePlaceSearch } from "./hooks/use-exchange-place-search"
+import { MapPlaceSearch } from "./exchange-place-search"
+import { usePlaceSearch } from "./hooks/use-place-search"
+import { loadExchangeMapSearch } from "./exchange-map-search"
+import {
+  MapSearchError,
+  type MapPlaceSearcher,
+  type MapSearchPlace,
+} from "~/lib/maps/map-search"
 import {
   ExchangeSearchCard,
   type ExchangeSearchCardTools,
 } from "./components/exchange-search-card"
 import type { NativeGlassFrame } from "~/lib/native-glass-panel"
 
-type MapComponent = ComponentType<ExchangeOfficeMapProps>
 type ConfigState =
-  | { phase: "loading"; styleUrl: null; error: null }
-  | { phase: "ready"; styleUrl: string; error: null }
-  | { phase: "error"; styleUrl: null; error: string }
+  | { phase: "loading"; error: null }
+  | { phase: "ready"; value: FudabaMapConfig; error: null }
+  | { phase: "error"; error: Error }
 
 interface MapDataState {
   phase: "idle" | "loading" | "ready" | "error"
@@ -68,7 +70,6 @@ interface MapDataState {
 
 const initialConfigState: ConfigState = {
   phase: "loading",
-  styleUrl: null,
   error: null,
 }
 
@@ -147,20 +148,12 @@ function OfficeGroupDetails({ group }: { group: FudabaMapOfficeGroup }) {
   )
 }
 
-function mapUnavailableDescription(message: string) {
-  const normalized = message.trim().toLowerCase()
-  if (normalized === "not found" || normalized === "map disabled") {
-    return "区域地图尚未启用，公开事务所和名片仍可在名录中查看。"
-  }
-  return "地图服务暂时无法连接，公开事务所和名片仍可在名录中查看。"
-}
-
 function MapUnavailable({
   message,
   onRetry,
   onSwitchDirectory,
 }: {
-  message: string
+  message: Error
   onRetry: () => void
   onSwitchDirectory: () => void
 }) {
@@ -183,7 +176,7 @@ function MapUnavailable({
               地图暂时不可用
             </EmptyTitle>
             <EmptyDescription className="mt-1.5 text-left text-sm/6 text-slate-600">
-              {mapUnavailableDescription(message)}
+              {mapFailureDescription(message)}
             </EmptyDescription>
           </div>
         </div>
@@ -233,22 +226,27 @@ export function CommunityExchangeMapSection({
   searchTools?: ExchangeSearchCardTools
 }) {
   const [config, setConfig] = useState<ConfigState>(initialConfigState)
-  const [MapComponent, setMapComponent] = useState<MapComponent | null>(null)
-  const [moduleError, setModuleError] = useState<string | null>(null)
-  const [moduleAttempt, setModuleAttempt] = useState(0)
+  const [MapComponent, setMapComponent] = useState<ExchangeMapRenderer | null>(
+    null
+  )
+  const [moduleError, setModuleError] = useState<Error | null>(null)
   const [data, setData] = useState<MapDataState>(initialDataState)
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null)
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchExpanded, setSearchExpanded] = useState(false)
-  const [selectedPlace, setSelectedPlace] =
-    useState<FudabaPlaceSearchResult | null>(null)
+  const [selectedPlace, setSelectedPlace] = useState<MapSearchPlace | null>(
+    null
+  )
   const searchTriggerRef = useRef<HTMLButtonElement>(null)
   const configGeneration = useRef(0)
   const dataGeneration = useRef(0)
   const lastBoundsRef = useRef<FudabaMapBounds[] | null>(null)
   const isNarrow = useNarrowMapLayout()
-  const searchModel = useExchangePlaceSearch()
+  const [searchPlaces, setSearchPlaces] = useState<MapPlaceSearcher | null>(
+    null
+  )
+  const searchModel = usePlaceSearch(searchPlaces)
   const [selectedAttribution, setSelectedAttribution] = useState("")
   useEffect(() => {
     if (!IS_APP_TARGET) return
@@ -281,16 +279,18 @@ export function CommunityExchangeMapSection({
     setConfig(initialConfigState)
     setModuleError(null)
     setMapComponent(null)
+    setSearchPlaces(null)
+    setSelectedPlace(null)
+    setSelectedAttribution("")
     try {
       const result = await getFudabaMapConfig().send()
       if (configGeneration.current !== generation) return
-      setConfig({ phase: "ready", styleUrl: result.styleUrl, error: null })
+      setConfig({ phase: "ready", value: result, error: null })
     } catch (error) {
       if (configGeneration.current !== generation) return
       setConfig({
         phase: "error",
-        styleUrl: null,
-        error: errorMessage(error, "地图配置无法加载"),
+        error: error instanceof Error ? error : new Error("地图配置无法加载"),
       })
     }
   }, [])
@@ -306,17 +306,34 @@ export function CommunityExchangeMapSection({
     if (config.phase !== "ready") return
     let active = true
     setModuleError(null)
-    void import("./exchange-office-map")
-      .then((module) => {
-        if (active) setMapComponent(() => module.ExchangeOfficeMap)
-      })
-      .catch((error) => {
-        if (active) setModuleError(errorMessage(error, "地图模块无法加载"))
-      })
+    const pendingSearch = loadExchangeMapSearch(config.value.search).catch(
+      () => {
+        const unavailable: MapPlaceSearcher = async () => {
+          throw new MapSearchError("failed")
+        }
+        return unavailable
+      }
+    )
+    const searcher: MapPlaceSearcher = async (query, signal) => {
+      const search = await pendingSearch
+      signal.throwIfAborted()
+      return search(query, signal)
+    }
+    const load = loadExchangeMapRenderer(config.value).then((Renderer) => {
+      if (!active) return
+      setMapComponent(() => Renderer)
+      setSearchPlaces(() => searcher)
+    })
+    void load.catch((error) => {
+      if (active)
+        setModuleError(
+          error instanceof Error ? error : new Error("地图模块无法加载")
+        )
+    })
     return () => {
       active = false
     }
-  }, [config.phase, moduleAttempt])
+  }, [config])
 
   const loadBounds = useCallback(
     async (bounds: FudabaMapBounds[]) => {
@@ -401,12 +418,11 @@ export function CommunityExchangeMapSection({
     config.phase === "error" ? config.error : (moduleError ?? null)
 
   function retryMap() {
-    if (config.phase === "error") void loadConfig()
-    else setModuleAttempt((attempt) => attempt + 1)
+    void loadConfig()
   }
 
   function handleFatalError(error: Error) {
-    setModuleError(error.message)
+    setModuleError(error)
     setMapComponent(null)
   }
 
@@ -431,7 +447,6 @@ export function CommunityExchangeMapSection({
 
       {config.phase === "ready" && MapComponent ? (
         <MapComponent
-          styleUrl={config.styleUrl}
           groups={groups}
           selectedGroupKey={selectedGroupKey}
           selectedPlace={selectedPlace}
@@ -439,6 +454,7 @@ export function CommunityExchangeMapSection({
           onSelectGroup={selectGroup}
           onViewportChange={(bounds) => void loadBounds(bounds)}
           onFatalError={handleFatalError}
+          onRetry={retryMap}
           onAttributionChange={onAttributionChange}
         />
       ) : null}
@@ -473,10 +489,14 @@ export function CommunityExchangeMapSection({
               id="exchange-map-place-search"
               className="mt-2 max-h-[min(28rem,55dvh)] overflow-y-auto rounded-lg border bg-background/97 p-3 shadow-md backdrop-blur-sm"
             >
-              <ExchangePlaceSearch
+              <MapPlaceSearch
+                placeholder="城市、地名或完整地址"
                 model={searchModel}
                 onSelect={(place) => {
                   setSelectedPlace(place)
+                  setSelectedAttribution(
+                    place.attribution ?? searchModel.attribution
+                  )
                   setSelectedGroupKey(null)
                   setMobileSheetOpen(false)
                   setSearchOpen(false)
@@ -493,7 +513,7 @@ export function CommunityExchangeMapSection({
               <span className="min-w-0 flex-1 wrap-break-word">
                 已定位：{selectedPlace.label}
                 <span className="block text-xs text-muted-foreground">
-                  © OpenStreetMap contributors
+                  {selectedAttribution}
                 </span>
               </span>
               <Button
@@ -501,7 +521,10 @@ export function CommunityExchangeMapSection({
                 size="icon-sm"
                 variant="ghost"
                 aria-label="清除搜索地点"
-                onClick={() => setSelectedPlace(null)}
+                onClick={() => {
+                  setSelectedPlace(null)
+                  setSelectedAttribution("")
+                }}
               >
                 <XIcon aria-hidden="true" />
               </Button>
@@ -623,11 +646,14 @@ export function CommunityExchangeMapSection({
           modalOpen={
             searchTools.modalOpen || (mobileSheetOpen && Boolean(selectedGroup))
           }
-          model={searchModel}
+          model={{
+            ...searchModel,
+            attribution: searchModel.attribution || selectedAttribution,
+          }}
           selectedPlace={selectedPlace}
           onSelect={(place) => {
             setSelectedPlace(place)
-            setSelectedAttribution(searchModel.attribution)
+            setSelectedAttribution(place.attribution ?? searchModel.attribution)
             setSelectedGroupKey(null)
             setMobileSheetOpen(false)
           }}
@@ -638,7 +664,7 @@ export function CommunityExchangeMapSection({
           pointCount={groups.length}
           feedbackMessage={
             mapFailure
-              ? mapUnavailableDescription(mapFailure)
+              ? mapFailureDescription(mapFailure)
               : data.phase === "error"
                 ? `地图数据更新失败：${data.error}。已保留上次成功结果。`
                 : data.truncated
