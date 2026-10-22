@@ -39,28 +39,25 @@ function register<C extends MapConfig>(
 ): MapRendererRegistration<FudabaMapConfig> {
   return {
     matches: (config) =>
-      config.provider !== "geographic" && provider.matches(config),
+      config.provider !== "regional" && provider.matches(config),
     async load(config) {
-      if (config.provider === "geographic" || !provider.matches(config))
+      if (config.provider === "regional" || !provider.matches(config))
         throw new Error("地图配置与适配器不匹配")
       return (await load()).createMapRenderer(config)
     },
   }
 }
 
-// Trusted composition point. SDKs remain in their independently loaded modules.
-export const loadExchangeMapRenderer = createMapRendererRegistry([
+// Trusted composition point. Exactly one renderer owns the map at a time.
+export const loadExchangeMapRenderer = createMapRendererRegistry<FudabaMapConfig>([
   register(mapLibreProvider, () => import("./map-providers/maplibre")),
   register(amapProvider, () => import("./map-providers/amap")),
   register(mapboxProvider, () => import("./map-providers/mapbox")),
   {
-    matches: (config: FudabaMapConfig) => config.provider === "geographic",
-    async load(config: FudabaMapConfig) {
-      if (config.provider !== "geographic")
-        throw new MapDisplayError("unsupported-provider", "地图聚合配置无效。")
-      return (await import("./map-providers/geographic")).createMapRenderer(
-        config
-      )
+    matches: (config) => config.provider === "regional",
+    async load(config) {
+      if (config.provider !== "regional") throw new Error("地区地图配置无效")
+      return (await import("./map-providers/regional")).createMapRenderer(config)
     },
   },
 ])

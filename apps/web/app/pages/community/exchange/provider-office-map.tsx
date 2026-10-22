@@ -11,6 +11,7 @@ import { Button } from "~/components/ui/button"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { GeolocationFailure, getCurrentCoordinates } from "~/lib/geolocation"
 import { useNativeGlassControl } from "~/lib/native-glass-controls"
+import { awaitMapSearch } from "~/lib/maps/map-search-abort"
 import { cn } from "~/lib/utils"
 import type {
   MapDriver,
@@ -26,10 +27,10 @@ import {
   DEFAULT_EXCHANGE_MAP_VIEWPORT,
   exchangeMapInitialViewport,
   EXCHANGE_MAP_MIN_ZOOM,
-  EXCHANGE_MAP_CLUSTER_MAX_ZOOM,
   EXCHANGE_MAP_SEARCH_ZOOM,
   EXCHANGE_MAP_FLOATING_GROUP,
   splitViewportBounds,
+  groupMapMarkers,
 } from "./exchange-map-model"
 import type { ExchangeMapInteractionProps } from "./exchange-map-provider"
 import type { ExchangeMapAttribution } from "./exchange-map-attribution"
@@ -37,12 +38,37 @@ import type { ExchangeMapAttribution } from "./exchange-map-attribution"
 type Props = ExchangeMapInteractionProps & {
   driver: MapDriver
   attribution: ExchangeMapAttribution
+  regionSession?: number
+  initialTarget?: import("~/lib/maps/map-search").MapSearchTarget
+  initialMapZoom?: number
+  focusSelectedPlace?: boolean
+  persistViewport?: boolean
+  onRegionCamera?(camera: import("./regional-map-model").RegionalCamera): void
+  onRegionalSessionCamera?(
+    camera: import("./regional-map-model").RegionalCamera,
+    session: number
+  ): void
 }
 const reducedMotion = () =>
   Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches)
 
 export function ProviderOfficeMap(props: Props) {
-  const { driver, groups, selectedGroupKey, selectedPlace, occlusion } = props
+  const {
+    driver,
+    groups,
+    selectedGroupKey,
+    groupFocus,
+    selectedPlace,
+    occlusion,
+    attributionPlacement,
+    regionSession,
+    initialTarget,
+    initialMapZoom,
+    persistViewport,
+    onRegionCamera,
+    onRegionalSessionCamera,
+    focusSelectedPlace = true,
+  } = props
   const containerRef = useRef<HTMLDivElement>(null)
   const latest = useRef(props)
   const runtime = useRef<MapView | null>(null)
@@ -94,59 +120,85 @@ export function ProviderOfficeMap(props: Props) {
     []
   )
 
-  async function locateUser() {
-    const current = runtime.current
-    if (!current) return
-    const request = ++locationRequest.current
-    setLocation({ busy: true, message: "正在获取您的位置" })
-    try {
-      const coordinates = await getCurrentCoordinates()
-      if (request !== locationRequest.current || runtime.current !== current)
-        return
-      const position: MapPosition = [
-        coordinates.longitude,
-        coordinates.latitude,
-      ]
-      const element = document.createElement("span")
-      element.className =
-        "block size-4 rounded-full border-[3px] border-white bg-primary shadow-md ring-2 ring-primary/30"
-      element.setAttribute("role", "img")
-      element.setAttribute("aria-label", "您的当前位置")
-      const marker = await current.addMarker({
-        position,
-        element,
-        anchor: "center",
+  const locateUser = useCallback(
+    async (initialSignal?: AbortSignal) => {
+      const current = runtime.current
+      if (!current) return
+      if (!initialSignal) latest.current.claimInitialLocation?.()
+      const request = ++locationRequest.current
+      setLocation({
+        busy: true,
+        message: initialSignal ? "" : "正在获取您的位置",
       })
-      if (request !== locationRequest.current || runtime.current !== current) {
-        marker.remove()
-        return
+      try {
+        const coordinates = await (initialSignal
+          ? awaitMapSearch(getCurrentCoordinates(), initialSignal)
+          : getCurrentCoordinates())
+        if (request !== locationRequest.current || runtime.current !== current)
+          return
+        if (initialSignal?.aborted) {
+          setLocation({ busy: false, message: "" })
+          return
+        }
+        const position: MapPosition = [
+          coordinates.longitude,
+          coordinates.latitude,
+        ]
+        const element = document.createElement("span")
+        element.className =
+          "block size-4 rounded-full border-[3px] border-white bg-primary shadow-md ring-2 ring-primary/30"
+        element.setAttribute("role", "img")
+        element.setAttribute("aria-label", "您的当前位置")
+        const marker = await current.addMarker({
+          position,
+          element,
+          anchor: "center",
+        })
+        if (
+          request !== locationRequest.current ||
+          runtime.current !== current ||
+          initialSignal?.aborted
+        ) {
+          marker.remove()
+          if (
+            request === locationRequest.current &&
+            runtime.current === current
+          )
+            setLocation({ busy: false, message: "" })
+          return
+        }
+        userMarker.current?.remove()
+        userMarker.current = marker
+        latest.current.onDevicePosition?.(position)
+        const outcome = await focus(
+          current,
+          position,
+          Math.max(current.read().zoom, 8),
+          false,
+          initialSignal
+        )
+        if (request !== locationRequest.current || runtime.current !== current)
+          return
+        setLocation({
+          busy: false,
+          message: initialSignal || outcome === false ? "" : "已回到您的位置",
+        })
+      } catch (error) {
+        if (request !== locationRequest.current || runtime.current !== current)
+          return
+        setLocation({
+          busy: false,
+          message: initialSignal
+            ? ""
+            : error instanceof GeolocationFailure &&
+                error.kind === "permission-denied"
+              ? "未获得位置权限"
+              : "暂时无法获取您的位置，请重试",
+        })
       }
-      userMarker.current?.remove()
-      userMarker.current = marker
-      const outcome = await focus(
-        current,
-        position,
-        Math.max(current.read().zoom, 8)
-      )
-      if (request !== locationRequest.current || runtime.current !== current)
-        return
-      setLocation({
-        busy: false,
-        message: outcome === false ? "" : "已回到您的位置",
-      })
-    } catch (error) {
-      if (request !== locationRequest.current || runtime.current !== current)
-        return
-      setLocation({
-        busy: false,
-        message:
-          error instanceof GeolocationFailure &&
-          error.kind === "permission-denied"
-            ? "未获得位置权限"
-            : "暂时无法获取您的位置，请重试",
-      })
-    }
-  }
+    },
+    [focus]
+  )
   const { controlRef, refreshGeometry } = useNativeGlassControl(
     "locate",
     {
@@ -177,6 +229,7 @@ export function ProviderOfficeMap(props: Props) {
     let renderGeneration = 0
     let initialized = false
     let failed = false
+    let cameraTimer: ReturnType<typeof setTimeout> | undefined
     setReady(false)
     setResourceError(false)
     setLocation({ busy: false, message: "" })
@@ -202,6 +255,22 @@ export function ProviderOfficeMap(props: Props) {
     const updateViewport = () => {
       if (!map || disposed) return
       latest.current.onViewportChange(splitViewportBounds(map.read().bounds))
+      if (map.readCamera) {
+        const camera = map.readCamera()
+        if (camera.target.kind === "wgs84")
+          latest.current.onSearchViewportCenter?.(camera.target.position)
+      }
+      const current = map
+      if ((onRegionCamera || onRegionalSessionCamera) && current.readCamera) {
+        clearTimeout(cameraTimer)
+        cameraTimer = setTimeout(() => {
+          if (!disposed && runtime.current === current && current.readCamera) {
+            const snapshot = current.readCamera()
+            onRegionCamera?.(snapshot)
+            onRegionalSessionCamera?.(snapshot, regionSession ?? 0)
+          }
+        }, 180)
+      }
       refreshMarkers.current()
     }
     const initTimer = setTimeout(fail, 20000)
@@ -210,6 +279,16 @@ export function ProviderOfficeMap(props: Props) {
         viewport: IS_APP_TARGET
           ? exchangeMapInitialViewport()
           : DEFAULT_EXCHANGE_MAP_VIEWPORT,
+        ...(initialTarget ? { initialTarget } : {}),
+        ...(initialMapZoom === undefined
+          ? {}
+          : {
+              viewport: {
+                center: DEFAULT_EXCHANGE_MAP_VIEWPORT.center,
+                zoom: initialMapZoom,
+              },
+            }),
+        ...(persistViewport === undefined ? {} : { persistViewport }),
         minZoom: EXCHANGE_MAP_MIN_ZOOM,
         signal: controller.signal,
         onChange: updateViewport,
@@ -227,44 +306,36 @@ export function ProviderOfficeMap(props: Props) {
         refreshMarkers.current = () => {
           const generation = ++renderGeneration
           const currentGroups = latest.current.groups
-          void view
-            .project(
-              currentGroups.map((group) => [group.longitude, group.latitude])
-            )
-            .then(async (positions) => {
+          void Promise.resolve()
+            .then(async () => {
               if (!map || disposed || generation !== renderGeneration) return
-              const cells = new Map<
-                string,
-                { group: (typeof groups)[number]; position: MapPosition }[]
-              >()
-              const zoom = view.read().zoom
-              currentGroups.forEach((group, index) => {
-                const position: MapPosition = [group.longitude, group.latitude]
-                const point = positions[index]!
-                const key =
-                  zoom >= EXCHANGE_MAP_CLUSTER_MAX_ZOOM + 1
-                    ? group.key
-                    : `${Math.floor(point.x / 56)}:${Math.floor(point.y / 56)}`
-                const cell = cells.get(key) ?? []
-                cell.push({ group, position })
-                cells.set(key, cell)
-              })
+              const selected = !IS_APP_TARGET
+                ? currentGroups.find(
+                    (group) => group.key === latest.current.selectedGroupKey
+                  )
+                : undefined
+              const cells = groupMapMarkers(
+                selected
+                  ? currentGroups.filter((group) => group !== selected)
+                  : currentGroups,
+                view.read().zoom
+              )
+              // A directory selection may target a point inside a cluster.
+              if (selected) cells.push([selected])
               const seen = new Set<string>()
-              for (const cell of cells.values()) {
-                const { group, position } = cell[0]!
+              for (const cell of cells) {
+                const group = cell[0]!
+                const position: MapPosition = [group.longitude, group.latitude]
                 const key =
                   cell.length > 1
-                    ? `cluster:${cell.map((item) => item.group.key).join(";")}`
+                    ? `cluster:${cell.map((item) => item.key).join(";")}`
                     : `office:${group.key}`
                 seen.add(key)
                 const signature = JSON.stringify({
                   position,
                   groups: cell.map((item) => ({
-                    colors: item.group.colors,
-                    offices: item.group.offices.map(({ id, name }) => [
-                      id,
-                      name,
-                    ]),
+                    colors: item.colors,
+                    offices: item.offices.map(({ id, name }) => [id, name]),
                   })),
                 })
                 const existing = markers.get(key)
@@ -342,6 +413,13 @@ export function ProviderOfficeMap(props: Props) {
         setReady(true)
         latest.current.onAttributionChange?.(latest.current.attribution)
         updateViewport()
+        const initialSignal = latest.current.claimInitialLocation?.()
+        if (
+          initialSignal &&
+          !initialSignal.aborted &&
+          !latest.current.selectedPlace
+        )
+          void locateUser(initialSignal)
       })
       .catch((error: unknown) => {
         if (!disposed)
@@ -350,6 +428,7 @@ export function ProviderOfficeMap(props: Props) {
     return () => {
       disposed = true
       clearTimeout(initTimer)
+      clearTimeout(cameraTimer)
       observer.disconnect()
       userMarker.current?.remove()
       userMarker.current = null
@@ -360,11 +439,49 @@ export function ProviderOfficeMap(props: Props) {
       controller.abort()
       map?.destroy()
     }
-  }, [driver, focus])
+  }, [
+    driver,
+    focus,
+    locateUser,
+    regionSession,
+    initialMapZoom,
+    initialTarget,
+    onRegionCamera,
+    onRegionalSessionCamera,
+    persistViewport,
+  ])
 
   useEffect(() => {
     if (ready) refreshMarkers.current()
   }, [groups, selectedGroupKey, ready])
+  useEffect(() => {
+    const current = runtime.current
+    if (
+      !current ||
+      !ready ||
+      !groupFocus ||
+      groupFocus.key !== selectedGroupKey
+    )
+      return
+    const group = latest.current.groups.find(
+      (item) => item.key === groupFocus.key
+    )
+    if (!group) return
+    const controller = new AbortController()
+    void focus(
+      current,
+      [group.longitude, group.latitude],
+      current.read().zoom,
+      false,
+      controller.signal
+    ).catch((error: unknown) => {
+      if (!controller.signal.aborted && runtime.current === current)
+        latest.current.onFatalError(
+          error instanceof Error ? error : new Error("地图无法定位")
+        )
+    })
+    return () => controller.abort()
+  }, [groupFocus, selectedGroupKey, ready, focus])
   useEffect(() => {
     const current = runtime.current
     if (!current || !ready || !selectedPlace) return
@@ -389,10 +506,11 @@ export function ProviderOfficeMap(props: Props) {
           return
         }
         marker = next
+        if (!focusSelectedPlace) return
         await focus(
           current,
           target,
-          EXCHANGE_MAP_SEARCH_ZOOM,
+          selectedPlace.zoom ?? EXCHANGE_MAP_SEARCH_ZOOM,
           true,
           controller.signal
         )
@@ -409,18 +527,25 @@ export function ProviderOfficeMap(props: Props) {
       marker?.remove()
     }
     // Occlusion changes must not repeatedly move an already selected place.
-  }, [selectedPlace, ready, focus])
+  }, [selectedPlace, ready, focus, focusSelectedPlace])
 
   const bottom = occlusion
     ? occlusion.width < size.width * 0.65
       ? 12
       : Math.max(12, size.height - occlusion.y + 12)
     : undefined
-  const sidePanel = occlusion && occlusion.width < size.width * 0.65
+  const attributionOcclusion =
+    attributionPlacement === "corner" ? null : occlusion
+  const sidePanel =
+    attributionOcclusion && attributionOcclusion.width < size.width * 0.65
   const attributionBottom =
-    occlusion && !sidePanel ? Math.max(8, size.height - occlusion.y + 12) : 8
+    attributionOcclusion && !sidePanel
+      ? Math.max(8, size.height - attributionOcclusion.y + 12)
+      : 8
   const attributionLeft =
-    occlusion && sidePanel ? Math.max(8, occlusion.x + occlusion.width + 12) : 8
+    attributionOcclusion && sidePanel
+      ? Math.max(8, attributionOcclusion.x + attributionOcclusion.width + 12)
+      : 8
   return (
     <div className="relative size-full min-h-0 bg-[#e8f2f4]">
       <div
@@ -428,9 +553,12 @@ export function ProviderOfficeMap(props: Props) {
         className={cn("size-full min-h-0", driver.containerClassName)}
         style={
           {
-            "--map-attribution-bottom": `${attributionBottom}px`,
+            "--map-attribution-bottom":
+              attributionPlacement === "corner"
+                ? "calc(8px + env(safe-area-inset-bottom, 0px))"
+                : `${attributionBottom}px`,
             "--map-attribution-left": `${attributionLeft}px`,
-            "--map-attribution-right": occlusion ? "64px" : "0px",
+            "--map-attribution-right": attributionOcclusion ? "64px" : "0px",
           } as CSSProperties
         }
         data-exchange-office-map

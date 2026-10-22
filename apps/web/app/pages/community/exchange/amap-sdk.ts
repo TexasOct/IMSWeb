@@ -34,6 +34,18 @@ export interface AMapFlexibleLayer {
   destroy(): void
 }
 
+export interface AMapDistrictLayer {
+  setMap(map: AMapNativeMap | null): void
+  setStyles(styles: {
+    fill: string
+    "nation-stroke": string
+    "stroke-width": number
+    "coastline-stroke": string
+    "province-stroke": string
+    "city-stroke": string
+  }): void
+}
+
 export interface AMapFlexibleOptions {
   cacheSize: number
   opacity: number
@@ -50,6 +62,14 @@ export interface AMapFlexibleOptions {
 }
 
 export interface AMapSdk {
+  DistrictLayer?: {
+    Country: new (options: {
+      SOC: "CHN"
+      depth: 0
+      zIndex: number
+      zooms: MapPosition
+    }) => AMapDistrictLayer
+  }
   DistrictSearch?: new (options: {
     level: "country" | "province"
     subdistrict: 0
@@ -69,10 +89,21 @@ export interface AMapSdk {
     pageIndex: number
     city: string
     citylimit: boolean
-    extensions: "base"
+    extensions: "base" | "all"
+    type?: string
   }) => {
     search(
       query: string,
+      callback: (status: string, result: unknown) => void
+    ): void
+    searchNearBy?(
+      query: string,
+      center: MapPosition,
+      radius: number,
+      callback: (status: string, result: unknown) => void
+    ): void
+    getDetails?(
+      id: string,
       callback: (status: string, result: unknown) => void
     ): void
   }

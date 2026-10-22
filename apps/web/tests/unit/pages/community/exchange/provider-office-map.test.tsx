@@ -41,7 +41,7 @@ function fixture() {
     remove: ReturnType<typeof vi.fn<() => void>>
   }[] = []
   const destroy = vi.fn()
-  const focus = vi.fn(async () => {})
+  const focus = vi.fn<MapView["focus"]>(async () => {})
   const resize = vi.fn()
   const getZoom = vi.fn(() => 16)
   let container: HTMLDivElement
@@ -83,6 +83,7 @@ function fixture() {
   const onViewportChange = vi.fn()
   const onFatalError = vi.fn()
   const onAttributionChange = vi.fn()
+  const onDevicePosition = vi.fn()
   const onSelectGroup = vi.fn()
   const onRetry = vi.fn()
   const props = {
@@ -100,6 +101,7 @@ function fixture() {
     onViewportChange,
     onFatalError,
     onAttributionChange,
+    onDevicePosition,
     onSelectGroup,
     onRetry,
     attribution: {
@@ -118,6 +120,80 @@ function fixture() {
     getZoom,
   }
 }
+
+it("exposes a selected Web point inside a cluster without moving the camera or requesting data", async () => {
+  const test = fixture()
+  test.getZoom.mockReturnValue(3)
+  const groups = [
+    test.props.groups[0]!,
+    { ...test.props.groups[0]!, key: "nearby", longitude: 121.5 },
+  ]
+  const view = render(<ProviderOfficeMap {...test.props} groups={groups} />)
+  await act(async () => test.listeners.get("ready")!())
+  await screen.findByRole("button", { name: "2 个区域点，放大查看" })
+  const requests = test.props.onViewportChange.mock.calls.length
+  view.rerender(
+    <ProviderOfficeMap
+      {...test.props}
+      groups={groups}
+      selectedGroupKey="nearby"
+    />
+  )
+  await waitFor(() =>
+    expect(
+      view.container.querySelector('[data-map-office-group="nearby"]')
+    ).toHaveAttribute("aria-pressed", "true")
+  )
+  expect(
+    screen.queryByRole("button", { name: "2 个区域点，放大查看" })
+  ).not.toBeInTheDocument()
+  expect(test.focus).not.toHaveBeenCalled()
+  expect(test.props.onViewportChange).toHaveBeenCalledTimes(requests)
+  view.rerender(<ProviderOfficeMap {...test.props} groups={groups} />)
+  await screen.findByRole("button", { name: "2 个区域点，放大查看" })
+  expect(
+    view.container.querySelector('[data-map-office-group="nearby"]')
+  ).toBeNull()
+})
+
+it("focuses only explicit list commands and retires an older focus when selection changes", async () => {
+  const test = fixture()
+  const request = { key: "shanghai", sequence: 1 }
+  const view = render(
+    <ProviderOfficeMap
+      {...test.props}
+      selectedGroupKey="shanghai"
+      groupFocus={request}
+    />
+  )
+  await act(async () => test.listeners.get("ready")!())
+  await waitFor(() => expect(test.focus).toHaveBeenCalledOnce())
+  expect(test.focus).toHaveBeenLastCalledWith(
+    [121.4, 31.2],
+    expect.objectContaining({ zoom: 16, signal: expect.any(AbortSignal) })
+  )
+  const firstSignal = test.focus.mock.calls[0]?.[1]?.signal
+  view.rerender(
+    <ProviderOfficeMap
+      {...test.props}
+      selectedGroupKey="shanghai"
+      groupFocus={request}
+      groups={[...test.props.groups]}
+    />
+  )
+  expect(test.focus).toHaveBeenCalledOnce()
+  view.rerender(
+    <ProviderOfficeMap
+      {...test.props}
+      selectedGroupKey="shanghai"
+      groupFocus={{ key: "shanghai", sequence: 2 }}
+    />
+  )
+  await waitFor(() => expect(test.focus).toHaveBeenCalledTimes(2))
+  expect(firstSignal?.aborted).toBe(true)
+  view.rerender(<ProviderOfficeMap {...test.props} />)
+  expect(test.focus.mock.calls[1]?.[1]?.signal?.aborted).toBe(true)
+})
 
 it("waits for the driver and passes office/search/location positions through the WGS84 interaction contract", async () => {
   const test = fixture()
@@ -158,6 +234,80 @@ it("waits for the driver and passes office/search/location positions through the
   expect(
     test.markers.every((marker) => marker.remove.mock.calls.length > 0)
   ).toBe(true)
+})
+
+it("attempts initial geolocation after readiness and uses the manual marker path", async () => {
+  const test = fixture()
+  const claim = vi.fn(() => new AbortController().signal)
+  const before = coordinates.mock.calls.length
+  render(<ProviderOfficeMap {...test.props} claimInitialLocation={claim} />)
+  expect(coordinates.mock.calls.length).toBe(before)
+  await act(async () => test.listeners.get("ready")!())
+  await waitFor(() => expect(coordinates.mock.calls.length).toBe(before + 1))
+  await waitFor(() =>
+    expect(test.focus).toHaveBeenCalledWith(
+      [121.4, 31.2],
+      expect.objectContaining({ zoom: 16 })
+    )
+  )
+  expect(claim).toHaveBeenCalledOnce()
+  expect(test.props.onDevicePosition).toHaveBeenCalledWith([121.4, 31.2])
+  expect(screen.getByRole("img", { name: "您的当前位置" })).toBeInTheDocument()
+})
+
+it("keeps the default camera silently on an initial location error and allows manual retry", async () => {
+  coordinates.mockRejectedValueOnce(new Error("location denied"))
+  const test = fixture()
+  render(
+    <ProviderOfficeMap
+      {...test.props}
+      claimInitialLocation={() => new AbortController().signal}
+    />
+  )
+  await act(async () => test.listeners.get("ready")!())
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "回到我的位置" })).toBeEnabled()
+  )
+  expect(test.focus).not.toHaveBeenCalled()
+  expect(test.props.onFatalError).not.toHaveBeenCalled()
+  expect(
+    screen.queryByRole("img", { name: "您的当前位置" })
+  ).not.toBeInTheDocument()
+  expect(
+    screen.queryByText(/未获得位置权限|暂时无法获取您的位置/)
+  ).not.toBeInTheDocument()
+  await userEvent.click(screen.getByRole("button", { name: "回到我的位置" }))
+  await waitFor(() => expect(test.focus).toHaveBeenCalled())
+})
+
+it("does not recenter when initial coordinates arrive after search owns the camera", async () => {
+  let finish!: (value: { longitude: number; latitude: number }) => void
+  coordinates.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve
+      })
+  )
+  const test = fixture()
+  const controller = new AbortController()
+  render(
+    <ProviderOfficeMap
+      {...test.props}
+      claimInitialLocation={() => controller.signal}
+    />
+  )
+  await act(async () => test.listeners.get("ready")!())
+  controller.abort()
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "回到我的位置" })).toBeEnabled()
+  )
+  expect(test.focus).not.toHaveBeenCalled()
+  await userEvent.click(screen.getByRole("button", { name: "回到我的位置" }))
+  await waitFor(() => expect(test.focus).toHaveBeenCalledOnce())
+  await act(async () => finish({ longitude: 88, latitude: 30 }))
+  expect(test.focus).toHaveBeenCalledOnce()
+  expect(test.markers.some((marker) => marker.position[0] === 88)).toBe(false)
+  expect(screen.getByRole("button", { name: "回到我的位置" })).toBeEnabled()
 })
 
 it("aborts pending initialization and destroys a driver result arriving after unmount", async () => {
@@ -254,7 +404,11 @@ it("expands clusters past the former camera limit and splits them at the indepen
       {...test.props}
       groups={[
         ...test.props.groups,
-        { ...test.props.groups[0]!, key: "nearby", longitude: 121.5 },
+        {
+          ...test.props.groups[0]!,
+          key: "shanghai-nearby",
+          longitude: 121.4001,
+        },
       ]}
     />
   )
@@ -308,6 +462,58 @@ it("resizes the engine, keeps side-panel attribution in the map and preserves se
   expect(button).toHaveFocus()
 })
 
+it.each([
+  {
+    width: 1000,
+    height: 700,
+    occlusion: { x: 0, y: 12, width: 400, height: 680 },
+    pan: { x: 206, y: 0 },
+  },
+  {
+    width: 390,
+    height: 844,
+    occlusion: { x: 12, y: 300, width: 366, height: 480 },
+    pan: { x: 0, y: -278 },
+  },
+])(
+  "keeps corner attribution fixed without losing search occlusion at $width px",
+  async ({ width, height, occlusion, pan }) => {
+    const test = fixture()
+    const panBy = vi.spyOn(test.view, "panBy")
+    const props = {
+      ...test.props,
+      occlusion,
+      attributionPlacement: "corner" as const,
+    }
+    const host = render(<ProviderOfficeMap {...props} />)
+    await act(async () => test.listeners.get("ready")!())
+    const map = screen.getByLabelText("区域事务所地图工作面")
+    Object.defineProperties(map, {
+      clientWidth: { value: width },
+      clientHeight: { value: height },
+    })
+    await act(async () => resizeObservedMap())
+    expect(map.style.getPropertyValue("--map-attribution-left")).toBe("8px")
+    expect(map.style.getPropertyValue("--map-attribution-bottom")).toBe(
+      "calc(8px + env(safe-area-inset-bottom, 0px))"
+    )
+    host.rerender(
+      <ProviderOfficeMap
+        {...props}
+        selectedPlace={{
+          id: "place",
+          label: "上海",
+          address: "上海",
+          target: { kind: "wgs84", position: [121.5, 31.3] },
+        }}
+      />
+    )
+    await waitFor(() =>
+      expect(panBy).toHaveBeenCalledWith(pan, expect.any(Number))
+    )
+  }
+)
+
 it("keeps a loaded map on resource errors and offers an explicit configuration reload", async () => {
   const test = fixture()
   render(<ProviderOfficeMap {...test.props} />)
@@ -321,4 +527,39 @@ it("keeps a loaded map on resource errors and offers an explicit configuration r
   ).toBeVisible()
   await userEvent.click(screen.getByRole("button", { name: "重试地图" }))
   expect(test.props.onRetry).toHaveBeenCalledTimes(1)
+})
+
+it("retains cluster DOM and number when panning at the same zoom", async () => {
+  const test = fixture()
+  test.getZoom.mockReturnValue(4)
+  render(
+    <ProviderOfficeMap
+      {...test.props}
+      groups={[
+        ...test.props.groups,
+        { ...test.props.groups[0]!, key: "shanghai-nearby", longitude: 121.5 },
+      ]}
+    />
+  )
+  await act(async () => test.listeners.get("ready")!())
+  const cluster = await screen.findByRole("button", {
+    name: "2 个区域点，放大查看",
+  })
+  cluster.focus()
+  const count = test.markers.length
+  const removals = test.markers.map((marker) => marker.remove.mock.calls.length)
+  vi.spyOn(test.view, "project").mockImplementation(async (points) =>
+    points.map(() => ({ x: 999, y: -999 }))
+  )
+  await act(async () => {
+    for (let i = 0; i < 8; i++) test.listeners.get("change")!()
+  })
+  expect(screen.getByRole("button", { name: "2 个区域点，放大查看" })).toBe(
+    cluster
+  )
+  expect(cluster).toHaveFocus()
+  expect(test.markers).toHaveLength(count)
+  expect(test.markers.map((marker) => marker.remove.mock.calls.length)).toEqual(
+    removals
+  )
 })

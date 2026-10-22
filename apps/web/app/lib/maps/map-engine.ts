@@ -27,6 +27,8 @@ export interface MapMarker {
 /** Business positions/bounds use WGS84. Search targets explicitly own their CRS. */
 export interface MapView {
   read(): { zoom: number; bounds: MapBounds }
+  /** Transient camera snapshot; native targets retain their coordinate identity. */
+  readCamera?(): { target: MapSearchTarget; zoom: number }
   project(positions: MapPosition[]): Promise<MapScreenPoint[]>
   addMarker(options: {
     position: MapPosition
@@ -51,6 +53,9 @@ export interface MapView {
 
 export interface MapOpenOptions {
   viewport: MapViewport
+  /** Explicit cross-engine handoff overrides provider-local retained views. */
+  initialTarget?: MapSearchTarget
+  persistViewport?: boolean
   minZoom: number
   signal: AbortSignal
   onChange(): void

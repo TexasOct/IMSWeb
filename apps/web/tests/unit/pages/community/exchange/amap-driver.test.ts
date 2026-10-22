@@ -1,5 +1,9 @@
 import { expect, it, vi } from "vitest"
-import { loadAMapSdk, type AMapSdk } from "~/pages/community/exchange/amap-sdk"
+import {
+  loadAMapSdk,
+  type AMapSdk,
+  type AMapDistrictLayer,
+} from "~/pages/community/exchange/amap-sdk"
 import { createAMapDriver } from "~/pages/community/exchange/amap-driver"
 
 vi.mock("~/pages/community/exchange/amap-sdk", () => ({ loadAMapSdk: vi.fn() }))
@@ -63,8 +67,8 @@ function fixture() {
     ),
   }
   vi.mocked(loadAMapSdk).mockResolvedValue(sdk)
-  const open = () =>
-    createAMapDriver(config).open(document.createElement("div"), {
+  const open = (presentation?: Parameters<typeof createAMapDriver>[1]) =>
+    createAMapDriver(config, presentation).open(document.createElement("div"), {
       viewport: { center: [121.5, 31.2], zoom: 18 },
       minZoom: 2.3,
       signal: new AbortController().signal,
@@ -73,6 +77,104 @@ function fixture() {
     })
   return { sdk, focus, destroy, setZooms, open, markerOptions }
 }
+
+function themeLayers(sdk: AMapSdk) {
+  const attach = vi.fn<AMapDistrictLayer["setMap"]>()
+  sdk.DistrictLayer = {
+    Country: class {
+      setMap = attach
+      setStyles = vi.fn()
+    },
+  }
+  return attach
+}
+
+it("detaches border and presentation layers before destroying the native map, once", async () => {
+  const test = fixture()
+  const attach = themeLayers(test.sdk)
+  const removePresentation = vi.fn()
+  const view = await test.open({
+    zoomOffset: 1,
+    install: () => removePresentation,
+  })
+  expect(attach).toHaveBeenCalledTimes(2)
+  view.destroy()
+  view.destroy()
+  expect(attach.mock.calls.filter(([map]) => map === null)).toHaveLength(2)
+  expect(removePresentation).toHaveBeenCalledTimes(1)
+  expect(test.destroy).toHaveBeenCalledTimes(1)
+  expect(attach.mock.invocationCallOrder.at(-1)).toBeLessThan(
+    test.destroy.mock.invocationCallOrder[0]!
+  )
+  expect(removePresentation.mock.invocationCallOrder[0]).toBeLessThan(
+    test.destroy.mock.invocationCallOrder[0]!
+  )
+})
+
+it("does not attach a late border plugin to a closed native map", async () => {
+  const test = fixture()
+  const plugin = vi.fn<NonNullable<AMapSdk["plugin"]>>()
+  test.sdk.plugin = plugin
+  const view = await test.open()
+  view.destroy()
+  const attach = themeLayers(test.sdk)
+  plugin.mock.calls[0]![1]()
+  expect(attach).not.toHaveBeenCalled()
+  expect(test.destroy).toHaveBeenCalledTimes(1)
+})
+
+it("attaches a loaded border plugin once and releases it on close", async () => {
+  const test = fixture()
+  const plugin = vi.fn<NonNullable<AMapSdk["plugin"]>>()
+  test.sdk.plugin = plugin
+  const view = await test.open()
+  const attach = themeLayers(test.sdk)
+  const complete = plugin.mock.calls[0]![1]
+  complete()
+  complete()
+  expect(attach).toHaveBeenCalledTimes(2)
+  view.destroy()
+  expect(attach.mock.calls.filter(([map]) => map === null)).toHaveLength(2)
+})
+
+it("cleans up the border theme when presentation setup fails", async () => {
+  const test = fixture()
+  const attach = themeLayers(test.sdk)
+  await expect(
+    test.open({
+      zoomOffset: 1,
+      install() {
+        throw new Error("presentation rejected")
+      },
+    })
+  ).rejects.toThrow("presentation rejected")
+  expect(attach.mock.calls.filter(([map]) => map === null)).toHaveLength(2)
+  expect(test.destroy).toHaveBeenCalledTimes(1)
+})
+
+it("keeps the native map usable when the optional border plugin fails", async () => {
+  const test = fixture()
+  test.sdk.plugin = () => {
+    throw new Error("plugin unavailable")
+  }
+  const view = await test.open()
+  expect(view.read().zoom).toBe(18)
+  expect(test.destroy).not.toHaveBeenCalled()
+  view.destroy()
+  expect(test.destroy).toHaveBeenCalledTimes(1)
+})
+
+it("releases both border layers even when one SDK detach fails", async () => {
+  const test = fixture()
+  const attach = themeLayers(test.sdk)
+  const view = await test.open()
+  attach.mockImplementation((map) => {
+    if (map === null) throw new Error("already disposed")
+  })
+  view.destroy()
+  expect(attach.mock.calls.filter(([map]) => map === null)).toHaveLength(2)
+  expect(test.destroy).toHaveBeenCalledTimes(1)
+})
 
 it("keeps the latest camera intent when conversions finish out of order and honors canceled selection", async () => {
   const test = fixture()

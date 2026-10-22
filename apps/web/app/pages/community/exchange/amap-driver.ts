@@ -10,6 +10,7 @@ import { assertMapActive, createMapLifecycle } from "~/lib/maps/map-lifecycle"
 import { exchangeAMapStyle, type AMapConfig } from "~/lib/maps/providers/amap"
 import { loadAMapSdk, type AMapSdk, type AMapNativeMap } from "./amap-sdk"
 import { amapQueryBounds, convertAMapPositions } from "./amap-coordinates"
+import { installAMapPortalTheme } from "./amap-map-theme"
 import {
   exchangeMapProviderViewport,
   rememberExchangeMapProviderViewport,
@@ -31,12 +32,19 @@ export function createAMapDriver(
       assertMapActive(options.signal)
       const sdk = await loadAMapSdk(config)
       assertMapActive(options.signal)
-      const retained = IS_APP_TARGET
-        ? exchangeMapProviderViewport("amap")
-        : null
-      const center =
-        retained?.center ??
-        (await convertAMapPositions(sdk, [options.viewport.center]))[0]!
+      const retained =
+        IS_APP_TARGET && !options.initialTarget
+          ? exchangeMapProviderViewport("amap")
+          : null
+      const center = options.initialTarget
+        ? options.initialTarget.kind === "native" &&
+          options.initialTarget.provider === "amap"
+          ? options.initialTarget.position
+          : (
+              await convertAMapPositions(sdk, [options.initialTarget.position])
+            )[0]!
+        : (retained?.center ??
+          (await convertAMapPositions(sdk, [options.viewport.center]))[0]!)
       assertMapActive(options.signal)
       const map = new sdk.Map(container, {
         center,
@@ -55,7 +63,12 @@ export function createAMapDriver(
       })
       let searchViewport = false
       const retain = () => {
-        if (!IS_APP_TARGET || searchViewport) return
+        if (
+          !IS_APP_TARGET ||
+          options.persistViewport === false ||
+          searchViewport
+        )
+          return
         const point = map.getCenter()
         rememberExchangeMapProviderViewport("amap", {
           center: [point.getLng(), point.getLat()],
@@ -74,7 +87,16 @@ export function createAMapDriver(
       })
       try {
         map.setZooms([options.minZoom + zoomOffset, map.getZooms()[1]])
-        removeLayers = presentation?.install(sdk, map)
+        const removeTheme = installAMapPortalTheme(sdk, map)
+        removeLayers = removeTheme
+        const removePresentation = presentation?.install(sdk, map)
+        removeLayers = () => {
+          try {
+            removePresentation?.()
+          } finally {
+            removeTheme()
+          }
+        }
         let focusRequest = 0
         const focusTarget = async (
           resolve: () => Promise<MapPosition>,
@@ -117,6 +139,18 @@ export function createAMapDriver(
           if (lifecycle.active) options.onResourceError()
         })
         const view: MapView = {
+          readCamera() {
+            lifecycle.assertActive()
+            const point = map.getCenter()
+            return {
+              target: {
+                kind: "native",
+                provider: "amap",
+                position: [point.getLng(), point.getLat()],
+              },
+              zoom: map.getZoom() - zoomOffset,
+            }
+          },
           read() {
             lifecycle.assertActive()
             const bounds = map.getBounds()

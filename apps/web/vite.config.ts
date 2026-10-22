@@ -15,6 +15,7 @@ import {
   TAURI_MAP_ORIGINS,
 } from "./vite-exchange-map-assets"
 import { GENERATED_BUILD_WATCH_OPTIONS } from "./vite-watch"
+import { localContractsOptimizer } from "./vite-contracts"
 
 const honoOrigin = process.env.IMS_API_ORIGIN ?? "http://127.0.0.1:3000"
 const publicSiteProxyOrigin =
@@ -81,6 +82,7 @@ export default defineConfig({
   },
   plugins: [
     mockWorkerScriptPlugin(),
+    localContractsOptimizer(workspaceRoot),
     localAMapServiceProxy(fileURLToPath(new URL(".", import.meta.url))),
     localExchangeMapAssets(workspaceRoot),
     tailwindcss(),

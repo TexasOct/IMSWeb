@@ -21,15 +21,19 @@ function manifestLeaves(
   return entries.flatMap((entry) => {
     const current =
       "path" in entry && entry.path ? joinPath(parent, entry.path) : parent
-    if ("children" in entry && entry.children) {
-      return manifestLeaves(entry.children, current)
-    }
     return [
-      {
-        path: "index" in entry && entry.index ? current || "/" : current,
-        file: entry.file,
-        id: entry.id,
-      },
+      ...(entry.file.startsWith("pages/")
+        ? [
+            {
+              path: "index" in entry && entry.index ? current || "/" : current,
+              file: entry.file,
+              id: entry.id,
+            },
+          ]
+        : []),
+      ...("children" in entry && entry.children
+        ? manifestLeaves(entry.children, current)
+        : []),
     ]
   })
 }
@@ -86,6 +90,25 @@ describe("Web route metadata", () => {
         })
       ).toBe(true)
     }
+  })
+
+  it("keeps Web exchange detail routes under the persistent map page", () => {
+    const publicRoutes = routes[0]!.children!
+    const map = publicRoutes.find(
+      (entry) => entry.path === "community/exchange"
+    )!
+    expect(map.file).toBe(
+      "pages/community/exchange/community-exchange-page.tsx"
+    )
+    expect(map.children?.map((entry) => entry.path).sort()).toEqual([
+      "me",
+      "offices/:officeSlug",
+    ])
+    expect(
+      publicRoutes.some(
+        (entry) => entry.path === "community/exchange/offices/:officeSlug"
+      )
+    ).toBe(false)
   })
 
   it("delivers community management only to the Web admin layout", () => {

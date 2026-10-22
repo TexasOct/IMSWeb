@@ -1,7 +1,7 @@
 import type { FudabaMapProviderConfig, FudabaMapSource, FudabaMapRouting } from '@imsweb/contracts/fudaba/map-delivery';
 import type { ObjectStorage } from '@/ports/object-storage';
 import { FUDABA_MAP_DELIVERY_OBJECT_KEY } from '@/utils/storage/business-object-keys';
-import { decodeStoredMapProvider, describeMapProvider, describeGeographicMap } from '@/domains/community/fudaba/map-delivery/map-provider-policy';
+import { decodeStoredMapProvider, describeMapProvider, describeRegionalSearchMap } from '@/domains/community/fudaba/map-delivery/map-provider-policy';
 import { seedFudabaMapSources } from '@/domains/community/fudaba/map-delivery/map-delivery-bootstrap';
 
 const CONTENT_TYPE = 'application/json; charset=utf-8';
@@ -210,6 +210,6 @@ function validateRouting(value: unknown, sources: readonly FudabaMapSource[]): F
     if (![mainlandSourceId, overseasSourceId].every((id) => sources.some((source) => source.id === id))) {
         conflict('地区分流引用的地图源不存在，请先修改分流配置');
     }
-    describeGeographicMap(sources.find((source) => source.id === mainlandSourceId)!, sources.find((source) => source.id === overseasSourceId)!);
+    describeRegionalSearchMap(sources.find((source) => source.id === mainlandSourceId)!, sources.find((source) => source.id === overseasSourceId)!);
     return { mainlandSourceId, overseasSourceId };
 }

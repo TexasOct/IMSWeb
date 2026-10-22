@@ -291,7 +291,6 @@
     pointer-events: auto;
   }
   .exchange-search-surface,
-  .exchange-search-tools,
   .exchange-search-card > .exchange-search-content {
     border: 1px solid color-mix(in oklch, var(--border) 55%, transparent);
     border-radius: 34px;
@@ -400,23 +399,14 @@
     border-radius: 22px;
     flex-shrink: 0;
   }
-  .exchange-search-tools,
   .exchange-search-actions {
     display: flex;
     gap: 8px;
     margin-top: 8px;
     flex-shrink: 0;
   }
-  .exchange-search-tools {
-    padding: 0 8px;
-    border-radius: 22px;
-    margin-top: 12px;
-  }
   .exchange-search-actions {
     margin-top: 12px;
-  }
-  .exchange-search-tools .exchange-search-pill {
-    background: transparent;
   }
   .exchange-search-summary {
     display: flex;
@@ -490,10 +480,6 @@
       );
     }
   }
-  .exchange-search-tools > * {
-    flex: 1;
-    min-width: 0;
-  }
   .exchange-search-card .exchange-search-pill {
     height: 44px;
     border-radius: 22px;
@@ -505,6 +491,102 @@
     overscroll-behavior: contain;
     margin-top: 8px;
     padding: 4px;
+  }
+  .exchange-search-content[data-placeholder] {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+  }
+  .exchange-search-status {
+    display: flex;
+    flex: 1 0 auto;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 24px 20px;
+    text-align: center;
+  }
+  .exchange-search-status-mark {
+    position: relative;
+    display: grid;
+    flex-shrink: 0;
+    place-items: center;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: color-mix(in oklch, var(--primary) 7%, transparent);
+    color: var(--primary);
+  }
+  .exchange-search-status-mark > svg {
+    width: 25px;
+    height: 25px;
+    stroke-width: 1.5;
+  }
+  .exchange-search-status[data-kind="loading"]
+    .exchange-search-status-mark::after {
+    position: absolute;
+    inset: 0;
+    content: "";
+    border: 1.5px solid color-mix(in oklch, var(--primary) 12%, transparent);
+    border-top-color: color-mix(in oklch, var(--primary) 65%, transparent);
+    border-radius: 50%;
+    animation: exchange-search-orbit 1.6s linear infinite;
+  }
+  .exchange-search-status[data-kind="error"] .exchange-search-status-mark {
+    background: color-mix(in oklch, var(--destructive) 7%, transparent);
+    color: var(--destructive);
+  }
+  .exchange-search-status-copy {
+    max-width: 320px;
+    overflow-wrap: anywhere;
+  }
+  .exchange-search-status-title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    line-height: 1.5;
+  }
+  .exchange-search-status-description {
+    margin-top: 6px;
+    color: var(--muted-foreground);
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    white-space: pre-line;
+  }
+  .exchange-search-status-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .exchange-search-status[data-compact] {
+    flex: none;
+    flex-direction: row;
+    gap: 12px;
+    padding: 12px 8px;
+  }
+  .exchange-search-status[data-compact] .exchange-search-status-mark {
+    width: 32px;
+    height: 32px;
+  }
+  .exchange-search-status[data-compact] .exchange-search-status-mark > svg {
+    width: 18px;
+    height: 18px;
+  }
+  .exchange-search-status[data-compact] .exchange-search-status-title {
+    font-size: 0.8125rem;
+  }
+  @keyframes exchange-search-orbit {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .exchange-search-status[data-kind="loading"]
+      .exchange-search-status-mark::after {
+      animation: none;
+    }
   }
   .exchange-search-result {
     display: flex;
@@ -628,9 +710,6 @@
     border-radius: 24px;
     justify-content: flex-start;
   }
-  .exchange-search-tools .exchange-search-pill {
-    background: transparent;
-  }
   .exchange-search-card .exchange-search-round {
     height: 44px;
     width: 44px;
@@ -654,36 +733,5 @@
   .exchange-search-card:not([data-app-search])[data-detent="collapsed"]
     .exchange-search-input:hover {
     background: var(--secondary);
-  }
-  .exchange-search-card > .exchange-search-menu {
-    padding: 12px;
-    border-radius: 24px;
-  }
-  .exchange-search-menu > p {
-    margin: 0 4px 8px;
-    padding: 4px 8px 12px;
-    border-bottom: 1px solid var(--border);
-    color: var(--muted-foreground);
-    font-size: 0.75rem;
-    line-height: 1.5;
-  }
-  .exchange-search-card .exchange-search-menu-item {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    width: 100%;
-    height: auto;
-    min-height: 44px;
-    padding: 10px 12px;
-    border-radius: 12px;
-    font-size: 0.875rem;
-    font-weight: 500;
-    line-height: 1.5;
-    white-space: normal;
-    text-align: left;
-  }
-  .exchange-search-card .exchange-search-menu-item:hover {
-    background: var(--secondary);
-    color: var(--secondary-foreground);
   }
 }

@@ -34,6 +34,7 @@ import {
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { GeolocationFailure, getCurrentCoordinates } from "~/lib/geolocation"
 import { useNativeGlassControl } from "~/lib/native-glass-controls"
+import { awaitMapSearch } from "~/lib/maps/map-search-abort"
 import { cn } from "~/lib/utils"
 
 import {
@@ -480,8 +481,10 @@ export function ExchangeOfficeMap({
   styleUrl,
   groups,
   selectedGroupKey,
+  groupFocus,
   selectedPlace,
   occlusion,
+  claimInitialLocation,
   onSelectGroup,
   onViewportChange,
   onFatalError,
@@ -501,6 +504,7 @@ export function ExchangeOfficeMap({
   const userLocationMarkerRef = useRef<Marker | null>(null)
   const searchMarkerRef = useRef<Marker | null>(null)
   const occlusionRef = useRef(occlusion)
+  const webSelectedGroupKey = IS_APP_TARGET ? null : selectedGroupKey
   useEffect(() => {
     occlusionRef.current = occlusion
   }, [occlusion])
@@ -527,53 +531,69 @@ export function ExchangeOfficeMap({
     }
   }, [])
 
-  const locateUser = useCallback(async () => {
-    const map = mapRef.current
-    if (!map) return
+  const locateUser = useCallback(
+    async (initialSignal?: AbortSignal) => {
+      const map = mapRef.current
+      if (!map) return
 
-    const request = ++locationRequestRef.current
-    setLocationState({ phase: "locating", message: "正在获取您的位置" })
-    try {
-      const coordinates = await getCurrentCoordinates()
-      if (locationRequestRef.current !== request || mapRef.current !== map) {
-        return
-      }
-
-      const center: [number, number] = [
-        coordinates.longitude,
-        coordinates.latitude,
-      ]
-      let marker = userLocationMarkerRef.current
-      if (!marker) {
-        marker = new Marker({
-          element: createUserLocationElement(),
-          anchor: "center",
-        })
-          .setLngLat(center)
-          .addTo(map)
-        userLocationMarkerRef.current = marker
-      }
-      marker.setLngLat(center)
-      const reducedMotion = window.matchMedia?.(
-        "(prefers-reduced-motion: reduce)"
-      ).matches
-      map.easeTo({
-        center,
-        zoom: Math.max(map.getZoom(), 8),
-        duration: reducedMotion ? 0 : 900,
-        essential: false,
-      })
-      setLocationState({ phase: "success", message: "已回到您的位置" })
-    } catch (error) {
-      if (locationRequestRef.current !== request || mapRef.current !== map) {
-        return
-      }
+      if (!initialSignal) claimInitialLocation?.()
+      const request = ++locationRequestRef.current
       setLocationState({
-        phase: "error",
-        message: geolocationErrorMessage(error),
+        phase: "locating",
+        message: initialSignal ? "" : "正在获取您的位置",
       })
-    }
-  }, [])
+      try {
+        const coordinates = await (initialSignal
+          ? awaitMapSearch(getCurrentCoordinates(), initialSignal)
+          : getCurrentCoordinates())
+        if (locationRequestRef.current !== request || mapRef.current !== map) {
+          return
+        }
+        if (initialSignal?.aborted) {
+          setLocationState({ phase: "idle", message: "" })
+          return
+        }
+
+        const center: [number, number] = [
+          coordinates.longitude,
+          coordinates.latitude,
+        ]
+        let marker = userLocationMarkerRef.current
+        if (!marker) {
+          marker = new Marker({
+            element: createUserLocationElement(),
+            anchor: "center",
+          })
+            .setLngLat(center)
+            .addTo(map)
+          userLocationMarkerRef.current = marker
+        }
+        marker.setLngLat(center)
+        const reducedMotion = window.matchMedia?.(
+          "(prefers-reduced-motion: reduce)"
+        ).matches
+        map.easeTo({
+          center,
+          zoom: Math.max(map.getZoom(), 8),
+          duration: reducedMotion ? 0 : 900,
+          essential: false,
+        })
+        setLocationState({
+          phase: "success",
+          message: initialSignal ? "" : "已回到您的位置",
+        })
+      } catch (error) {
+        if (locationRequestRef.current !== request || mapRef.current !== map) {
+          return
+        }
+        setLocationState({
+          phase: initialSignal ? "idle" : "error",
+          message: initialSignal ? "" : geolocationErrorMessage(error),
+        })
+      }
+    },
+    [claimInitialLocation]
+  )
 
   const { controlRef: locateControlRef, refreshGeometry } =
     useNativeGlassControl(
@@ -711,9 +731,27 @@ export function ExchangeOfficeMap({
       markersRef.current.clear()
     }
 
+    let renderedGroups: readonly FudabaMapOfficeGroup[] | null = null
     const refreshMarkers = () => {
       const source = map.getSource(officeSourceId)
       if (!source) return
+      if (!groupsRef.current.length) {
+        clearMarkers()
+        renderedGroups = groupsRef.current
+        return
+      }
+      const features = map.querySourceFeatures(officeSourceId)
+      // Worker tiles can briefly disappear during a pan. Keep the committed
+      // representation until features or actual office data change.
+      if (
+        !features.length &&
+        renderedGroups === groupsRef.current &&
+        markersRef.current.size &&
+        (IS_APP_TARGET ||
+          !selectedGroupKeyRef.current ||
+          markersRef.current.has(selectedGroupKeyRef.current))
+      )
+        return
 
       const groupsByKey = new Map(
         groupsRef.current.map((group) => [group.key, group])
@@ -748,7 +786,7 @@ export function ExchangeOfficeMap({
         rendered.marker.setLngLat([group.longitude, group.latitude])
       }
 
-      for (const feature of map.querySourceFeatures(officeSourceId)) {
+      for (const feature of features) {
         if (feature.geometry.type !== "Point") continue
         const [longitude, latitude] = feature.geometry.coordinates
         if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) continue
@@ -797,11 +835,17 @@ export function ExchangeOfficeMap({
         for (const group of groupsRef.current) renderOfficeGroupMarker(group)
       }
 
+      if (!IS_APP_TARGET && selectedGroupKeyRef.current) {
+        const selected = groupsByKey.get(selectedGroupKeyRef.current)
+        if (selected) renderOfficeGroupMarker(selected)
+      }
+
       for (const [key, { marker }] of markersRef.current) {
         if (seen.has(key)) continue
         marker.remove()
         markersRef.current.delete(key)
       }
+      renderedGroups = groupsRef.current
     }
     refreshMarkersRef.current = refreshMarkers
     let markerRefreshFrame: number | null = null
@@ -875,6 +919,9 @@ export function ExchangeOfficeMap({
         queryViewport()
         container.dataset.mapState = "ready"
         scheduleMarkerRefresh()
+        const initialSignal = claimInitialLocation?.()
+        if (initialSignal && !initialSignal.aborted)
+          void locateUser(initialSignal)
       } catch (error) {
         if (!disposed) reportFatalError(error)
       }
@@ -949,7 +996,7 @@ export function ExchangeOfficeMap({
       mapRef.current = null
       refreshMarkersRef.current = () => undefined
     }
-  }, [styleUrl])
+  }, [styleUrl, claimInitialLocation, locateUser])
 
   useEffect(() => {
     const map = mapRef.current
@@ -968,7 +1015,7 @@ export function ExchangeOfficeMap({
       .addTo(map)
     map.easeTo({
       center,
-      zoom: EXCHANGE_MAP_SEARCH_ZOOM,
+      zoom: selectedPlace.zoom ?? EXCHANGE_MAP_SEARCH_ZOOM,
       padding: occlusionRef.current
         ? occlusionRef.current.width <
           (containerRef.current?.clientWidth ?? 0) * 0.65
@@ -1005,12 +1052,33 @@ export function ExchangeOfficeMap({
     const map = mapRef.current
     const source = map?.getSource(officeSourceId)
     if (!map || !(source instanceof GeoJSONSource)) return
-    source.setData(featureCollection(groups))
-  }, [groups])
+    source.setData(
+      featureCollection(
+        webSelectedGroupKey
+          ? groups.filter((group) => group.key !== webSelectedGroupKey)
+          : groups
+      )
+    )
+  }, [groups, webSelectedGroupKey])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !groupFocus || groupFocus.key !== selectedGroupKey) return
+    const group = groupsRef.current.find((item) => item.key === groupFocus.key)
+    if (!group) return
+    map.easeTo({
+      center: [group.longitude, group.latitude],
+      duration: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+        ? 0
+        : 900,
+      essential: false,
+    })
+  }, [groupFocus, selectedGroupKey])
 
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
+    if (!IS_APP_TARGET) refreshMarkersRef.current()
     for (const { marker } of markersRef.current.values()) {
       const element = marker.getElement()
       const groupKey = element.dataset.mapOfficeGroup
@@ -1082,7 +1150,7 @@ export function ExchangeOfficeMap({
                   data-native-glass-control="locate"
                   aria-busy={locationState.phase === "locating"}
                   disabled={locationState.phase === "locating"}
-                  onClick={locateUser}
+                  onClick={() => void locateUser()}
                 >
                   {locationState.phase === "locating" ? (
                     <LoaderCircleIcon

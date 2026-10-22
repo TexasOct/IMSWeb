@@ -161,7 +161,9 @@ export default function AdminSystemPage() {
         routing
       ).send()
       applyDelivery(result.delivery)
-      toast.success(routing ? "国内外地图配置已生效" : "已切换为统一地图源")
+      toast.success(
+        routing ? "Mapbox 底图＋地区搜索已生效" : "已切换为统一地图源"
+      )
     } catch (mutationError) {
       await handleMutationError(mutationError)
     } finally {
@@ -243,7 +245,9 @@ export default function AdminSystemPage() {
             <div className="min-w-0">
               <p className="text-xs text-muted-foreground">配置状态</p>
               <div className="mt-1 flex flex-wrap items-center gap-2">
-                <Badge>{snapshot.routing ? "国内外地图" : "线上激活"}</Badge>
+                <Badge>
+                  {snapshot.routing ? "Mapbox 底图＋地区搜索" : "线上激活"}
+                </Badge>
                 <Badge variant="secondary">
                   {snapshot.sources.length} 个地图源
                 </Badge>
@@ -373,7 +377,7 @@ export default function AdminSystemPage() {
                         size="icon-sm"
                         title={
                           referenced
-                            ? "国内外地图正在引用此地图源"
+                            ? "地区搜索配置正在引用此地图源"
                             : active
                               ? "当前激活地图源不能删除"
                               : `删除 ${source.name}`
@@ -446,7 +450,9 @@ export default function AdminSystemPage() {
             <AlertDialogTitle>激活此地图源？</AlertDialogTitle>
             <AlertDialogDescription>
               {activateSource?.name} 将成为统一地图源。
-              {snapshot?.routing ? "现有国内外地图将关闭。" : ""}
+              {snapshot?.routing
+                ? "现有 Mapbox 底图＋地区搜索模式将关闭。"
+                : ""}
               后续地图加载使用新配置。
             </AlertDialogDescription>
           </AlertDialogHeader>

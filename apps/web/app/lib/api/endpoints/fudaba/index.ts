@@ -240,6 +240,7 @@ export interface FudabaMapOfficeRequest {
 }
 
 function officePageParams({
+  q,
   city,
   series,
   open,
@@ -247,6 +248,7 @@ function officePageParams({
   cursor,
 }: FudabaOfficePageRequest) {
   const params = new URLSearchParams({ limit: String(limit) })
+  if (q?.trim()) params.set("q", q.trim())
   if (city?.trim()) params.set("city", city.trim())
   for (const seriesCode of series ?? []) params.append("series", seriesCode)
   if (open !== undefined) params.set("open", String(open))
@@ -308,6 +310,7 @@ function withQuery(path: string, parameters: URLSearchParams) {
 }
 
 export interface FudabaOfficePageRequest {
+  q?: string
   city?: string
   series?: readonly string[]
   open?: boolean

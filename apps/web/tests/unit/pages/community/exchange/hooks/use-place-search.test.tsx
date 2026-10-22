@@ -92,6 +92,39 @@ it("reset cancels pending search and permits a retry while ignoring canceled wor
   expect(hook.result.current.searched).toBe(false)
 })
 
+it("passes a cloned map/device position snapshot to the submitted search", async () => {
+  let finish!: (value: Reply) => void
+  const searcher = vi.fn<MapPlaceSearcher>(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve
+      })
+  )
+  const hook = renderHook(() => usePlaceSearch(searcher))
+  const viewportCenter: [number, number] = [116.4, 39.9]
+  const devicePosition: [number, number] = [116.5, 39.9]
+  let pending!: Promise<boolean>
+  act(() => {
+    pending = hook.result.current.submit("咖啡", false, {
+      viewportCenter,
+      devicePosition,
+    })
+  })
+  viewportCenter[0] = 139.7
+  devicePosition[0] = 121.5
+  expect(searcher.mock.calls[0]?.[2]).toEqual({
+    viewportCenter: [116.4, 39.9],
+    devicePosition: [116.5, 39.9],
+  })
+  await act(async () => {
+    finish({ items: [], attribution: "© 高德地图", notice: "距你排序" })
+    await pending
+  })
+  expect(hook.result.current.notice).toBe("距你排序")
+  act(() => hook.result.current.edit("上海"))
+  expect(hook.result.current.notice).toBeNull()
+})
+
 it("does not restore old results on an A→B→A service transition", async () => {
   const first = vi.fn<MapPlaceSearcher>(async () => ({
     items: [],

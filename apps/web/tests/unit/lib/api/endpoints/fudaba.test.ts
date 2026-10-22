@@ -48,6 +48,7 @@ import {
   getFudabaOwnerSeries,
   getFudabaMapConfig,
   getFudabaMapOffices,
+  getFudabaOfficePage,
   updateFudabaCard,
   updateFudabaOwnerOffice,
   uploadFudabaCardMedia,
@@ -474,6 +475,29 @@ describe("Fudaba Web API contracts", () => {
         new Headers(request.init?.headers).get(CSRF_HEADER_NAME)
       ).toBeNull()
     }
+  })
+
+  it("encodes literal office keywords and parses nullable public regional positions", async () => {
+    let requested: URL | undefined
+    const items = [
+      makeFudabaOffice({
+        location: { longitude: 121.5, latitude: 31.2, precision: "regional" },
+      }),
+      makeFudabaOffice({ id: "unlocated", location: null }),
+    ]
+    installFetchMock(async (input: RequestInfo | URL) => {
+      requested = new URL(String(input), "http://ims.test")
+      return Response.json(makeFudabaOfficePage({ items }))
+    })
+    const response = await getFudabaOfficePage({
+      q: " AbC%_ ",
+      cursor: "next-page",
+      open: false,
+    }).send()
+    expect(requested?.searchParams.get("q")).toBe("AbC%_")
+    expect(requested?.searchParams.get("cursor")).toBe("next-page")
+    expect(requested?.searchParams.get("open")).toBe("false")
+    expect(response.items).toEqual(items)
   })
 
   it("searches places through the authenticated same-origin endpoint", async () => {

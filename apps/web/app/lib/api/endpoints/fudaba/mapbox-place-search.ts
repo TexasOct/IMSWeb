@@ -7,16 +7,20 @@ import { MapSearchError, type MapPlaceSearcher } from "~/lib/maps/map-search"
 
 /** Isolated vendor request: no portal cookies/auth, redirects or result cache. */
 export function createMapboxPlaceSearch(accessToken: string): MapPlaceSearcher {
-  return async (query, signal) => {
-    const url = new URL("https://api.mapbox.com/search/geocode/v6/forward")
-    url.search = new URLSearchParams({
-      q: query,
-      access_token: accessToken,
-      autocomplete: "false",
-      limit: "5",
-      permanent: "false",
-    }).toString()
+  return async (query, signal, context) => {
     try {
+      const url = new URL("https://api.mapbox.com/search/geocode/v6/forward")
+      url.search = new URLSearchParams({
+        q: query,
+        access_token: accessToken,
+        autocomplete: "false",
+        limit: "5",
+        permanent: "false",
+      }).toString()
+      // Keep the vendor's candidate set near the map being browsed. The device
+      // fix is used separately for the local final-distance ranking.
+      const proximity = context?.viewportCenter ?? context?.devicePosition
+      if (proximity) url.searchParams.set("proximity", proximity.join(","))
       const response = await fetch(url, {
         signal: AbortSignal.any([signal, AbortSignal.timeout(8000)]),
         credentials: "omit",

@@ -3,6 +3,7 @@ import AxeBuilder from "@axe-core/playwright"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { api, expect, test } from "./fixtures/test"
 import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
+import { settleToasts } from "./fixtures/toast"
 
 const series = {
   items: [
@@ -95,10 +96,9 @@ test.beforeEach(async ({ page, api }, testInfo) => {
     discoveryTest
       ? { min: 1, max: 10 }
       : testInfo.title.startsWith("lets a card owner")
-        ? { min: 2, max: 3 }
-        : 1
+        ? { min: 2, max: 4 }
+        : { min: 1, max: 2 }
   )
-  if (!discoveryTest) return
   await api.mockRoute(
     "**/api/community/exchange/offices?*",
     async (route) => {
@@ -135,7 +135,8 @@ test.beforeEach(async ({ page, api }, testInfo) => {
           styleUrl: "/maps/exchange-test-style.json",
         },
       }),
-    "GET"
+    "GET",
+    discoveryTest || testInfo.title.startsWith("lets a card owner") ? 2 : 1
   )
   await api.mockRoute(
     "/api/community/exchange/map/offices",
@@ -165,15 +166,16 @@ test.beforeEach(async ({ page, api }, testInfo) => {
     "GET",
     { min: 0, max: 8 }
   )
-  await api.mockRoute(
-    "/api/community/exchange/cards/card-1/reactions",
-    (route) =>
-      route.fulfill({
-        json: { success: true, cardId: "card-1", reactions: [] },
-      }),
-    "GET",
-    2
-  )
+  if (discoveryTest)
+    await api.mockRoute(
+      "/api/community/exchange/cards/card-1/reactions",
+      (route) =>
+        route.fulfill({
+          json: { success: true, cardId: "card-1", reactions: [] },
+        }),
+      "GET",
+      2
+    )
 })
 
 test.describe("community exchange", () => {
@@ -218,11 +220,11 @@ test.describe("community exchange", () => {
 
     await expect(page).toHaveURL(/\/community\/exchange$/)
     await expect(
-      page.getByRole("heading", {
-        name: isMobile ? "名片交换事务所" : "名片交换信号地图",
-        exact: true,
-      })
+      page.getByRole("textbox", { name: "搜索事务所" })
     ).toBeVisible()
+    await expect(
+      page.getByRole("complementary", { name: "交换发现栏" })
+    ).toHaveCount(0)
 
     const mobileNavigation = page.getByRole("navigation", {
       name: "交换地图导航",
@@ -231,33 +233,11 @@ test.describe("community exchange", () => {
       name: "返回首页",
       exact: true,
     })
-    if (isMobile) {
-      await expect(homeShortcut).toBeVisible()
-      await expect(homeShortcut).toHaveAttribute("href", "/")
-      await expect(mobileNavigation).toBeVisible()
-      await expect(
-        mobileNavigation.getByRole("button", { name: "地图" })
-      ).toHaveAttribute("aria-current", "page")
-      await expect(
-        mobileNavigation.getByText("筛选", { exact: true })
-      ).toBeVisible()
-      await expect(
-        mobileNavigation.getByText("事务所", { exact: true })
-      ).toBeVisible()
-      await expect(
-        mobileNavigation.getByText("名片", { exact: true })
-      ).toBeVisible()
-      await expect(
-        mobileNavigation.getByText("我的", { exact: true })
-      ).toBeVisible()
-    } else {
-      await expect(homeShortcut).toBeHidden()
-      await expect(mobileNavigation).toBeHidden()
-    }
+    await expect(homeShortcut).toBeHidden()
+    await expect(mobileNavigation).toBeHidden()
 
-    if (isMobile) {
-      await page.getByRole("button", { name: "打开筛选" }).click()
-    }
+    await page.getByRole("button", { name: "更多地图工具" }).click()
+    await page.getByRole("menuitem", { name: "打开筛选" }).click()
     const firstSeriesTag = page.getByRole("button", { name: /765PRO/ })
     const secondSeriesTag = page.getByRole("button", { name: /灰姑娘女孩/ })
     await firstSeriesTag.click()
@@ -275,11 +255,12 @@ test.describe("community exchange", () => {
     expect(new URL(page.url()).searchParams.getAll("series")).toEqual([])
     await page.getByRole("checkbox", { name: "仅看开放事务所" }).click()
     await expect(page).toHaveURL(/open=true/)
-    if (isMobile) await page.keyboard.press("Escape")
+    await page.keyboard.press("Escape")
 
+    await page.getByRole("button", { name: "更多地图工具" }).click()
     await page
-      .getByRole("button", {
-        name: isMobile ? "打开事务所名录" : "事务所",
+      .getByRole("menuitem", {
+        name: "打开事务所名录",
         exact: true,
       })
       .click()
@@ -711,9 +692,10 @@ test.describe("community exchange", () => {
     ).toBeVisible()
 
     await page.getByRole("tab", { name: "墙面" }).focus()
-    await page.keyboard.press("Escape")
     await page.mouse.move(0, 0)
     await expect(page.locator('[data-slot="tooltip-content"]')).toHaveCount(0)
+    await expect(page.getByRole("dialog", { name: "事务所详情" })).toBeVisible()
+    await settleToasts(page)
     const accessibility = await new AxeBuilder({ page }).analyze()
     expect(accessibility.violations).toEqual([])
 
@@ -722,7 +704,7 @@ test.describe("community exchange", () => {
       scrollWidth: document.documentElement.scrollWidth,
       scrollX: window.scrollX,
       overflowingElements: Array.from(
-        document.querySelectorAll("main#main-content *")
+        document.querySelectorAll(".exchange-map-page-dialog *")
       )
         .map((element) => {
           const bounds = element.getBoundingClientRect()

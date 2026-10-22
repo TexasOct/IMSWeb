@@ -18,6 +18,7 @@ import { wikiImageTransformSchema } from "../wiki.js";
 
 export {
   fudabaMapConfigSchema,
+  fudabaRegionalProviderMapConfigSchema,
   fudabaMapDeliveryMutationSchema,
   fudabaMapDeliverySnapshotSchema,
   fudabaMapSourceActivationSchema,
@@ -36,6 +37,7 @@ export { NAMECARD_FAVORITE_CHARACTER_LIMIT } from "./characters.js";
 export { isFudabaMapStyleUrl } from "./runtime.js";
 export type {
   FudabaMapConfig,
+  FudabaRegionalProviderMapConfig,
   FudabaMapDeliveryMutation,
   FudabaMapDeliverySnapshot,
   FudabaMapSource,
@@ -88,6 +90,12 @@ export const fudabaSeriesListSchema = z
   })
   .strict();
 
+const publicOfficeLocationSchema = z.object({
+  latitude: regionalCoordinateSchema(-60, 60),
+  longitude: regionalCoordinateSchema(-180, 180),
+  precision: z.literal("regional"),
+}).strict();
+
 export const fudabaOfficeSchema = exactJsonResponse({
   id: z.string().min(1),
   slug: z.string().min(1),
@@ -100,6 +108,7 @@ export const fudabaOfficeSchema = exactJsonResponse({
   isOpen: z.boolean(),
   visitorCount: z.number().int().nonnegative(),
   seriesCodes: z.array(seriesCodeSchema),
+  location: publicOfficeLocationSchema.nullable().optional(),
 });
 
 export const fudabaCharacterSelectionSchema = z
@@ -208,13 +217,7 @@ export const fudabaMapOfficeSchema = z
     accent: accentSchema,
     isOpen: z.boolean(),
     seriesCodes: z.array(seriesCodeSchema),
-    location: z
-      .object({
-        latitude: regionalCoordinateSchema(-60, 60),
-        longitude: regionalCoordinateSchema(-180, 180),
-        precision: z.literal("regional"),
-      })
-      .strict(),
+    location: publicOfficeLocationSchema,
   })
   .strict();
 
@@ -431,6 +434,7 @@ export const fudabaEmptyQuerySchema = strictRequestObject({});
 // Legacy owner and moderation reads historically ignore query keys.
 export const fudabaIgnoredQuerySchema = legacyStripRequestObject({});
 export const fudabaOfficeQuerySchema = strictRequestObject({
+  q: queryValueSchema.optional(),
   city: queryValueSchema.optional(),
   series: queryValueSchema.optional(),
   open: queryValueSchema.optional(),

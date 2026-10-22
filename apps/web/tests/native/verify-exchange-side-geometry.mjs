@@ -87,12 +87,12 @@ export function verifySummaryGeometry(nodes, name, address) {
     "summary fits card width"
   )
   assert(
-    Math.min(target.bottom, card.bottom) - Math.max(target.top, card.top) >= 44,
-    "summary action remains visible in bounded viewport"
+    target.top >= card.top && target.bottom <= card.bottom,
+    "complete summary target fits its capsule"
   )
 }
 
-export function verifyEssentialGeometry(nodes) {
+export function verifyEssentialGeometry(nodes, availableHeight) {
   const one = (id) => {
     const matches = nodes.filter((node) => node["resource-id"] === id)
     assert.equal(matches.length, 1, `one ${id}`)
@@ -100,18 +100,45 @@ export function verifyEssentialGeometry(nodes) {
   }
   const panel = one("ims-native-exchange-search")
   const viewport = one("ims-native-exchange-reading-viewport")
-  for (const id of [
+  const ids = [
     "ims-native-exchange-search-input",
     "ims-native-exchange-submit",
     "ims-native-exchange-cancel",
-  ]) {
-    const target = one(id)
+  ]
+  const targets = ids.map(one)
+  for (const [index, target] of targets.entries()) {
+    const id = ids[index]
     assert(target.width >= 44 && target.height >= 44, `${id} target >=44pt`)
     assert(
-      target.top >= panel.top && target.bottom <= panel.bottom,
+      target.top >= panel.top &&
+        target.bottom <= panel.bottom &&
+        target.left >= panel.left &&
+        target.right <= panel.right,
       `${id} fully visible at initial offset`
     )
     assert(target.bottom <= viewport.top, `${id} remains above reading content`)
+  }
+  const overlaps = (a, b) =>
+    a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
+  for (let i = 0; i < targets.length; i++)
+    for (let j = i + 1; j < targets.length; j++)
+      assert(
+        !overlaps(targets[i], targets[j]),
+        "essential targets do not overlap"
+      )
+  if (availableHeight !== undefined) {
+    const [input, submit] = targets
+    const inline = input.top < submit.bottom && input.bottom > submit.top
+    assert.equal(
+      inline,
+      availableHeight < 260,
+      "short viewport keeps submit beside input"
+    )
+    if (!inline)
+      assert(
+        submit.top >= input.bottom + 12,
+        "separate submit keeps its input gap"
+      )
   }
   assert(
     viewport.height >= 44 && viewport.bottom <= panel.bottom,
@@ -144,10 +171,18 @@ export function verifyReadingScroll(before, after) {
     (node) => node["resource-id"] === "ims-native-exchange-more-expanded"
   )
   assert.equal(more.length, 1)
+  const priorMore = before.find(
+    (node) => node["resource-id"] === "ims-native-exchange-more-expanded"
+  )
   const target = bounds(more[0])
   assert(target.width >= 44 && target.height >= 44, "footer target >=44pt")
   assert(
     target.top >= viewport.top && target.bottom <= viewport.bottom,
     "manual reading scroll exposes the full footer target"
+  )
+  assert.notEqual(
+    priorMore?.bounds,
+    more[0].bounds,
+    "reading content moves beneath the fixed rows"
   )
 }

@@ -9,7 +9,7 @@ import { expect, test } from "./fixtures/test"
 import { installAdminAuthMock } from "./fixtures/admin-auth"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 
-test("switches geographic maps to one source and preserves provider configurations @mobile", async ({
+test("switches regional search with a fixed Mapbox basemap to one source and preserves provider configurations @mobile", async ({
   page,
   api,
 }, testInfo) => {
@@ -54,7 +54,7 @@ test("switches geographic maps to one source and preserves provider configuratio
   let mutations = 0
   const originalSources = JSON.stringify(current.sources)
   api.expect({
-    name: "save single-source and geographic selections",
+    name: "save single-source and regional search selections",
     method: "PUT",
     path: "/api/admin/community/exchange/map-delivery/active",
     body: fudabaMapSourceActivationSchema,
@@ -85,7 +85,7 @@ test("switches geographic maps to one source and preserves provider configuratio
   await expect(page.getByRole("button", { name: "保存分发配置" })).toBeEnabled()
   await page.getByRole("combobox", { name: "地图分发方式" }).click()
   await expect(
-    page.getByRole("option", { name: "国内外地图", exact: true })
+    page.getByRole("option", { name: "Mapbox 底图＋地区搜索", exact: true })
   ).toBeEnabled()
   await page.getByRole("option", { name: "统一地图源", exact: true }).click()
   await page.getByRole("button", { name: "保存分发配置" }).click()
@@ -122,9 +122,11 @@ test("switches geographic maps to one source and preserves provider configuratio
   await page.keyboard.press("Escape")
   await expect(page.getByRole("dialog")).toHaveCount(0)
   await page.getByRole("combobox", { name: "地图分发方式" }).click()
-  await page.getByRole("option", { name: "国内外地图", exact: true }).click()
+  await page
+    .getByRole("option", { name: "Mapbox 底图＋地区搜索", exact: true })
+    .click()
   await page.getByRole("button", { name: "保存分发配置" }).click()
-  await expect(page.getByText("国内外地图配置已生效")).toBeVisible()
+  await expect(page.getByText("Mapbox 底图＋地区搜索已生效")).toBeVisible()
   await expect(
     page.getByRole("button", { name: "删除 国内高德" })
   ).toBeDisabled()

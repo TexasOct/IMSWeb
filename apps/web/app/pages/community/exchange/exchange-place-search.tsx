@@ -123,6 +123,11 @@ export function MapPlaceSearch<Place extends PlaceSearchDisplay>({
         </p>
       ) : null}
 
+      {model.notice && !error ? (
+        <p role="status" className="text-xs text-muted-foreground">
+          {model.notice}
+        </p>
+      ) : null}
       {error ? (
         <Alert variant="destructive">
           <SearchIcon aria-hidden="true" />
@@ -153,7 +158,9 @@ export function MapPlaceSearch<Place extends PlaceSearchDisplay>({
                   {place.label}
                 </strong>
                 <span className="mt-1 block text-sm text-muted-foreground">
-                  {place.address}
+                  {[place.address, place.distanceLabel]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </span>
               </span>
             </button>

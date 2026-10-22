@@ -1,4 +1,6 @@
 import { expect, it, vi } from "vitest"
+import { fudabaMapConfigSchema } from "@imsweb/contracts/fudaba/map-delivery"
+import type { FudabaMapConfig } from "~/lib/api"
 import { createMapRendererRegistry } from "~/pages/community/exchange/exchange-map-renderer"
 import { mapProviderFor, preferredMapSource } from "~/lib/maps/provider-catalog"
 import { amapProvider } from "~/lib/maps/providers/amap"
@@ -67,6 +69,45 @@ it("uses explicit providers and independent drafts while selecting regional defa
   draft.apiKey = "changed"
   expect(amapProvider.createDraft().apiKey).toBe("")
   expect(amapProvider.createDraft().mapStyle).toBe("amap://styles/whitesmoke")
+})
+
+it("accepts dual native regional configuration but rejects the retired Mapbox federated renderer", () => {
+  const config = {
+    provider: "regional",
+    defaultRegion: "mainland",
+    mainland: {
+      provider: "amap",
+      apiKey: "public-key-1234567890",
+      securityProxyUrl: "/_AMapService",
+      mapStyle: "amap://styles/normal",
+    },
+    overseas: {
+      provider: "mapbox",
+      accessToken: "pk.public-mapbox-token-1234567890",
+      styleUrl: "mapbox://styles/owner/custom",
+    },
+    search: {
+      provider: "federated",
+      mainland: {
+        provider: "amap",
+        apiKey: "public-key-1234567890",
+        securityProxyUrl: "/_AMapService",
+      },
+      overseas: {
+        provider: "mapbox",
+        accessToken: "pk.public-mapbox-token-1234567890",
+      },
+    },
+  } satisfies FudabaMapConfig
+  expect(fudabaMapConfigSchema.safeParse(config).success).toBe(true)
+  expect(
+    fudabaMapConfigSchema.safeParse({
+      provider: "mapbox",
+      accessToken: config.overseas.accessToken,
+      styleUrl: config.overseas.styleUrl,
+      search: config.search,
+    }).success
+  ).toBe(false)
 })
 
 it("shows only adapter-owned explanations and hides raw SDK error messages", () => {

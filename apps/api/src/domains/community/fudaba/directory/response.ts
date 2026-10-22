@@ -20,6 +20,7 @@ import { requirePublicObjectUrl } from "@/utils/storage/public-object-url";
 export async function fudabaPublicOfficeView(
     storage: ObjectStorage | undefined,
     office: FudabaPublicOfficeRecord,
+    includeLocation = false,
 ): Promise<FudabaOffice> {
     let coverUrl: string | null = null;
     if (office.cover_object_key) {
@@ -45,6 +46,11 @@ export async function fudabaPublicOfficeView(
         isOpen: office.is_open,
         visitorCount: office.visitor_count,
         seriesCodes: office.series_codes,
+        ...(includeLocation ? {
+            location: office.public_latitude_e1 != null && office.public_longitude_e1 != null
+                ? regionalLocation(office.public_latitude_e1, office.public_longitude_e1)
+                : null
+        } : {}),
     };
 }
 

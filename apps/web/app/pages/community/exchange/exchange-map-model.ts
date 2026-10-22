@@ -526,3 +526,60 @@ export function groupMapOffices(
 
   return [...groups.values()]
 }
+
+/** Keep committed records (and their order) when the wire data is equivalent. */
+export function reconcileMapOffices(
+  previous: FudabaMapOffice[],
+  incoming: FudabaMapOffice[]
+): FudabaMapOffice[] {
+  const signature = (office: FudabaMapOffice) =>
+    JSON.stringify([
+      office.id,
+      office.slug,
+      office.name,
+      office.city,
+      office.address,
+      office.accent,
+      office.isOpen,
+      [...office.seriesCodes].sort((a, b) => a.localeCompare(b)),
+      office.location.latitude,
+      office.location.longitude,
+      office.location.precision,
+    ])
+  const known = new Map(previous.map((office) => [office.id, office]))
+  const next = incoming.map((office) => {
+    const current = known.get(office.id)
+    return current && signature(current) === signature(office)
+      ? current
+      : office
+  })
+  if (
+    next.length === previous.length &&
+    next.every((office) => known.get(office.id) === office)
+  )
+    return previous
+  return next.sort((a, b) => a.id.localeCompare(b.id))
+}
+
+/** World-anchored cells do not change membership just because the camera pans. */
+export function groupMapMarkers(
+  groups: readonly FudabaMapOfficeGroup[],
+  zoom: number
+) {
+  const cells = new Map<string, FudabaMapOfficeGroup[]>()
+  const worldSize = 512 * 2 ** Math.floor(zoom)
+  for (const group of [...groups].sort((a, b) => a.key.localeCompare(b.key))) {
+    const sine = Math.sin((group.latitude * Math.PI) / 180)
+    const x = ((group.longitude + 180) / 360) * worldSize
+    const y =
+      (0.5 - Math.log((1 + sine) / (1 - sine)) / (4 * Math.PI)) * worldSize
+    const key =
+      zoom >= EXCHANGE_MAP_CLUSTER_MAX_ZOOM + 1
+        ? group.key
+        : `${Math.floor(x / 56)}:${Math.floor(y / 56)}`
+    const cell = cells.get(key) ?? []
+    cell.push(group)
+    cells.set(key, cell)
+  }
+  return [...cells.values()]
+}

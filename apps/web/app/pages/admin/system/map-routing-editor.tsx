@@ -93,33 +93,35 @@ export function MapRoutingEditor({
           >
             <SelectTrigger id="map-routing-mode">
               <SelectValue>
-                {mode === "regional" ? "国内外地图" : "统一地图源"}
+                {mode === "regional" ? "Mapbox 底图＋地区搜索" : "统一地图源"}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="single">统一地图源</SelectItem>
-              <SelectItem value="regional">国内外地图</SelectItem>
+              <SelectItem value="regional">Mapbox 底图＋地区搜索</SelectItem>
             </SelectContent>
           </Select>
         </Field>
-        {selectSource(
-          "map-routing-fallback",
-          mode === "regional" ? "统一模式地图源" : "默认地图源",
-          fallback,
-          setFallback
-        )}
+        {mode === "single"
+          ? selectSource(
+              "map-routing-fallback",
+              "默认地图源",
+              fallback,
+              setFallback
+            )
+          : null}
         {mode === "regional" ? (
           <>
             {selectSource(
               "map-routing-mainland",
-              "中国大陆地图源",
+              "中国大陆搜索（高德）",
               mainland,
               setMainland,
               "mainland"
             )}
             {selectSource(
               "map-routing-overseas",
-              "海外地图源（含港澳台）",
+              "统一底图与海外搜索（Mapbox，含港澳台）",
               overseas,
               setOverseas,
               "overseas"
@@ -128,20 +130,23 @@ export function MapRoutingEditor({
         ) : null}
       </FieldGroup>
       <FieldDescription>
-        统一模式使用默认地图源。国内外模式在中国大陆使用高德，海外（含港澳台）使用
-        Mapbox。海外配色和地名语言由 Mapbox 发布样式决定。保存后需重新加载地图。
+        地图分发配置会选择公开地区模式引用的高德与 Mapbox 源。 地图底图固定使用
+        Mapbox，不会因大陆／海外位置切换渲染器；搜索按提交时的地图中心
+        选择高德（大陆）或 Mapbox（海外），候选结果按当前位置直线距离排序。
+        无定位时明确回退为距地图中心排序。跨底图使用高德结果的许可需单独确认。
+        保存后需重新加载地图。
       </FieldDescription>
       <Button
         type="button"
         variant="outline"
         disabled={
           saving ||
-          !fallback ||
+          (mode === "single" && !fallback) ||
           (mode === "regional" && (!mainland || !overseas))
         }
         onClick={() =>
           void onSave(
-            fallback,
+            mode === "regional" ? snapshot.activeSourceId : fallback,
             mode === "regional"
               ? { mainlandSourceId: mainland, overseasSourceId: overseas }
               : null

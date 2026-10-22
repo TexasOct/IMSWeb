@@ -69,7 +69,8 @@ describe("App search source ownership", () => {
         }}
       />
     )
-    await user.click(screen.getByRole("button", { name: "查找地点" }))
+    await user.click(screen.getByRole("button", { name: "查找事务所" }))
+    await user.click(screen.getByRole("tab", { name: "地点" }))
     let input = screen.getByRole("textbox", { name: "搜索地点" })
     await user.type(input, "西岸")
     expect(mocks.search).not.toHaveBeenCalled()

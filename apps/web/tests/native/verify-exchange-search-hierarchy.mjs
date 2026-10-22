@@ -37,6 +37,11 @@ const panel = byId("ims-native-exchange-search")
 const input = byId("ims-native-exchange-search-input")
 const bar = byId("ims-native-liquid-glass-tab-bar")
 const keyboard = byId("inputView")
+assert.equal(
+  byId("ims-native-exchange-tools").length,
+  0,
+  "tools belong in More"
+)
 if (["modal", "route"].includes(state)) {
   assert.equal(panel.length, 0, "native search host must leave the hierarchy")
   assert.equal(input.length, 0, "native search input must leave the hierarchy")
@@ -58,7 +63,12 @@ if (["modal", "route"].includes(state)) {
     "the DOM card must not remain in the native accessibility tree"
   )
   const more = nodes.filter(
-    (node) => node.accessibilityText === "更多" && box(node).width >= 40
+    (node) =>
+      node.accessibilityText === "更多" &&
+      [
+        "ims-native-exchange-more",
+        "ims-native-exchange-more-expanded",
+      ].includes(node["resource-id"])
   )
   assert.equal(
     more.length,
@@ -88,8 +98,10 @@ if (["modal", "route"].includes(state)) {
       "collapsed search target must retain 44pt height"
     )
     assert(
-      box(panel[0]).height <= 44,
-      "pill uses conservative navigation body floor"
+      box(panel[0]).height >= 44 &&
+        box(search[0]).top >= box(panel[0]).top &&
+        box(search[0]).bottom <= box(panel[0]).bottom,
+      "one-line search target fits its Dynamic Type capsule"
     )
     assert(
       box(more[0]).left - box(panel[0]).right >= 12,
@@ -129,7 +141,11 @@ if (["modal", "route"].includes(state)) {
         )
       }
     }
-    if (state === "editing-landscape") verifyEssentialGeometry(nodes)
+    if (["editing", "editing-landscape"].includes(state)) {
+      // Editing captures use the settled full-height detent, so the panel
+      // height is the available height supplied to the native layout owner.
+      verifyEssentialGeometry(nodes, box(panel[0]).height)
+    }
     if (["editing", "editing-landscape"].includes(state)) {
       assert.equal(keyboard.length, 1, "real UIKit keyboard is present")
       assert(
@@ -143,10 +159,9 @@ if (["modal", "route"].includes(state)) {
           "native draft survived model snapshots"
         )
       }
-      const submit = nodes.filter(
-        (node) => node.accessibilityText === "查找" && box(node).height >= 40
-      )
+      const submit = byId("ims-native-exchange-submit")
       assert.equal(submit.length, 1)
+      assert.equal(submit[0].accessibilityText, "查找")
       assert.equal(
         submit[0].enabled,
         "true",

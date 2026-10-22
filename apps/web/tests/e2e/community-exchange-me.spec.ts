@@ -4,6 +4,7 @@ import type { PlatformProfile } from "@imsweb/contracts/platform"
 import { api, expect, test } from "./fixtures/test"
 import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
 import { settleToasts } from "./fixtures/toast"
+import { installSeededPublicApis } from "./fixtures/public-content"
 
 const avatarFixture = Buffer.from(
   `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240">
@@ -85,7 +86,14 @@ const publishedLocation: LocationFixture = {
   reviewNote: "区域范围合适",
 }
 
-test.beforeEach(async ({ context, page }) => {
+test.beforeEach(async ({ context, page, api: dispatcher }) => {
+  installSeededPublicApis(dispatcher, [
+    { path: "/api/community/exchange/series", times: 1 },
+    { path: "/api/community/exchange/offices", times: 1 },
+    { path: "/api/community/exchange/cards", times: 1 },
+    { path: "/api/community/exchange/map/config", times: 1 },
+    { path: "/api/community/exchange/map/offices", times: { min: 0, max: 8 } },
+  ])
   let currentProfile: PlatformProfile = { ...profile }
   await context.addCookies([
     {
@@ -355,10 +363,11 @@ test.beforeEach(async ({ context, page }) => {
             ...card,
             displayName: submission.displayName,
             favoriteCharacter: "天海春香、涩谷凛",
-            favoriteCharacters: submission.favoriteCharacterIds.map((idolId: number) =>
-              idolId === 1
-                ? { id: 1, name: "天海春香", seriesCode: "765" }
-                : { id: 2, name: "涩谷凛", seriesCode: "cg" }
+            favoriteCharacters: submission.favoriteCharacterIds.map(
+              (idolId: number) =>
+                idolId === 1
+                  ? { id: 1, name: "天海春香", seriesCode: "765" }
+                  : { id: 2, name: "涩谷凛", seriesCode: "cg" }
             ),
             revision: 4,
             updatedAt: "2026-08-02T10:00:00.000Z",
@@ -517,7 +526,9 @@ test.describe("community exchange me", () => {
       mimeType: "image/svg+xml",
       buffer: avatarFixture,
     })
-    const cropDialog = page.getByRole("dialog")
+    const cropDialog = page
+      .getByRole("dialog")
+      .filter({ has: page.getByRole("button", { name: "使用此头像" }) })
     await expect(cropDialog).toContainText("使用此头像")
     const cropCanvas = cropDialog.getByTestId("avatar-crop-canvas")
     await expect(cropCanvas).toBeVisible()
@@ -742,6 +753,7 @@ test.describe("community exchange me", () => {
       `${isMobile ? "mobile" : "desktop"} exchange-me overflow`
     ).toBe(true)
 
+    await settleToasts(page)
     const accessibility = await new AxeBuilder({ page })
       .setLegacyMode()
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])

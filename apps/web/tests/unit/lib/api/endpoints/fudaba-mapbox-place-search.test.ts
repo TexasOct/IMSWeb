@@ -59,6 +59,21 @@ it("uses worldwide temporary geocoding without portal credentials, cache or redi
   expect(mapboxGeocodingResponseSchema.parse(response)).toEqual(response)
 })
 
+it("biases Mapbox candidates toward the submitted map centre rather than the distance-ranking device fix", async () => {
+  const fetch = vi.fn(async () => Response.json(response))
+  vi.stubGlobal("fetch", fetch)
+  await createMapboxPlaceSearch("pk.public-test-token")(
+    "Tokyo",
+    new AbortController().signal,
+    {
+      viewportCenter: [139.7, 35.6],
+      devicePosition: [121.5, 31.2],
+    }
+  )
+  const [url] = fetch.mock.calls[0] as unknown as [URL]
+  expect(url.searchParams.get("proximity")).toBe("139.7,35.6")
+})
+
 it.each([
   [429, "busy"],
   [403, "unavailable"],

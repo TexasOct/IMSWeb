@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeStoredMapProvider, describeMapProvider, mapSourceRequestError } from '../../src/domains/community/fudaba/map-delivery/map-provider-policy';
+import { decodeStoredMapProvider, describeMapProvider, describeRegionalSearchMap, mapSourceRequestError } from '../../src/domains/community/fudaba/map-delivery/map-provider-policy';
 import { readFudabaMapDelivery } from '../../src/domains/community/fudaba/map-delivery/map-delivery-store';
 import { seedFudabaMapSources } from '../../src/domains/community/fudaba/map-delivery/map-delivery-bootstrap';
 
@@ -34,6 +34,13 @@ describe('map provider policies', () => {
         expect(describeMapProvider(maplibre).searchConfig).toEqual({ provider: 'nominatim' });
         expect(describeMapProvider(amap).searchConfig).toEqual({ provider: 'amap', apiKey: amap.apiKey, securityProxyUrl: amap.securityProxyUrl });
         expect(describeMapProvider(mapbox).searchConfig).toEqual({ provider: 'mapbox', accessToken: mapbox.accessToken });
+    });
+
+    it('retains source credentials for a fixed Mapbox basemap with mainland and overseas search routing', () => {
+        const regional = describeRegionalSearchMap(amap, mapbox);
+        expect(regional).toMatchObject({ provider: 'regional', defaultRegion: 'mainland', mainland: amap, overseas: mapbox });
+        expect(regional.search).toEqual({ provider: 'federated', mainland: { provider: 'amap', apiKey: amap.apiKey, securityProxyUrl: amap.securityProxyUrl }, overseas: { provider: 'mapbox', accessToken: mapbox.accessToken } });
+        expect(() => describeRegionalSearchMap(mapbox, amap)).toThrow();
     });
 
     it('owns provider request explanations after common metadata validation', () => {

@@ -18,6 +18,8 @@ describe("nativeGlassSearchEvent", () => {
         id: "exchange-search",
         generation: 7,
         revision: 4,
+        activeTab: "offices",
+        hasMore: true,
         host: { x: 0, y: 62, width: 402, height: 700 },
         bottomClearance: 80,
         dark: false,
@@ -26,7 +28,7 @@ describe("nativeGlassSearchEvent", () => {
         query: "天府广场",
         busy: false,
         refreshing: true,
-        message: "",
+        status: null,
         attribution: "OpenStreetMap",
         selected: "已定位：天府广场",
         filterApplied: true,
@@ -54,6 +56,8 @@ describe("nativeGlassSearchEvent", () => {
         withMetadata ? "成都市 · 青羊区" : undefined
       )
       expect(args.refreshing).toBe(true)
+      expect(args.activeTab).toBe("offices")
+      expect(args.hasMore).toBe(true)
       expect(args.results).toBe(snapshot.results)
       vi.mocked(invoke).mockResolvedValueOnce(undefined)
       await removeNativeGlassSearch(snapshot.id, snapshot.generation)
@@ -93,6 +97,19 @@ describe("nativeGlassSearchEvent", () => {
     }
   )
   const base = { id: "exchange-search", generation: 2, revision: 3 }
+  it("accepts explicit search tabs and pagination actions", () => {
+    for (const action of [
+      { action: "tab", value: "offices" },
+      { action: "tab", value: "places" },
+      { action: "loadMore" },
+    ]) {
+      expect(
+        nativeGlassSearchEvent(
+          new CustomEvent("search", { detail: { ...base, ...action } })
+        )
+      ).toEqual({ ...base, ...action })
+    }
+  })
   it("accepts result identities and finite native geometry", () => {
     expect(
       nativeGlassSearchEvent(
@@ -115,6 +132,8 @@ describe("nativeGlassSearchEvent", () => {
   })
   it.each([
     { ...base, action: "select" },
+    { ...base, action: "tab", value: "unknown" },
+    { ...base, action: "tab" },
     { ...base, action: "input", value: 1 },
     { ...base, generation: -Infinity, action: "cancel" },
     { ...base, generation: -1, action: "cancel" },

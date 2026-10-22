@@ -1,4 +1,4 @@
-import type { FudabaMapProviderConfig, FudabaSingleMapSearchConfig, FudabaGeographicMapConfig } from '@imsweb/contracts/fudaba/map-delivery';
+import type { FudabaRegionalProviderMapConfig, FudabaMapProviderConfig, FudabaSingleMapSearchConfig } from '@imsweb/contracts/fudaba/map-delivery';
 import {
     isFudabaAMapKey,
     isFudabaAMapSecurityProxyUrl,
@@ -40,13 +40,21 @@ const policies: Readonly<Record<string, ProviderPolicy>> = {
                 invalid('地图样式地址格式无效');
             }
             const styleUrl = source.styleUrl.trim();
+            let suggestedName: string;
+            try {
+                suggestedName = styleUrl.startsWith('/')
+                    ? '站点自托管'
+                    : `MapLibre · ${new URL(styleUrl).hostname}`.slice(0, 80);
+            } catch {
+                invalid('地图样式地址格式无效');
+            }
             return {
                 config: { provider: 'maplibre', styleUrl },
                 publicConfig: { provider: 'maplibre', styleUrl },
                 identity: JSON.stringify(['maplibre', styleUrl]),
                 styleUrl,
                 auditLabel: styleUrl,
-                suggestedName: styleUrl.startsWith('/') ? '站点自托管' : `MapLibre · ${new URL(styleUrl).hostname}`.slice(0, 80),
+                suggestedName,
             };
         },
     },
@@ -133,18 +141,19 @@ export function describeMapProvider(source: FudabaMapProviderConfig): ProviderDe
     return { ...description, searchConfig: policy.search(description.config) };
 }
 
-/** Geographic delivery is composed here; request handlers never branch on SDKs. */
-export function describeGeographicMap(mainland: FudabaMapProviderConfig, overseas: FudabaMapProviderConfig): FudabaGeographicMapConfig {
+/** Fixed Mapbox basemap, with AMap mainland and Mapbox overseas search credentials. */
+export function describeRegionalSearchMap(mainland: FudabaMapProviderConfig, overseas: FudabaMapProviderConfig): FudabaRegionalProviderMapConfig {
     const first = describeMapProvider(mainland);
     const second = describeMapProvider(overseas);
     if (first.publicConfig.provider !== 'amap' || first.searchConfig.provider !== 'amap' ||
         second.publicConfig.provider !== 'mapbox' || second.searchConfig.provider !== 'mapbox') {
-        invalid('画布聚合需要中国大陆高德地图源和海外 Mapbox 地图源');
+        invalid('大陆搜索需要高德源，统一底图和海外搜索需要 Mapbox 源');
     }
     return {
-        provider: 'geographic',
+        provider: 'regional',
         mainland: first.publicConfig,
         overseas: second.publicConfig,
+        defaultRegion: 'mainland',
         search: { provider: 'federated', mainland: first.searchConfig, overseas: second.searchConfig },
     };
 }

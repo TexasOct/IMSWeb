@@ -56,10 +56,10 @@ for (const bottom of [166, 204]) {
   test(`landscape ${bottom}pt card pins essentials while footer intentionally scrolls`, () => {
     const header = [
       node("ims-native-exchange-search", 8, 8, 420, bottom - 8),
-      node("ims-native-exchange-search-input", 62, 8, 310, 48),
+      node("ims-native-exchange-search-input", 20, 8, 300, 48),
       node("ims-native-exchange-cancel", 376, 10, 44, 44),
-      node("ims-native-exchange-submit", 62, 60, 354, 44),
-      node("ims-native-exchange-reading-viewport", 20, 108, 396, bottom - 120),
+      node("ims-native-exchange-submit", 324, 10, 44, 44),
+      node("ims-native-exchange-reading-viewport", 20, 68, 396, bottom - 80),
     ]
     const before = [
       ...header,
@@ -69,15 +69,21 @@ for (const bottom of [166, 204]) {
       ...header,
       node("ims-native-exchange-more-expanded", 62, bottom - 56, 172, 44),
     ]
-    verifyEssentialGeometry(before)
+    verifyEssentialGeometry(before, bottom - 8)
     verifyReadingScroll(before, after)
+    assert.throws(
+      () => verifyReadingScroll(after, after),
+      /reading content moves/
+    )
     assert.throws(
       () => verifyReadingScroll(before, before),
       /full footer target/
     )
     const shifted = after.map((entry) => ({ ...entry }))
-    shifted[1] = node("ims-native-exchange-search-input", 62, -20, 310, 48)
+    shifted[1] = node("ims-native-exchange-search-input", 20, -20, 300, 48)
     assert.throws(() => verifyReadingScroll(before, shifted), /fully visible/)
+    shifted[1] = node("ims-native-exchange-search-input", 20, 9, 300, 48)
+    assert.throws(() => verifyReadingScroll(before, shifted), /stays fixed/)
   })
 }
 test("rejects duplicate and stale locate targets", () => {
@@ -113,17 +119,48 @@ for (const width of [402, 440]) {
         ...node(
           "ims-native-exchange-selected-summary",
           68,
-          510,
+          500,
           width - 184,
-          long ? 600 : 60
+          long ? 84 : 44
         ),
         accessibilityText: `${name}, ${address}`,
       }
-      const nodes = [...capture(width), summary]
+      const nodes = [
+        node("ims-native-exchange-search", 8, 500, width - 72, long ? 84 : 44),
+        summary,
+      ]
       verifySummaryGeometry(nodes, name, address)
       assert.throws(
         () => verifySummaryGeometry([...nodes, summary], name, address),
         /one persistent/
+      )
+      const clipped = {
+        ...summary,
+        ...node(
+          "ims-native-exchange-selected-summary",
+          68,
+          501,
+          width - 184,
+          long ? 84 : 44
+        ),
+      }
+      assert.throws(
+        () => verifySummaryGeometry([nodes[0], clipped], name, address),
+        /fits its capsule/
+      )
+      const small = {
+        ...summary,
+        ...node(
+          "ims-native-exchange-selected-summary",
+          68,
+          500,
+          width - 184,
+          40
+        ),
+      }
+      assert.throws(
+        () => verifySummaryGeometry([nodes[0], small], name, address),
+        /rectangular summary target/
       )
       summary.accessibilityText = name
       assert.throws(
@@ -132,4 +169,36 @@ for (const width of [402, 440]) {
       )
     })
   }
+}
+
+for (const available of [259, 260]) {
+  test(`${available}pt viewport verifies submit placement and rejects overlapping essentials`, () => {
+    const inline = available < 260
+    const nodes = [
+      node("ims-native-exchange-search", 8, 8, 420, available),
+      node("ims-native-exchange-search-input", 20, 8, inline ? 300 : 350, 48),
+      node(
+        "ims-native-exchange-submit",
+        inline ? 324 : 20,
+        inline ? 10 : 68,
+        inline ? 44 : 396,
+        44
+      ),
+      node("ims-native-exchange-cancel", 376, 10, 44, 44),
+      node(
+        "ims-native-exchange-reading-viewport",
+        20,
+        inline ? 68 : 124,
+        396,
+        100
+      ),
+    ]
+    verifyEssentialGeometry(nodes, available)
+    assert.throws(
+      () => verifyEssentialGeometry(nodes, inline ? 260 : 259),
+      /beside input/
+    )
+    nodes[2] = node("ims-native-exchange-submit", 20, 10, 44, 44)
+    assert.throws(() => verifyEssentialGeometry(nodes), /do not overlap/)
+  })
 }

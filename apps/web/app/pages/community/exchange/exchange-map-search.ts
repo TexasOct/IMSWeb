@@ -1,6 +1,7 @@
 import type { FudabaMapSearchConfig } from "@imsweb/contracts/fudaba/map-delivery"
 import { searchFudabaPlaces, sendWithAbort } from "~/lib/api"
 import { MapSearchError, type MapPlaceSearcher } from "~/lib/maps/map-search"
+import { createRegionPlaceSearch } from "./region-place-search"
 
 interface SearchRegistration {
   matches(config: FudabaMapSearchConfig): boolean
@@ -49,58 +50,19 @@ const registrations: SearchRegistration[] = [
     (await import("~/lib/api")).createMapboxPlaceSearch(config.accessToken)
   ),
   register("federated", async (config) => {
-    const searchers = await Promise.allSettled([
-      loadExchangeMapSearch(config.mainland),
-      loadExchangeMapSearch(config.overseas),
+    // Keep the wire discriminator for persisted source references. Runtime
+    // routing now queries one service, never merges two unrelated result sets.
+    const [amapModule, api] = await Promise.all([
+      import("./amap-place-search"),
+      import("~/lib/api"),
     ])
-    return async (query, signal) => {
-      if (signal.aborted) throw new DOMException("Search aborted", "AbortError")
-      const results = await Promise.allSettled(
-        searchers.map((searcher) =>
-          searcher.status === "fulfilled"
-            ? searcher.value(query, signal)
-            : Promise.reject(new MapSearchError("unavailable"))
-        )
-      )
-      if (signal.aborted) throw new DOMException("Search aborted", "AbortError")
-      const success = results.flatMap((result, index) =>
-        result.status === "fulfilled" ? [{ ...result.value, index }] : []
-      )
-      const failed = results.filter((result) => result.status === "rejected")
-      const items = success.flatMap((result) =>
-        result.items.map((place) => ({
-          ...place,
-          id: `${result.index === 0 ? "amap" : "mapbox"}:${place.id}`,
-          attribution: result.attribution,
-        }))
-      )
-      if (!success.length || (!items.length && failed.length)) {
-        const reasons = failed.map((result) => result.reason)
-        throw new MapSearchError(
-          reasons.some(
-            (reason) =>
-              reason instanceof MapSearchError && reason.kind === "busy"
-          )
-            ? "busy"
-            : reasons.every(
-                  (reason) =>
-                    reason instanceof MapSearchError &&
-                    reason.kind === "unavailable"
-                )
-              ? "unavailable"
-              : "failed"
-        )
-      }
-      return {
-        items,
-        attribution: [
-          ...new Set(success.map((result) => result.attribution)),
-        ].join(" · "),
-        ...(failed.length
-          ? { notice: "部分地点服务暂不可用，已显示可用服务的结果。" }
-          : {}),
-      }
-    }
+    return createRegionPlaceSearch(
+      config,
+      amapModule.createAMapPlaceSearch(config.mainland, "wgs84", {
+        vicinityFirst: true,
+      }),
+      api.createMapboxPlaceSearch(config.overseas.accessToken)
+    )
   }),
 ]
 

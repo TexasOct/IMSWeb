@@ -3,12 +3,28 @@ import { expect, it, vi } from "vitest"
 import { applyMapboxPortalTheme } from "~/pages/community/exchange/mapbox-map-theme"
 import { exchangeMapColors } from "~/lib/maps/map-theme"
 
-it("themes the stock basemap without altering business overlays, native icons, visibility or source filters", () => {
+it("themes the stock basemap without altering business overlays, native icons or road filters", () => {
   const style: StyleSpecification = {
     version: 8,
     sources: {},
     layers: [
       { id: "land", type: "background" },
+      {
+        id: "hillshade",
+        type: "fill",
+        source: "composite",
+        "source-layer": "hillshade",
+        filter: ["==", ["get", "class"], "shadow"],
+      },
+      {
+        id: "landcover",
+        type: "fill",
+        source: "composite",
+        "source-layer": "landcover",
+        minzoom: 0,
+        maxzoom: 12,
+        filter: ["!=", ["get", "class"], "grass"],
+      },
       {
         id: "water",
         type: "fill",
@@ -53,7 +69,12 @@ it("themes the stock basemap without altering business overlays, native icons, v
     ],
   }
   const original = structuredClone(style)
-  const map = { getStyle: () => style, setPaintProperty: vi.fn() }
+  const map = {
+    getStyle: () => style,
+    setPaintProperty: vi.fn(),
+    setFilter: vi.fn(),
+    setLayerZoomRange: vi.fn(),
+  }
   applyMapboxPortalTheme(map, "mapbox://styles/mapbox/streets-v12")
   expect(map.setPaintProperty).toHaveBeenCalledWith(
     "water",
@@ -65,6 +86,13 @@ it("themes the stock basemap without altering business overlays, native icons, v
     "fill-opacity",
     expect.anything()
   )
+  // The stock Streets terrain is a vector fill. Using raster hillshade paint
+  // here would leave the visible shadows intact and fail SDK validation.
+  expect(map.setPaintProperty).toHaveBeenCalledWith(
+    "hillshade",
+    "fill-opacity",
+    0
+  )
   for (const id of [
     "office-overlay",
     "road-number-shield",
@@ -74,6 +102,10 @@ it("themes the stock basemap without altering business overlays, native icons, v
       map.setPaintProperty.mock.calls.some(([layerId]) => layerId === id)
     ).toBe(false)
   expect(style).toEqual(original)
+  // Only the generalized vegetation backdrop outlives the stock cutoff;
+  // detailed landuse, road filters and business data keep their ownership.
+  expect(map.setFilter.mock.calls).toEqual([["landcover", null]])
+  expect(map.setLayerZoomRange.mock.calls).toEqual([["landcover", 0, 24]])
 })
 
 it.each([
@@ -81,8 +113,15 @@ it.each([
   "mapbox://styles/mapbox/standard",
   "mapbox://styles/mapbox/satellite-streets-v12",
 ])("retains published colors for %s", (styleUrl) => {
-  const map = { getStyle: vi.fn(), setPaintProperty: vi.fn() }
+  const map = {
+    getStyle: vi.fn(),
+    setPaintProperty: vi.fn(),
+    setFilter: vi.fn(),
+    setLayerZoomRange: vi.fn(),
+  }
   applyMapboxPortalTheme(map, styleUrl)
   expect(map.getStyle).not.toHaveBeenCalled()
   expect(map.setPaintProperty).not.toHaveBeenCalled()
+  expect(map.setFilter).not.toHaveBeenCalled()
+  expect(map.setLayerZoomRange).not.toHaveBeenCalled()
 })

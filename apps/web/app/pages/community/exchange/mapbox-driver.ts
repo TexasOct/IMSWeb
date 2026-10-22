@@ -28,7 +28,7 @@ export function createMapboxDriver(config: MapboxConfig): MapDriver {
         container,
         accessToken: config.accessToken,
         style: config.styleUrl,
-        center: options.viewport.center,
+        center: options.initialTarget?.position ?? options.viewport.center,
         zoom: options.viewport.zoom,
         minZoom: options.minZoom,
         projection: "mercator",
@@ -49,7 +49,12 @@ export function createMapboxDriver(config: MapboxConfig): MapDriver {
       let searchViewport = false
       const retain = () => {
         // Temporary geocoding coordinates must not enter sessionStorage either.
-        if (!IS_APP_TARGET || searchViewport) return
+        if (
+          !IS_APP_TARGET ||
+          options.persistViewport === false ||
+          searchViewport
+        )
+          return
         const center = map.getCenter()
         rememberExchangeMapViewport({
           center: [center.lng, center.lat],
@@ -104,6 +109,14 @@ export function createMapboxDriver(config: MapboxConfig): MapDriver {
         map.touchZoomRotate.disableRotation()
         map.keyboard.disableRotation()
         const view: MapView = {
+          readCamera() {
+            lifecycle.assertActive()
+            const center = map.getCenter()
+            return {
+              target: { kind: "wgs84", position: [center.lng, center.lat] },
+              zoom: map.getZoom(),
+            }
+          },
           read() {
             lifecycle.assertActive()
             const bounds = map.getBounds()

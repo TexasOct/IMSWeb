@@ -8,6 +8,7 @@ import {
   exchangeMapInitialViewport,
   exchangeMapProviderViewport,
   groupMapOffices,
+  reconcileMapOffices,
   mapDeliveryPrefixFromStyleUrl,
   mergeMapOfficeResponses,
   rememberExchangeMapProviderViewport,
@@ -380,5 +381,30 @@ describe("exchange map model", () => {
       seriesCatalog
     )
     expect(groups[0]?.colors).toEqual(["#ffc30b", "#8dbbff"])
+  })
+
+  it("retains equivalent records regardless of response and series ordering", () => {
+    const current = [
+      { ...office, seriesCodes: ["765", "cg"] },
+      { ...office, id: "second" },
+    ]
+    const next = structuredClone([...current].reverse())
+    next[1]!.seriesCodes.reverse()
+    expect(reconcileMapOffices(current, next)).toBe(current)
+  })
+
+  it("updates changed records even if cardinality and identifiers stay the same", () => {
+    const current = [office]
+    for (const changed of [
+      { ...office, name: "新名称" },
+      { ...office, address: "新地址" },
+      { ...office, isOpen: false },
+      { ...office, id: "replacement", slug: "replacement" },
+      { ...office, seriesCodes: ["cg"] },
+      { ...office, location: { ...office.location, longitude: 122 } },
+    ]) {
+      expect(reconcileMapOffices(current, [changed])).toEqual([changed])
+      expect(reconcileMapOffices(current, [changed])).not.toBe(current)
+    }
   })
 })

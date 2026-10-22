@@ -2,17 +2,30 @@ import { useEffect, useRef, useState } from "react"
 import { hasAsciiControl } from "@imsweb/contracts/fudaba"
 import { isApiError } from "~/lib/api"
 import { MapSearchError } from "~/lib/maps/map-search"
+import type { MapPosition } from "~/lib/maps/map-engine"
+import type { MapSearchContext } from "~/lib/maps/map-search"
 
 export interface PlaceSearchDisplay {
   id: string
   label: string
   address: string
   attribution?: string
+  position?: MapPosition
+  distanceMeters?: number
+  distanceLabel?: string
+  disabled?: boolean
 }
 export type PlaceSearcher<Place> = (
   query: string,
-  signal: AbortSignal
-) => Promise<{ items: Place[]; attribution: string; notice?: string }>
+  signal: AbortSignal,
+  context?: MapSearchContext,
+  cursor?: string
+) => Promise<{
+  items: Place[]
+  attribution: string
+  notice?: string
+  nextCursor?: string | null
+}>
 
 function emptyResults<Place>() {
   return {
@@ -21,11 +34,16 @@ function emptyResults<Place>() {
     busy: false,
     error: null as string | null,
     searched: false,
+    notice: null as string | null,
     revision: 0,
+    nextCursor: null as string | null,
   }
 }
 
-export function usePlaceSearch<Place>(searcher: PlaceSearcher<Place> | null) {
+export function usePlaceSearch<Place>(
+  searcher: PlaceSearcher<Place> | null,
+  subject = "地点"
+) {
   const [query, setQuery] = useState("")
   const [state, setState] = useState(() => ({
     owner: searcher,
@@ -33,10 +51,16 @@ export function usePlaceSearch<Place>(searcher: PlaceSearcher<Place> | null) {
   }))
   if (state.owner !== searcher)
     setState({ owner: searcher, ...emptyResults<Place>() })
-  // Results belong to their exact configured service, including its credentials.
-  // A new owner is empty immediately, before passive cleanup aborts old work.
-  const { results, attribution, busy, error, searched, revision } =
-    state.owner === searcher ? state : emptyResults<Place>()
+  const {
+    results,
+    attribution,
+    busy,
+    error,
+    searched,
+    notice,
+    revision,
+    nextCursor,
+  } = state.owner === searcher ? state : emptyResults<Place>()
   const request = useRef<AbortController | null>(null)
 
   function update(
@@ -55,16 +79,32 @@ export function usePlaceSearch<Place>(searcher: PlaceSearcher<Place> | null) {
     })
   }
 
-  useEffect(() => {
-    return () => {
+  useEffect(
+    () => () => {
       request.current?.abort()
       request.current = null
-    }
-  }, [searcher])
+    },
+    [searcher]
+  )
 
-  async function submit(value = query, disabled = false) {
+  async function submit(
+    value = query,
+    disabled = false,
+    context?: MapSearchContext,
+    cursor?: string
+  ) {
     const nextQuery = value.slice(0, 120),
       search = nextQuery.trim()
+    const requestContext = context
+      ? {
+          viewportCenter: context.viewportCenter
+            ? ([...context.viewportCenter] as MapPosition)
+            : undefined,
+          devicePosition: context.devicePosition
+            ? ([...context.devicePosition] as MapPosition)
+            : undefined,
+        }
+      : undefined
     if (
       search.length < 2 ||
       hasAsciiControl(search) ||
@@ -76,15 +116,21 @@ export function usePlaceSearch<Place>(searcher: PlaceSearcher<Place> | null) {
     const controller = new AbortController()
     request.current = controller
     setQuery(nextQuery)
-    update({ busy: true, error: null })
+    update({ busy: true, error: null, notice: null })
     try {
-      const response = await searcher(search, controller.signal)
+      const response = cursor
+        ? await searcher(search, controller.signal, requestContext, cursor)
+        : requestContext
+          ? await searcher(search, controller.signal, requestContext)
+          : await searcher(search, controller.signal)
       if (controller.signal.aborted) return false
       update(
         {
-          results: response.items,
+          results: cursor ? [...results, ...response.items] : response.items,
+          nextCursor: response.nextCursor ?? null,
           attribution: response.attribution,
-          error: response.notice ?? null,
+          error: null,
+          notice: response.notice ?? null,
           searched: true,
         },
         true
@@ -92,16 +138,17 @@ export function usePlaceSearch<Place>(searcher: PlaceSearcher<Place> | null) {
     } catch (nextError) {
       if (controller.signal.aborted) return false
       update({
+        notice: null,
         error:
           (isApiError(nextError) && nextError.status === 429) ||
           (nextError instanceof MapSearchError && nextError.kind === "busy")
-            ? "地点搜索正忙，请稍后再试。"
+            ? `${subject}搜索正忙，请稍后再试。`
             : isApiError(nextError) && nextError.status === 503
-              ? "地点搜索服务尚未配置，请联系管理员。"
+              ? `${subject}搜索服务尚未配置，请联系管理员。`
               : nextError instanceof MapSearchError &&
                   nextError.kind === "unavailable"
                 ? "当前地图的地点搜索未获授权，请联系管理员检查地图源配置。"
-                : "地点暂时无法搜索，请稍后再试。",
+                : `${subject}暂时无法搜索，请稍后再试。`,
       })
     } finally {
       if (request.current === controller) {
@@ -113,7 +160,17 @@ export function usePlaceSearch<Place>(searcher: PlaceSearcher<Place> | null) {
   }
   function edit(value: string) {
     setQuery(value.slice(0, 120))
-    update({ error: null })
+    update({
+      error: null,
+      notice: null,
+      ...(value !== query ? { nextCursor: null } : {}),
+    })
+  }
+  function cancelPending() {
+    if (!request.current) return
+    request.current.abort()
+    request.current = null
+    update({ busy: false })
   }
   function resetResults(keepAttribution = false) {
     request.current?.abort()
@@ -124,6 +181,8 @@ export function usePlaceSearch<Place>(searcher: PlaceSearcher<Place> | null) {
         results: [],
         searched: false,
         error: null,
+        notice: null,
+        nextCursor: null,
         ...(!keepAttribution ? { attribution: "" } : {}),
       },
       true
@@ -136,9 +195,16 @@ export function usePlaceSearch<Place>(searcher: PlaceSearcher<Place> | null) {
     attribution,
     busy,
     error,
+    notice,
     searched,
     revision,
+    nextCursor,
+    loadMore: () =>
+      nextCursor
+        ? submit(query, false, undefined, nextCursor)
+        : Promise.resolve(false),
     submit,
+    cancelPending,
     resetResults,
   }
 }

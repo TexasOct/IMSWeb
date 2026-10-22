@@ -5326,6 +5326,32 @@ import { describe, onTestFinished, test } from 'vitest';
             assert.equal(auditFailure.audit.length, 0);
         });
 
+        test('map bootstrap has a separate protected budget from viewport reads', async () => {
+            const viewportLimited = new LocationRouteFixture();
+            viewportLimited.rateLimiter.deniedBuckets.add('fudaba-map-ip');
+            const configPath = 'http://ims.test/api/community/exchange/map/config';
+            assert.equal((await viewportLimited.app.request(configPath)).status, 200);
+            assert.equal((await viewportLimited.app.request(
+                'http://ims.test/api/community/exchange/map/offices?bbox=-180,-60,180,60',
+            )).status, 429);
+
+            const configLimited = new LocationRouteFixture();
+            configLimited.rateLimiter.deniedBuckets.add('fudaba-map-config-ip');
+            const response = await configLimited.app.request(configPath);
+            assert.equal(response.status, 429);
+            assert.ok(response.headers.get('retry-after'));
+            assert.ok(configLimited.rateLimiter.calls.some(({ bucket, limit, windowSeconds }) =>
+                bucket === 'fudaba-map-config-ip' && limit === 300 && windowSeconds === 900,
+            ));
+            assert.equal((await configLimited.app.request(
+                'http://ims.test/api/community/exchange/map/offices?bbox=-180,-60,180,60',
+            )).status, 200);
+
+            const globalLimited = new LocationRouteFixture();
+            globalLimited.rateLimiter.deniedBuckets.add('global');
+            assert.equal((await globalLimited.app.request(configPath)).status, 429);
+        });
+
         test("map and location routes enforce dedicated IP and account limits", async () => {
             const mapLimited = new LocationRouteFixture();
             mapLimited.rateLimiter.deniedBuckets.add("fudaba-map-ip");
@@ -5575,12 +5601,12 @@ import { describe, onTestFinished, test } from 'vitest';
             assert.equal(missingProvider.status, 422);
             await contractJson(missingProvider, fudabaMapDeliveryErrorSchema);
         });
-        test('delivers both geographic renderers and search authorizations independently of visitor headers', async () => {
+        test('delivers fixed-Mapbox regional-search credentials without visitor-header selection', async () => {
                 const { request, mutation } = fixture();
                 const amap = { provider: 'amap', apiKey: 'public-amap-key-1234567890', securityProxyUrl: '/_AMapService', mapStyle: 'amap://styles/normal' };
                 const mapbox = { provider: 'mapbox', accessToken: 'pk.public-mapbox-token-1234567890', styleUrl: 'mapbox://styles/mapbox/streets-v12' };
                 const publicMapbox = { ...mapbox, search: { provider: 'mapbox', accessToken: mapbox.accessToken } };
-                const geographic = { provider: 'geographic', mainland: amap, overseas: mapbox, search: { provider: 'federated', mainland: { provider: 'amap', apiKey: amap.apiKey, securityProxyUrl: amap.securityProxyUrl }, overseas: { provider: 'mapbox', accessToken: mapbox.accessToken } } };
+                const regionalSearch = { provider: 'regional', mainland: amap, overseas: mapbox, defaultRegion: 'mainland', search: { provider: 'federated', mainland: { provider: 'amap', apiKey: amap.apiKey, securityProxyUrl: amap.securityProxyUrl }, overseas: { provider: 'mapbox', accessToken: mapbox.accessToken } } };
                 const create = async (name: string, config: object, revision: string | null) => {
                     const response = await mutation('/api/admin/community/exchange/map-delivery/sources', 'POST', { name, ...config, revision });
                     assert.equal(response.status, 201);
@@ -5599,7 +5625,7 @@ import { describe, onTestFinished, test } from 'vitest';
                 for (const headers of headerCases) {
                     const response = await request('/api/community/exchange/map/config', { headers });
                     assert.match(response.headers.get('cache-control') ?? '', /no-store/);
-                    assert.deepEqual(await contractJson(response, fudabaMapConfigSchema), geographic);
+                    assert.deepEqual(await contractJson(response, fudabaMapConfigSchema), regionalSearch);
                 }
                 const referenced = await mutation(`/api/admin/community/exchange/map-delivery/sources/${mainland.id}`, 'DELETE', { revision: snapshot.delivery.revision });
                 assert.equal(referenced.status, 409);
@@ -9052,6 +9078,42 @@ import { describe, onTestFinished, test } from 'vitest';
             [],
         );
 
+        // Keyword searches are global, case-insensitive and preserve public eligibility.
+        const reviewerId = await insertBackofficeAccount(fixture.database, 'public-search-reviewer');
+        for (const [id, state] of [['office-a-closed', 'published'], ['office-b-open', 'pending']]) {
+            const published = state === 'published';
+            await insertFudabaOfficePublicLocation(fixture.database, id, OFFICE_CREATED_AT, {
+                review_state: published ? 'published' : 'pending',
+                reviewed_at: published ? OFFICE_CREATED_AT : null,
+                reviewed_by: published ? reviewerId : null,
+                review_audit_id: published ? crypto.randomUUID() : null
+            });
+        }
+        const positioned = await fixture.repository.listPublicOffices({ q: 'Office', limit: 10 });
+        assert.equal(positioned[0].public_latitude_e1, 312);
+        assert.equal(positioned[0].public_longitude_e1, 1215);
+        assert.equal(positioned[1].public_latitude_e1, null);
+        assert.deepEqual(
+            (await fixture.repository.listPublicOffices({ q: 'OFFICE', limit: 10 })).map((item) => item.id),
+            ['office-a-closed', 'office-b-open', 'office-c-beijing', 'office-d-restricted'],
+        );
+        assert.deepEqual(
+            (await fixture.repository.listPublicOffices({ q: 'beijing', limit: 10 })).map((item) => item.id),
+            ['office-c-beijing'],
+        );
+        assert.deepEqual(
+            (await fixture.repository.listPublicOffices({ q: 'Private address office-b', limit: 10 })).map((item) => item.id),
+            ['office-b-open'],
+        );
+        await fixture.database.prepare('UPDATE fudaba_offices SET name=? WHERE id=?')
+            .bind('100%_! Office', 'office-a-closed').run();
+        assert.deepEqual(
+            (await fixture.repository.listPublicOffices({ q: '%_!', limit: 10 })).map((item) => item.id),
+            ['office-a-closed'],
+        );
+        await fixture.database.prepare('UPDATE fudaba_offices SET name=? WHERE id=?')
+            .bind('Office office-a-closed', 'office-a-closed').run();
+
         const cardInputs = [
             card("card-z-new", { createdAt: CARD_NEW_AT, updatedAt: CARD_NEW_AT }),
             card("card-y-new", { createdAt: CARD_NEW_AT, updatedAt: CARD_NEW_AT }),
@@ -10059,6 +10121,8 @@ import { describe, onTestFinished, test } from 'vitest';
             await contractJson(multiSeries, fudabaOfficePageSchema);
             assert.deepEqual(fudaba.lastOfficeInput?.seriesCodes, ["765", "cg"]);
             for (const path of [
+                "/api/community/exchange/offices?q=Shanghai&q=Beijing",
+                `/api/community/exchange/offices?q=${'x'.repeat(121)}`,
                 "/api/community/exchange/offices?city=Shanghai&city=Beijing",
                 "/api/community/exchange/offices?limit=0",
                 "/api/community/exchange/offices?limit=51",
@@ -10091,6 +10155,39 @@ import { describe, onTestFinished, test } from 'vitest';
                     `?series=cg&limit=1&cursor=${body.pageInfo.nextCursor}`,
             );
             assert.equal(mismatch.status, 400);
+        });
+
+        test('office search delivers only the public regional position while map delivery is enabled', async () => {
+            const fixture = new PublicFudabaFixture();
+            const base = runtime(fixture);
+            const repository = base.fudaba!;
+            const appFor = (enabled: boolean) => createTestApp(() => ({
+                ...base,
+                config: { ...base.config, fudabaMapEnabled: enabled },
+                fudaba: {
+                    ...repository,
+                    listPublicOffices: async (input) => (await repository.listPublicOffices(input)).map((office) => ({
+                        ...office, public_latitude_e1: 312, public_longitude_e1: 1215
+                    }))
+                }
+            }));
+            const enabled = await contractJson(await testRequest(appFor(true), '/api/community/exchange/offices?q=Shanghai'), fudabaOfficePageSchema);
+            assert.deepEqual(enabled.items[0].location, { latitude: 31.2, longitude: 121.5, precision: 'regional' });
+            const disabled = await contractJson(await testRequest(appFor(false), '/api/community/exchange/offices?q=Shanghai'), fudabaOfficePageSchema);
+            assert.equal(disabled.items[0].location, undefined);
+        });
+
+        test('office keyword cursors stay bound to the submitted query', async () => {
+            const fudaba = new PublicFudabaFixture();
+            const app = createTestApp(() => runtime(fudaba));
+            const first = await testRequest(app, '/api/community/exchange/offices?q=%20Shanghai%25_%20&limit=1');
+            assert.equal(first.status, 200);
+            const body = await contractJson(first, fudabaOfficePageSchema);
+            assert.deepEqual(fudaba.lastOfficeInput, { q: 'Shanghai%_', limit: 2 });
+            assert.ok(body.pageInfo.nextCursor);
+            const cursor = encodeURIComponent(body.pageInfo.nextCursor);
+            assert.equal((await testRequest(app, `/api/community/exchange/offices?q=Shanghai%25_&limit=1&cursor=${cursor}`)).status, 200);
+            assert.equal((await testRequest(app, `/api/community/exchange/offices?q=Beijing&limit=1&cursor=${cursor}`)).status, 400);
         });
 
         test("Fudaba public surface registers no mutation routes", async () => {

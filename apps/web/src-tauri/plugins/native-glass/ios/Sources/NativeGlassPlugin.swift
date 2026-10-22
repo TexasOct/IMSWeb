@@ -188,7 +188,7 @@ final class NativeGlassPlugin: Plugin, UITabBarControllerDelegate {
       }
       self.searchGeneration = args.generation
       self.publishExchangeNavigationLayout(force: true)
-      guard ["refresh-cw", "loader-circle", "list-filter", "building-2", "credit-card"].allSatisfy({ UIImage(named: $0) != nil }) else {
+      guard ["refresh-cw", "loader-circle"].allSatisfy({ UIImage(named: $0) != nil }) else {
         self.removeSearchHost()
         invoke.resolve(["supported": false, "reason": "missing-search-icon"])
         return

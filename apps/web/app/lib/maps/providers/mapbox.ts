@@ -27,7 +27,7 @@ export const mapboxProvider = defineMapProvider<MapboxConfig>({
       id: "map-source-style-url",
       label: "地图样式地址",
       description:
-        "单独使用官方 streets-v12、light-v11、outdoors-v12 时适配站点配色；国内外模式使用发布样式的栅格结果，请先发布所需配色与当地地名语言。Studio 自定义样式按原样使用。",
+        "Mapbox GL 原生矢量地图。国内外模式中的该地图源仅用于海外（含港澳台）；旧栅格瓦片拼接已废弃。",
       maxLength: 2048,
       required: true,
     },

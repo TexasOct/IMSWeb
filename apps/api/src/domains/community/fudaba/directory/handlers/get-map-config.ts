@@ -3,7 +3,7 @@ import type { Context } from 'hono';
 import type { AppEnvironment } from '@/app';
 import { assertNoFudabaQuery } from '@/domains/community/fudaba/directory/request';
 import { readFudabaMapDelivery } from '@/domains/community/fudaba/map-delivery/map-delivery-store';
-import { describeMapProvider, describeGeographicMap } from '@/domains/community/fudaba/map-delivery/map-provider-policy';
+import { describeMapProvider, describeRegionalSearchMap } from '@/domains/community/fudaba/map-delivery/map-provider-policy';
 import { services } from '@/middleware/hono-context';
 
 /**
@@ -28,7 +28,7 @@ export async function handleGetFudabaMapConfig(
         if (delivery.routing) {
             const mainland = delivery.sources.find((source) => source.id === delivery.routing!.mainlandSourceId)!;
             const overseas = delivery.sources.find((source) => source.id === delivery.routing!.overseasSourceId)!;
-            return c.json(describeGeographicMap(mainland, overseas));
+            return c.json(describeRegionalSearchMap(mainland, overseas));
         }
         const active = delivery.sources.find(
             (source) => source.id === delivery.activeSourceId,

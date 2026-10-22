@@ -11,10 +11,19 @@ export interface MapSearchPlace {
   address: string
   attribution?: string
   target: MapSearchTarget
+  distanceMeters?: number
+  distanceLabel?: string
+  /** Regional office targets should keep their deliberately coarse map scale. */
+  zoom?: number
+}
+export interface MapSearchContext {
+  viewportCenter?: MapPosition
+  devicePosition?: MapPosition
 }
 export type MapPlaceSearcher = (
   query: string,
-  signal: AbortSignal
+  signal: AbortSignal,
+  context?: MapSearchContext
 ) => Promise<{ items: MapSearchPlace[]; attribution: string; notice?: string }>
 
 export class MapSearchError extends Error {

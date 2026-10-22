@@ -1,10 +1,13 @@
 import { beforeEach, expect, it, vi } from "vitest"
-import { MapSearchError, type MapSearchPlace } from "~/lib/maps/map-search"
+import type { MapPlaceSearcher, MapSearchPlace } from "~/lib/maps/map-search"
+import { MapSearchError } from "~/lib/maps/map-search"
 import { loadExchangeMapSearch } from "~/pages/community/exchange/exchange-map-search"
+import { loadAMapSdk } from "~/pages/community/exchange/amap-sdk"
+import { loadAMapMapBoundary } from "~/pages/community/exchange/amap-map-boundary"
 
 const mocks = vi.hoisted(() => ({
-  amap: vi.fn(),
-  mapbox: vi.fn(),
+  amap: vi.fn<MapPlaceSearcher>(),
+  mapbox: vi.fn<MapPlaceSearcher>(),
   createAMap: vi.fn(),
   createMapbox: vi.fn(),
 }))
@@ -15,6 +18,32 @@ vi.mock("~/lib/api", () => ({
   createMapboxPlaceSearch: mocks.createMapbox,
   searchFudabaPlaces: vi.fn(),
   sendWithAbort: vi.fn(),
+}))
+vi.mock("~/pages/community/exchange/amap-sdk", () => ({
+  loadAMapSdk: vi.fn(async () => ({})),
+}))
+vi.mock("~/pages/community/exchange/amap-coordinates", () => ({
+  convertAMapPositions: async (_sdk: unknown, points: unknown) => points,
+}))
+vi.mock("~/pages/community/exchange/amap-map-boundary", () => ({
+  loadAMapMapBoundary: vi.fn(async () => ({
+    country: [
+      [
+        [100, 20],
+        [125, 20],
+        [125, 45],
+        [100, 45],
+      ],
+    ],
+    overseas: [
+      [
+        [110, 25],
+        [112, 25],
+        [112, 27],
+        [110, 27],
+      ],
+    ],
+  })),
 }))
 const config = {
   provider: "federated" as const,
@@ -28,113 +57,86 @@ const config = {
     accessToken: "pk.public-mapbox-token-1234567890",
   },
 }
-const native: MapSearchPlace = {
-  id: "same-id",
-  label: "虹桥站",
-  address: "上海",
-  target: { kind: "native", provider: "amap", position: [121.327, 31.194] },
-}
-const canonical: MapSearchPlace = {
-  id: "same-id",
-  label: "Tokyo Station",
-  address: "Tokyo",
-  target: { kind: "wgs84", position: [139.767, 35.681] },
-}
+const place = (id: string, position: [number, number]): MapSearchPlace => ({
+  id,
+  label: id,
+  address: id,
+  target: { kind: "wgs84", position },
+})
 beforeEach(() => {
-  vi.resetAllMocks()
+  vi.clearAllMocks()
   mocks.createAMap.mockReturnValue(mocks.amap)
   mocks.createMapbox.mockReturnValue(mocks.mapbox)
-  mocks.amap.mockResolvedValue({ items: [native], attribution: "© 高德地图" })
+  mocks.amap.mockResolvedValue({
+    items: [place("far", [121.8, 31.2]), place("near", [121.51, 31.2])],
+    attribution: "© 高德地图",
+  })
   mocks.mapbox.mockResolvedValue({
-    items: [canonical],
+    items: [place("Tokyo", [139.7, 35.6])],
     attribution: "© Mapbox",
   })
 })
-
-it("searches both authorized services, preserves native targets and keeps result attribution independent", async () => {
+it("queries only AMap for a mainland view, normalizes its targets and ranks by device position", async () => {
   const search = await loadExchangeMapSearch(config)
-  const signal = new AbortController().signal
-  const result = await search("station", signal)
-  expect(mocks.createAMap).toHaveBeenCalledWith(config.mainland)
-  expect(mocks.createMapbox).toHaveBeenCalledWith(config.overseas.accessToken)
-  expect(mocks.amap).toHaveBeenCalledWith("station", signal)
-  expect(mocks.mapbox).toHaveBeenCalledWith("station", signal)
-  expect(result.items.map((place) => place.id)).toEqual([
-    "amap:same-id",
-    "mapbox:same-id",
-  ])
-  expect(result.items.map((place) => place.target)).toEqual([
-    native.target,
-    canonical.target,
-  ])
-  expect(result.items.map((place) => place.attribution)).toEqual([
-    "© 高德地图",
-    "© Mapbox",
-  ])
-  expect(result.attribution).toBe("© 高德地图 · © Mapbox")
-  expect(result.notice).toBeUndefined()
-})
-
-it("retains useful results with a static partial-service notice and no vendor diagnostics", async () => {
-  mocks.mapbox.mockRejectedValue(new Error("private upstream diagnostic"))
-  const result = await (
-    await loadExchangeMapSearch(config)
-  )("上海", new AbortController().signal)
-  expect(result.items).toHaveLength(1)
-  expect(result.attribution).toBe("© 高德地图")
-  expect(result.notice).toContain("部分地点服务暂不可用")
-  expect(JSON.stringify(result)).not.toContain("private upstream")
-})
-
-it("does not report a worldwide no-result answer when one empty service is the only success", async () => {
-  mocks.amap.mockResolvedValue({ items: [], attribution: "© 高德地图" })
-  mocks.mapbox.mockRejectedValue(new MapSearchError("unavailable"))
-  await expect(
-    (await loadExchangeMapSearch(config))("Tokyo", new AbortController().signal)
-  ).rejects.toMatchObject({ kind: "unavailable" })
-})
-
-it("isolates a search-module load failure and preserves the other service", async () => {
-  mocks.createAMap.mockImplementation(() => {
-    throw new Error("chunk unavailable")
+  const response = await search("咖啡", new AbortController().signal, {
+    viewportCenter: [121.5, 31.2],
+    devicePosition: [121.5, 31.2],
   })
-  const result = await (
-    await loadExchangeMapSearch(config)
-  )("Tokyo", new AbortController().signal)
-  expect(result.items[0]?.id).toBe("mapbox:same-id")
-  expect(result.attribution).toBe("© Mapbox")
-  expect(result.notice).toContain("部分地点服务")
+  expect(mocks.createAMap).toHaveBeenCalledWith(config.mainland, "wgs84", {
+    vicinityFirst: true,
+  })
+  expect(mocks.amap).toHaveBeenCalledOnce()
+  expect(mocks.mapbox).not.toHaveBeenCalled()
+  expect(response.items.map((p) => p.id)).toEqual(["near", "far"])
+  expect(response.items[0]?.distanceLabel).toMatch(/^距你 /)
+  expect(response.attribution).toBe("© 高德地图")
 })
-
-it("forwards one cancellation owner to both services and rejects late results", async () => {
-  let resolveAMap!: (value: unknown) => void,
-    resolveMapbox!: (value: unknown) => void
-  mocks.amap.mockImplementation(
-    () =>
-      new Promise((resolve) => {
-        resolveAMap = resolve
-      })
-  )
+it("routes by map region rather than user location or words and preserves Mapbox attribution", async () => {
+  const search = await loadExchangeMapSearch(config)
+  const response = await search("上海", new AbortController().signal, {
+    viewportCenter: [139.7, 35.6],
+    devicePosition: [121.5, 31.2],
+  })
+  expect(mocks.mapbox).toHaveBeenCalledOnce()
+  expect(mocks.amap).not.toHaveBeenCalled()
+  expect(loadAMapSdk).not.toHaveBeenCalled()
+  expect(response.attribution).toBe("© Mapbox")
+})
+it("excludes HK/MO/TW geometry and labels map-centre fallback honestly", async () => {
+  const response = await (
+    await loadExchangeMapSearch(config)
+  )("车站", new AbortController().signal, { viewportCenter: [111, 26] })
+  expect(mocks.amap).not.toHaveBeenCalled()
+  expect(mocks.mapbox).toHaveBeenCalledOnce()
+  expect(loadAMapMapBoundary).toHaveBeenCalledOnce()
+  expect(response.items[0]?.distanceLabel).toMatch(/^距地图中心 /)
+})
+it("does not silently switch providers after a mainland failure", async () => {
+  mocks.amap.mockRejectedValue(new MapSearchError("unavailable"))
+  await expect(
+    (await loadExchangeMapSearch(config))(
+      "上海",
+      new AbortController().signal,
+      { viewportCenter: [121.5, 31.2] }
+    )
+  ).rejects.toMatchObject({ kind: "unavailable" })
+  expect(mocks.mapbox).not.toHaveBeenCalled()
+})
+it("rejects late responses and retains the request-time position snapshot", async () => {
+  let finish!: (value: Awaited<ReturnType<MapPlaceSearcher>>) => void
   mocks.mapbox.mockImplementation(
     () =>
       new Promise((resolve) => {
-        resolveMapbox = resolve
+        finish = resolve
       })
   )
-  const controller = new AbortController()
   const search = await loadExchangeMapSearch(config)
-  const pending = search("station", controller.signal)
+  const controller = new AbortController()
+  const center: [number, number] = [139.7, 35.6]
+  const pending = search("Tokyo", controller.signal, { viewportCenter: center })
+  center[0] = 121.5
   controller.abort()
-  resolveAMap({ items: [native], attribution: "© 高德地图" })
-  resolveMapbox({ items: [canonical], attribution: "© Mapbox" })
+  finish({ items: [place("late", [139.7, 35.6])], attribution: "© Mapbox" })
   await expect(pending).rejects.toMatchObject({ name: "AbortError" })
-  expect(mocks.amap.mock.calls[0]?.[1]).toBe(controller.signal)
-  expect(mocks.mapbox.mock.calls[0]?.[1]).toBe(controller.signal)
-  mocks.amap.mockClear()
-  mocks.mapbox.mockClear()
-  await expect(search("station", controller.signal)).rejects.toMatchObject({
-    name: "AbortError",
-  })
-  expect(mocks.amap).not.toHaveBeenCalled()
-  expect(mocks.mapbox).not.toHaveBeenCalled()
+  expect(mocks.mapbox.mock.calls[0]?.[2]?.viewportCenter).toEqual([139.7, 35.6])
 })

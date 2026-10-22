@@ -531,6 +531,10 @@ function publicOfficeRecord(
         is_open: booleanValue(row.is_open),
         visitor_count: Number(row.visitor_count),
         series_codes: seriesCodes,
+        ...(row.public_latitude_e1 !== undefined ? {
+            public_latitude_e1: row.public_latitude_e1 == null ? null : Number(row.public_latitude_e1),
+            public_longitude_e1: row.public_longitude_e1 == null ? null : Number(row.public_longitude_e1)
+        } : {}),
     };
 }
 
@@ -1016,6 +1020,11 @@ export class SqlFudabaRepository implements FudabaRepository {
     ): Promise<FudabaPublicOfficeRecord[]> {
         const conditions = [PUBLIC_OFFICE_ELIGIBILITY];
         const parameters: unknown[] = [];
+        if (input.q) {
+            const pattern = `%${input.q.toLowerCase().replace(/[!%_]/g, '!$&')}%`;
+            conditions.push("(LOWER(office.name) LIKE ? ESCAPE '!' OR LOWER(office.city) LIKE ? ESCAPE '!' OR LOWER(office.address) LIKE ? ESCAPE '!')");
+            parameters.push(pattern, pattern, pattern);
+        }
         if (input.city !== undefined) {
             conditions.push("office.city=?");
             parameters.push(input.city);
@@ -1050,10 +1059,21 @@ export class SqlFudabaRepository implements FudabaRepository {
         parameters.push(input.limit);
         const rows = await queryAll<FudabaPublicOfficeRow>(
             this.database,
-            `SELECT ${PUBLIC_OFFICE_COLUMNS}
+            `SELECT ${PUBLIC_OFFICE_COLUMNS}${input.q ? `,
+                location.latitude_e1 AS public_latitude_e1,
+                location.longitude_e1 AS public_longitude_e1` : ''}
              FROM fudaba_offices office
              JOIN platform_accounts office_owner
                ON office_owner.id=office.owner_account_id
+             ${input.q ? `LEFT JOIN fudaba_office_public_locations location
+                ON location.office_id=office.id AND location.review_state='published'
+                AND (NOT EXISTS (
+                    SELECT 1 FROM fudaba_office_series_tags any_tag WHERE any_tag.office_id=office.id
+                ) OR EXISTS (
+                    SELECT 1 FROM fudaba_office_series_tags tag JOIN agencies series
+                      ON series.code=tag.series_code AND series.wiki_enabled
+                    WHERE tag.office_id=office.id
+                ))` : ''}
              WHERE ${conditions.join(" AND ")}
              ORDER BY office.visitor_count DESC, office.id ASC
              LIMIT ?`,

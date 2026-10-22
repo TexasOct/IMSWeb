@@ -236,13 +236,15 @@ describe("ExchangeOfficeMap App viewport memory", () => {
     })
   })
 
-  it("animates back to the current user location", async () => {
+  it("gives manual location priority over the initial readiness attempt", async () => {
     const user = userEvent.setup()
+    const claim = vi.fn(() => new AbortController().signal)
 
-    render(<ExchangeOfficeMap {...mapProps} />)
+    render(<ExchangeOfficeMap {...mapProps} claimInitialLocation={claim} />)
     await user.click(screen.getByRole("button", { name: "回到我的位置" }))
 
     expect(geolocationMocks.getCurrentCoordinates).toHaveBeenCalledOnce()
+    expect(claim).toHaveBeenCalledOnce()
     const map = maplibreMocks.instances[0]
     expect(map?.easeTo).toHaveBeenCalledWith({
       center: [121.473701, 31.230416],

@@ -91,11 +91,11 @@ describe("ExchangeSearchCard", () => {
         1
       )
       expect(
-        within(screen.getByLabelText("更多地图工具内容")).queryByRole(
-          "button",
-          { name: "刷新名录" }
-        )
+        within(
+          await screen.findByRole("menu", { name: "更多地图工具内容" })
+        ).queryByRole("button", { name: "刷新名录" })
       ).not.toBeInTheDocument()
+      await user.keyboard("{Escape}")
       await user.click(screen.getByRole("button", { name: "查找地点" }))
       expect(mocks.expanded).toHaveBeenLastCalledWith(true)
       expect(screen.getAllByText(feedbackMessage)).toHaveLength(1)
@@ -111,6 +111,35 @@ describe("ExchangeSearchCard", () => {
       "true"
     )
     expect(screen.getByRole("button", { name: "查找地点" })).toBeEnabled()
+  })
+  it("updates the placeholder from loading to empty to error without replacing the input or duplicating feedback", async () => {
+    let finish!: (value: unknown) => void
+    mocks.send.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve
+      })
+    )
+    const user = userEvent.setup()
+    renderPage(<Harness feedbackMessage="当前范围内没有公开事务所" />)
+    await user.click(screen.getByRole("button", { name: "查找地点" }))
+    const input = screen.getByRole("textbox", { name: "搜索地点" })
+    await user.type(input, "空白测试")
+    await user.click(screen.getByRole("button", { name: "查找" }))
+    expect(screen.getByRole("status")).toHaveTextContent("正在搜索地点")
+    expect(
+      screen.queryByText("当前范围内没有公开事务所")
+    ).not.toBeInTheDocument()
+    finish({ success: true, items: [], attribution: "OpenStreetMap" })
+    await screen.findByText("没有找到地点")
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "请尝试城市加场馆名或完整地址。"
+    )
+    mocks.send.mockRejectedValueOnce(new Error("fixture unavailable"))
+    await user.click(screen.getByRole("button", { name: "查找" }))
+    expect(await screen.findByRole("alert")).toHaveTextContent("可以重新查找。")
+    expect(screen.queryByText("没有找到地点")).not.toBeInTheDocument()
+    expect(screen.getByRole("textbox", { name: "搜索地点" })).toBe(input)
+    expect(input).toHaveValue("空白测试")
   })
   it("moves refresh into the map anchor and retains its button through busy updates", async () => {
     const user = userEvent.setup()
@@ -189,10 +218,11 @@ describe("ExchangeSearchCard", () => {
     ).not.toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "更多地图工具" }))
     expect(
-      within(screen.getByLabelText("更多地图工具内容")).getByText(
-        "当前范围：3 个区域点"
-      )
+      within(
+        await screen.findByRole("menu", { name: "更多地图工具内容" })
+      ).getByText("当前范围：3 个区域点")
     ).toBeVisible()
+    await user.keyboard("{Escape}")
     await user.click(screen.getByRole("button", { name: "查找地点" }))
     await user.click(screen.getByRole("button", { name: "展开结果" }))
     expect(screen.getByRole("region", { name: "地点查找" })).toHaveAttribute(
@@ -220,5 +250,36 @@ describe("ExchangeSearchCard", () => {
     expect(within(summary).queryByText(combined)).not.toBeInTheDocument()
     await user.click(summary)
     expect(screen.getByText(combined)).toBeVisible()
+  })
+  it("opens tools without losing a draft and closes only the menu on Escape", async () => {
+    const user = userEvent.setup()
+    renderPage(<Harness />)
+    expect(screen.queryByRole("menuitem")).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: "打开筛选" })
+    ).not.toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "查找地点" }))
+    const input = screen.getByRole("textbox", { name: "搜索地点" })
+    await user.type(input, "上海")
+    const more = screen.getByRole("button", { name: "更多地图工具" })
+    await user.click(more)
+    const menu = await screen.findByRole("menu", { name: "更多地图工具内容" })
+    expect(
+      within(menu).getByRole("menuitem", { name: "打开筛选" })
+    ).toBeVisible()
+    expect(
+      within(menu).getByRole("menuitem", { name: "打开事务所名录" })
+    ).toBeVisible()
+    expect(
+      within(menu).getByRole("menuitem", { name: "打开名片名录" })
+    ).toBeVisible()
+    await user.keyboard("{Escape}")
+    await waitFor(() =>
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument()
+    )
+    expect(more).toHaveFocus()
+    expect(screen.getByRole("textbox", { name: "搜索地点" })).toBe(input)
+    expect(input).toHaveValue("上海")
+    expect(mocks.search).not.toHaveBeenCalled()
   })
 })

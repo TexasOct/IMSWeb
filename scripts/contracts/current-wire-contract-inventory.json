@@ -3,7 +3,7 @@
   "generation": {
     "command": "node scripts/contracts/compile-route-inventory.mjs --write",
     "reportCommand": "node scripts/contracts/compile-route-inventory.mjs --report",
-    "semanticDigest": "6a62c5a621122c245907dc2ddb5dcdab2b1615458f821fbabf4248acbce7ede7",
+    "semanticDigest": "90c44823f4f01e773dcaf04f0f65b78de6e0ef7f75c075abaee194c7793590a8",
     "entry": "apps/api/src/app.ts",
     "entrySymbol": "createHonoApp"
   },
@@ -3556,7 +3556,7 @@
         {
           "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
           "kind": "json",
-          "expression": "describeGeographicMap ( mainland , overseas )"
+          "expression": "describeRegionalSearchMap ( mainland , overseas )"
         },
         {
           "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
@@ -20539,7 +20539,7 @@
       "handlerSymbol": "handleGetFudabaMapConfig",
       "file": "apps/api/src/domains/community/fudaba/directory/handlers/get-map-config.ts",
       "kind": "json",
-      "expression": "describeGeographicMap ( mainland , overseas )"
+      "expression": "describeRegionalSearchMap ( mainland , overseas )"
     },
     {
       "method": "GET",

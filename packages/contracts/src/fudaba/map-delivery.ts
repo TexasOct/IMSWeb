@@ -93,13 +93,25 @@ const federatedMapSearchConfigSchema = z.object({ provider: z.literal("federated
 export const fudabaMapSearchConfigSchema = z.union([singleMapSearchConfigSchema, federatedMapSearchConfigSchema]);
 export type FudabaMapSearchConfig = z.infer<typeof fudabaMapSearchConfigSchema>;
 
-const geographicMapConfigSchema = z.object({
-  provider: z.literal("geographic"),
-  mainland: z.object(amapFields).strict(),
-  overseas: z.object(mapboxFields).strict(),
-  search: federatedMapSearchConfigSchema,
-}).strict();
-export type FudabaGeographicMapConfig = z.infer<typeof geographicMapConfigSchema>;
+export const fudabaRegionalProviderMapConfigSchema = z
+  .object({
+    provider: z.literal("regional"),
+    mainland: z.object(amapFields).strict(),
+    overseas: z.object(mapboxFields).strict(),
+    defaultRegion: z.enum(["mainland", "overseas"]),
+    search: federatedMapSearchConfigSchema,
+  })
+  .strict()
+  .refine(
+    (config) =>
+      config.mainland.apiKey === config.search.mainland.apiKey &&
+      config.mainland.securityProxyUrl === config.search.mainland.securityProxyUrl &&
+      config.overseas.accessToken === config.search.overseas.accessToken,
+    "regional renderer and search credentials must match",
+  );
+export type FudabaRegionalProviderMapConfig = z.infer<
+  typeof fudabaRegionalProviderMapConfigSchema
+>;
 
 export const fudabaMapConfigSchema = z
   .union([
@@ -108,13 +120,13 @@ export const fudabaMapConfigSchema = z
       .strict(),
     z.object({ ...amapFields, search: singleMapSearchConfigSchema }).strict(),
     z.object({ ...mapboxFields, search: singleMapSearchConfigSchema }).strict(),
-    geographicMapConfigSchema,
+    fudabaRegionalProviderMapConfigSchema,
   ])
   .refine(
     (config) =>
-      config.provider === "geographic"
-        ? config.mainland.apiKey === config.search.mainland.apiKey && config.mainland.securityProxyUrl === config.search.mainland.securityProxyUrl && config.overseas.accessToken === config.search.overseas.accessToken
-        : config.search.provider === "nominatim" || config.search.provider === config.provider,
+      config.provider === "regional" ||
+      config.search.provider === "nominatim" ||
+      config.search.provider === config.provider,
     "native search must be compatible with its map provider",
   );
 export type FudabaMapConfig = z.infer<typeof fudabaMapConfigSchema>;
@@ -205,7 +217,7 @@ export const fudabaMapDeliverySnapshotSchema = z
       snapshot.sources.find((source) => source.id === snapshot.routing!.mainlandSourceId)?.provider !== "amap" ||
       snapshot.sources.find((source) => source.id === snapshot.routing!.overseasSourceId)?.provider !== "mapbox"
     )) {
-      context.addIssue({ code: z.ZodIssueCode.custom, message: "geographic delivery requires mainland AMap and overseas Mapbox sources", path: ["routing"] });
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "mainland search requires an AMap source and overseas search requires a Mapbox source", path: ["routing"] });
     }
     const active = snapshot.sources.find(
       (source) => source.id === snapshot.activeSourceId,
