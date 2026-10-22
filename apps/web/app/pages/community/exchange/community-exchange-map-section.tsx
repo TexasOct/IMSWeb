@@ -870,9 +870,9 @@ export function CommunityExchangeMapSection({
         <>
           <ExchangeWebMapWorkspace
             tabs={workspaceSearch.tabs}
-            covered={officeListOpen}
+            covered={isNarrow && officeListOpen}
             onActivate={() => {
-              setOfficeListOpen(false)
+              if (isNarrow) setOfficeListOpen(false)
               clearOfficeSelection()
             }}
             model={searchModel}

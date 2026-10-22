@@ -342,12 +342,26 @@ test.describe("community exchange map attribution", () => {
   test("keeps rounded search actions reachable in a dark short viewport with reduced motion @mobile", async ({
     api,
     page,
-  }) => {
+  }, testInfo) => {
     installMapMocks(api)
     await page.setViewportSize({ width: 667, height: 375 })
     await page.emulateMedia({ reducedMotion: "reduce" })
     await openWorkspace(page)
     await page.evaluate(() => document.documentElement.classList.add("dark"))
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const locate = document.querySelector(
+            '[data-native-glass-control="locate"]'
+          )!
+          const refresh = document.querySelector(".exchange-web-refresh")!
+          return (
+            getComputedStyle(locate).backgroundColor ===
+            getComputedStyle(refresh).backgroundColor
+          )
+        })
+      )
+      .toBe(true)
     const card = searchCard(page)
     const input = card.getByRole("textbox", { name: "搜索地点" })
     await input.fill("上海")
@@ -382,6 +396,9 @@ test.describe("community exchange map attribution", () => {
         .locator(".exchange-web-drawer")
         .evaluate((element) => getComputedStyle(element).transitionDuration)
     ).toBe("0s")
+    await page.screenshot({
+      path: testInfo.outputPath("dark-map-controls.png"),
+    })
   })
   for (const [width, height] of [
     [320, 568],

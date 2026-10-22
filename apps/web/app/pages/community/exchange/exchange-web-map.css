@@ -11,6 +11,7 @@
 [data-exchange-web-workspace] [data-native-glass-control="locate"] {
   position: absolute;
   border: 1px solid var(--border);
+  background: var(--background);
   box-shadow: 0 2px 8px oklch(0 0 0 / 6%);
 }
 
