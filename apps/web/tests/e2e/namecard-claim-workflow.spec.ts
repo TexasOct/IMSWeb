@@ -5,6 +5,7 @@ import type { Locator, Page } from "@playwright/test"
 import { installAdminAuthMock } from "./fixtures/admin-auth"
 import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
+import { installSeededPublicApis } from "./fixtures/public-content"
 
 const FRONT_IMAGE = "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA="
 const BACK_IMAGE =
@@ -581,6 +582,16 @@ test.describe("namecard claim workflow", () => {
   test("same-ID envelope asks the owner before submitting an admin-reviewed claim", async ({
     page,
   }) => {
+    installSeededPublicApis(api, [
+      { path: "/api/community/exchange/series", times: 1 },
+      { path: "/api/community/exchange/offices", times: 1 },
+      { path: "/api/community/exchange/cards", times: 1 },
+      { path: "/api/community/exchange/map/config", times: 1 },
+      {
+        path: "/api/community/exchange/map/offices",
+        times: { min: 0, max: 8 },
+      },
+    ])
     await mockPlatformSession(page)
     await api.mockRoute(
       "**/api/platform/me",

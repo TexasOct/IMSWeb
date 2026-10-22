@@ -337,7 +337,10 @@
 }
 
 @media (max-width: 1023px) and (max-height: 500px) {
-  .exchange-web-search-results > header,
+  /* The tabs and dock retain search context and dismissal in short viewports. */
+  .exchange-web-search-results > header {
+    display: none;
+  }
   .exchange-web-details > header {
     padding: 0.125rem 0.5rem;
   }
