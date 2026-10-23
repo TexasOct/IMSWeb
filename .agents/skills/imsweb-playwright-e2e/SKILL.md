@@ -9,7 +9,7 @@ Use for changes to `apps/web/tests/e2e/*.spec.ts`, Playwright fixture behavior, 
 
 ## Procedure
 
-1. Read `.trellis/spec/web/frontend/testing.md` and `apps/web/.rules`. For test-owner selection beyond Playwright, use `imsweb-test-routing`.
+1. Read `docs/development/testing.md` and `apps/web/.rules`. For test-owner selection beyond Playwright, use `imsweb-test-routing`.
 2. Classify the target:
    - Ordinary Web: `pnpm --filter @imsweb/web run test:e2e`; config is `playwright.config.ts` and excludes `app-*.spec.ts`.
    - App WebView browser: `pnpm --filter @imsweb/web run test:e2e:app`; config is `playwright.app.config.ts` and includes `app-*.spec.ts`. It tests the App web surface, not native device integration.
@@ -37,7 +37,7 @@ Use for changes to `apps/web/tests/e2e/*.spec.ts`, Playwright fixture behavior, 
 
 ## Authority
 
-- `.trellis/spec/web/frontend/testing.md`
+- `docs/development/testing.md`
 - `apps/web/playwright.config.ts`
 - `apps/web/playwright.app.config.ts`
 - `apps/web/tests/e2e/fixtures/test.ts`

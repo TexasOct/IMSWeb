@@ -10,7 +10,7 @@ import { createNodeSecurityFixture } from './node-security/fixture.js';
 import { registerFudabaTests } from './node-security/fudaba.owner.js';
 import { registerInformationTests } from './node-security/information.owner.js';
 import { registerNewsTests } from './node-security/news.owner.js';
-import { postgresTest } from './postgres-test-database.ts';
+import { postgresTest } from './postgres-test-database';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
@@ -50,7 +50,7 @@ import { afterAll, beforeAll, describe, test } from 'vitest';
 
             // The previous runner attached this as a test diagnostic; the Vitest
             // equivalent is the test's metadata, which keeps the fields machine-readable.
-            context.task.meta.listenerProbe = {
+            (context.task.meta as Record<string, unknown>).listenerProbe = {
                 phase: terminal.phase,
                 status: result.status,
                 elapsedMs: terminal.elapsedMs

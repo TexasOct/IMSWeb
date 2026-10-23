@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from "node:fs"
 import { isAbsolute, join, relative } from "node:path"
 import type { Plugin } from "vite"
 
-/** Vite's lockfile hash does not include our linked CommonJS runtime bytes. */
+/** Vite's lockfile hash does not include our linked contracts runtime bytes. */
 export function contractsDigest(root: string): string {
   const hash = createHash("sha256")
   function visit(directory: string) {

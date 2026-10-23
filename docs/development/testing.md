@@ -25,11 +25,26 @@ Root、API 和 Web 的 package script 表面由 `tests/test_workspace_boundaries
 添加或删除 script 要同步边界测试中的期望值。不得新增 `test:all`，也不为准备状态增加 package alias 或
 可独立调用的跳过参数。
 
+### 执行域与 runner
+
+仓库按运行环境划分执行域，每个执行域只使用一个 runner；它们不是同一类测试的两种实现：
+
+| 执行域 | Runner | 使用位置 |
+| --- | --- | --- |
+| JS/TS 单元、HTTP 契约、迁移与仓库契约 | Vitest | `apps/api/tests/**`、`apps/web/tests/unit/**`、`tests/**`、`scripts/**/tests/**` |
+| 浏览器流程 | Playwright | `apps/web/tests/e2e/**` |
+| 仓库边界、部署与规则（文件树/fixture 断言） | Python `unittest` | `tests/test_*.py` |
+| 无构建依赖的独立校验器 | `node:test` | 仅限独立 `.mjs` 校验器，如 `apps/web/tests/native/exchange-search-geometry.test.mjs` |
+
+API 测试全部由 Vitest 执行，包括 `apps/api/tests` 中验证编译后 `dist/server` 入口的用例；
+仓库不使用 Node 内置 runner 跑 API 测试，验证已构建产物的用例只是 Vitest plan 中的一个
+profile。
+
 Root `test` 由同一个 runner 进程按顺序运行 `check:root`、governance、contracts、delivery 的
 root 与 integration profile、完整 API owner，最后是 Web unit。
 Delivery integration profile 成功构建 Web 和 API 后，该进程才会运行不再构建的 API 阶段，
-该阶段包含 build、syntax、architecture 和一次覆盖整个 `apps/api/tests`（排除 `tests/assets/`）
-的 Vitest 全量运行；Node、server、Wiki 与 migration 已并入这一次运行。`tests/assets/` 断言的
+该阶段包含 build、syntax、architecture 和一次覆盖整个 `apps/api/tests`（排除 `apps/api/tests/assets/`）
+的 Vitest 全量运行；Node、server、Wiki 与 migration 已并入这一次运行。`apps/api/tests/assets/` 断言的
 是已构建的 Web 客户端（`apps/web/build/client`），只属于先构建 Web 的 delivery integration，
 因此不在 API owner 计划里：CI API lane 从不构建 Web，跑它只会在缺构建产物上失败，而不是暴
 露真实缺陷。这样 API 测试不会接受另一次运行留下的 `dist/server/main.js`。CI API lane 直接运
@@ -97,7 +112,7 @@ pnpm exec vitest run --project=api   # 只跑某个项目
   （`scripts/testing/vitest/panel-workspace-cwd.setup.mts`）。两个域平时都由
   `pnpm --filter <workspace> run test` 从 workspace 目录启动，少数用例依赖这一点：Web 用
   `process.cwd()` 读 `app/`、`public/`、`DESIGN.md` 等夹具，API 的
-  `tests/migration/legacy-information-media.test.js` 交给 tsx hook，而 tsconfig 的 `@/*` 路径由
+  `apps/api/tests/migration/legacy.test.js` 交给 tsx hook，而 tsconfig 的 `@/*` 路径由
   cwd 决定。Vitest 给项目自己的 root／environment／pool，但不给单独的 cwd，所以根配置按项目传
   入 workspace 路径并在 worker 里 `chdir`；这只在面板里生效，CI 不加载根配置。仓库域不需要这
   一层：它本来就从仓库根跑，且用例按自身文件位置解析路径。
@@ -108,8 +123,8 @@ pnpm exec vitest run --project=api   # 只跑某个项目
   pnpm run build
   ```
 
-  未构建时 `frontend-routing.contract.test.js` 在收集阶段就失败（`Required build output is
-  missing`），`client-allowlist.test.js` 的 fs 访问在用例内，属运行期失败；其余用例不受影响。配置
+  未构建时 `frontend-routing.contract.test.ts` 在收集阶段就失败（`Required build output is
+  missing`），`client-allowlist` 套件的 fs 访问在用例内，属运行期失败；其余用例不受影响。配置
   层不做 exclude，否则 CI 与面板看到的测试集合就不再是同一个。
 
 根配置只列三条域配置路径，靠 `tests/vitest-projects.test.mjs` 守卫：路径不存在、被替换，或某个域
@@ -145,7 +160,7 @@ CI Web 使用 `build/client`，由 `pnpm preview` 在 4173 端口复用 Hono 静
 
 | 范围                        | 位置                                                                                | 主要工具                             |
 | --------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------ |
-| API Node、数据库、HTTP      | `apps/api/tests/*.test.js`、`apps/api/tests/server/`、`apps/api/tests/integration/` | Vitest、TypeScript                   |
+| API Node、数据库、HTTP      | `apps/api/tests/**`（`*.test.ts` / `*.test.js`）、`apps/api/tests/server/`、`apps/api/tests/integration/` | Vitest、TypeScript                   |
 | Wiki contract 与数据        | `apps/api/tests/wiki/`                                                              | Vitest、PostgreSQL fixture           |
 | API migration               | `apps/api/tests/migration/`                                                         | Vitest                               |
 | API packaged 资产         | `apps/api/tests/assets/`                                                             | Vitest（由 delivery integration 运行） |
@@ -161,7 +176,7 @@ Web 测试必须位于 `apps/web/tests/`，不得放进 `apps/web/app/`。API �
 
 ### Web 浏览器用例
 
-- 从 [`tests/e2e/fixtures/test.ts`](../../apps/web/tests/e2e/fixtures/test.ts) 导入 `test` 和
+- 从 [`apps/web/tests/e2e/fixtures/test.ts`](../../apps/web/tests/e2e/fixtures/test.ts) 导入 `test` 和
   `expect`，通过 API dispatcher 声明请求与响应；它在 teardown 校验 contract 和调用次数。
   放行真实请求必须提供名称和理由。
 - 保持 Web/App Playwright 配置中的超时、单 worker 和零重试预算。用可观察状态等待异步完成，
@@ -174,13 +189,13 @@ Web 测试必须位于 `apps/web/tests/`，不得放进 `apps/web/app/`。API �
 
 ### Web 单测、fixture 与开发 mock
 
-- 复用 [`tests/unit/support/`](../../apps/web/tests/unit/support/) 中的路由装配、i18n、请求、
+- 复用 [`apps/web/tests/unit/support/`](../../apps/web/tests/unit/support/) 中的路由装配、i18n、请求、
   CSRF、触控和样式读取 helper。`renderPage` 只提供 `MemoryRouter`，额外 provider 显式组合；
   hoisted `vi.mock(...)` 留在测试文件中。
 - 可复用的领域 fixture 工厂放在 [`mocks/data/`](../../apps/web/mocks/data/)，从所属
   `@imsweb/contracts/<domain>` 导入响应类型，提供完整合法默认值和类型化 overrides。
   保留真实 envelope、必需的 nullable 字段，并区分 wire response 与 client 投影。
-- 工厂同时由 [`tests/unit/mocks/data/`](../../apps/web/tests/unit/mocks/data/) 中的 schema parse
+- 工厂同时由 [`apps/web/tests/unit/mocks/data/`](../../apps/web/tests/unit/mocks/data/) 中的 schema parse
   和必需字段断言验证，不能只依赖 TypeScript。
 - 开发 MSW handler 使用共享路径 builder 和上述工厂，详情响应回显请求的 ID/slug。
   mock 限于读取与占位媒体，写操作交给真实后端；媒体匹配不得截获应用 bundle。

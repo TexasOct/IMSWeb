@@ -21,7 +21,7 @@
 
 `public/brand/imsweb-app-icon.png` 是桌面客户端的应用图标源文件，画布 1024 x 1024。它现在是**派生**资产：
 由 `apps/web/src-tauri/icon-sources/app-icon.svg` 的几何配上亮色底板（`#e0e1e3`，与 `icon.json` 的 light fill 同值）
-栅格化而来，与应用图标同源同算法。`pnpm run icon:app` 由它派生出 `src-tauri/icons/` 下的桌面图标、
+栅格化而来，与应用图标同源同算法。`pnpm --filter @imsweb/web run icon:app` 由它派生出 `src-tauri/icons/` 下的桌面图标、
 iOS 旧系统 `AppIcon.appiconset`，以及 Android 旧版 launcher（`ic_launcher.png`、`ic_launcher_round.png`）。
 从仓库根目录重新生成平台图标：
 
@@ -58,7 +58,7 @@ Android launcher icon 另有三张仓库内图层源文件。背景层是与 iOS
 | `apps/web/src-tauri/icon-sources/android-foreground.png` | 12492 | `397228e63326d96507843a287ea88f850db1a8467c82fdd5ebbd39cabef38efb` |
 | `apps/web/src-tauri/icon-sources/android-monochrome.png` | 8174 | `af3bb8109d7064878302a05345b50045842c22979c9bf267fd709541153cc4aa` |
 
-`apps/web/src-tauri/icon-sources/app-icon.json` 定义默认图、Android 图层和旧版 launcher 的前景缩放比例。`apps/web/src-tauri/icons/` 下的 PNG、`icon.icns` 和 `icon.ico` 全部由该 manifest 经 `pnpm run icon:app` 派生，不单独登记；命令会在生成后规范化 ICNS 顶层块顺序，保证相同源图产生相同的版本库内容。替换任一源图后必须重新生成，并同步更新上表的字节数与 SHA-256。
+`apps/web/src-tauri/icon-sources/app-icon.json` 定义默认图、Android 图层和旧版 launcher 的前景缩放比例。`apps/web/src-tauri/icons/` 下的 PNG、`icon.icns` 和 `icon.ico` 全部由该 manifest 经 `pnpm --filter @imsweb/web run icon:app` 派生，不单独登记；命令会在生成后规范化 ICNS 顶层块顺序，保证相同源图产生相同的版本库内容。替换任一源图后必须重新生成，并同步更新上表的字节数与 SHA-256。
 
 ### iOS Liquid Glass 图标
 
@@ -95,7 +95,7 @@ iOS 26 及以上改用 Icon Composer 文档 `apps/web/src-tauri/icon-sources/ios
 | `apps/web/src-tauri/icon-sources/ios-liquid-glass/AppIcon.icon/Assets/Wordmark.png` | 12185 | `f4e6b52023433ef141d1d1a45e43fbdc86c612522ee831924663749192059fc8` |
 | `apps/web/src-tauri/icon-sources/ios-liquid-glass/AppIcon.icon/Assets/At.png` | 8939 | `1e49386990e4ca42da78baad5c277ec7e11734c2685dbdd48f842f3f24ffb2a3` |
 
-`apps/web/scripts/sync-ios-app-icon.js` 由 `pnpm run icon:app` 调用。它把该目录复制进派生的 `gen/apple/AppIcon.icon`，并给 `gen/apple/imsweb.xcodeproj/project.pbxproj` 补一条顶层文件引用，让 `actool` 把 `.icon` 当作图标栈，而不是资源目录里的普通文件。
+`apps/web/scripts/sync-ios-app-icon.js` 由 `pnpm --filter @imsweb/web run icon:app` 调用。它把该目录复制进派生的 `gen/apple/AppIcon.icon`，并给 `gen/apple/imsweb.xcodeproj/project.pbxproj` 补一条顶层文件引用，让 `actool` 把 `.icon` 当作图标栈，而不是资源目录里的普通文件。
 
 ### 系列墙与随机 icon
 

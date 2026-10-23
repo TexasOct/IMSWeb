@@ -34,11 +34,10 @@ const apiNodeCommand = [
   "exec",
   "vitest",
   "run",
-  "tests/hono-app-contract.test.js",
-  "tests/node-listener-probe.test.js",
-  "tests/node-security.test.js",
-  "tests/operation-scripts.test.js",
-  "tests/postgres-test-lifecycle.test.js",
+  "tests/hono-app-contract.test.ts",
+  "tests/node.test.ts",
+  "tests/operation-scripts.test.ts",
+  "tests/postgres-test-lifecycle.test.ts",
 ];
 
 // The API `all` profile collapses the whole API test tree into one Vitest run:

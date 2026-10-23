@@ -101,7 +101,7 @@ Tauri 的 `dev` 和 `build` 会先运行 `icon:app`，因此 Android 生成工�
 修改 `src-tauri/icon-sources/app-icon.svg` 时必须同步更新图层 PNG 和完整图标，维护边界见
 [资产来源记录](../governance/assets.md)，再运行 `icon:app` 检查平台派生图标。
 
-图标按平台分流。桌面使用 `src-tauri/icons/` 下的 `icon.icns` 和 `icon.ico`，Android 使用 `app-icon.json` 生成的三图层 adaptive icon 加旧版 launcher 位图；三者与 iOS 图层同源，都是扁平版（字面不再有金属渐变），亮色底板统一为 `#e0e1e3`。iOS 26 及以上加载 `src-tauri/icon-sources/ios-liquid-glass/AppIcon.icon`：`scripts/sync-ios-app-icon.js` 把该目录复制到 `gen/apple/AppIcon.icon`，再给 `gen/apple/imsweb.xcodeproj/project.pbxproj` 补一条顶层文件引用，使 `actool` 把它编译成 `IconImageStack`。接线放在 `icon:app` 而不是 `build.rs`，因为 `icon:app` 是 `beforeBuildCommand`，在 xcodebuild 读取工程之前执行；`build.rs` 要等 xcodebuild 进入 cargo 阶段才运行，已经晚于工程读取。同步脚本幂等，`gen/apple` 不存在时静默跳过，桌面与 Android 构建不受影响。
+图标按平台分流。桌面使用 `src-tauri/icons/` 下的 `icon.icns` 和 `icon.ico`，Android 使用 `app-icon.json` 生成的三图层 adaptive icon 加旧版 launcher 位图；三者与 iOS 图层同源，都是扁平版（字面不再有金属渐变），亮色底板统一为 `#e0e1e3`。iOS 26 及以上加载 `src-tauri/icon-sources/ios-liquid-glass/AppIcon.icon`：`apps/web/scripts/sync-ios-app-icon.js` 把该目录复制到 `gen/apple/AppIcon.icon`，再给 `gen/apple/imsweb.xcodeproj/project.pbxproj` 补一条顶层文件引用，使 `actool` 把它编译成 `IconImageStack`。接线放在 `icon:app` 而不是 `build.rs`，因为 `icon:app` 是 `beforeBuildCommand`，在 xcodebuild 读取工程之前执行；`build.rs` 要等 xcodebuild 进入 cargo 阶段才运行，已经晚于工程读取。同步脚本幂等，`gen/apple` 不存在时静默跳过，桌面与 Android 构建不受影响。
 
 `init` 会在 `src-tauri/gen/` 下生成平台工程。执行前先确认 identifier 与签名归属，
 identifier 变更后需要重新生成。`gen/` 始终是派生产物；iOS 原生源码放在
@@ -193,7 +193,7 @@ pnpm --filter @imsweb/web run tauri ios build --release
 这个开关不能用于公网部署，且不应写入仓库或长期 shell 配置。Android Release 构建会在该开关
 存在且至少一个已校验 origin 使用 HTTP 时，把生成工程的 `usesCleartextTraffic` placeholder 设为
 `true`；其他构建一律恢复为 `false`，避免 LAN 设置污染线上包。`src-tauri/gen/` 仍是忽略的派生目录，
-该条件由 `scripts/android-release-network.js` 在每次 App build 后重新应用。若公开网站与 API 不同
+该条件由 `apps/web/scripts/android-release-network.js` 在每次 App build 后重新应用。若公开网站与 API 不同
 主机，仍需设置 HTTPS 的 `VITE_IMS_PUBLIC_SITE_ORIGIN`，供分享和系统浏览器跳转使用。
 
 地图源由后台 map-config 返回的完整 `styleUrl` 决定。官方 OpenFreeMap 使用绝对 HTTPS URL，

@@ -62,7 +62,7 @@ Use strict TypeScript. API code uses four spaces, semicolons, single quotes, and
 
 ## Testing Guidelines
 
-Tests use Node's runner, Vitest, Testing Library, Playwright, and Python `unittest`. Name tests `*.test.ts`, `*.test.tsx`, `*.test.js`, or `test_*.py`; E2E files use `*.spec.ts`. Add regressions beside the affected workspace. No numeric coverage threshold exists; API persistence changes must cover the active Node runtime.
+JS/TS unit, HTTP contract, migration, and repository-contract tests run under Vitest; browser flows under Playwright; repository boundary, deployment, and rule checks under Python `unittest`; `node:test` is reserved for standalone checkers that need no build. Name tests `*.test.ts`, `*.test.tsx`, `*.test.js`, or `test_*.py`; E2E files use `*.spec.ts`. Add regressions beside the affected workspace. Coverage gates are domain-level only (`apps/api/vitest.config.mts`, `apps/web/vitest.config.ts`); there is no repository-wide threshold. API persistence changes must cover the active Node runtime.
 
 ## Documentation
 

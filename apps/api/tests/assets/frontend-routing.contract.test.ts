@@ -9,7 +9,7 @@ const REPOSITORY_ROOT = path.resolve(PROJECT_ROOT, '../..');
 const FRONTEND_ROOT = path.join(REPOSITORY_ROOT, 'apps/web/build/client');
 const SERVER_ROOT = path.join(PROJECT_ROOT, 'dist/server');
 
-function requireBuild(file, command) {
+function requireBuild(file: string, command: string): void {
     assert.ok(
         fs.existsSync(file),
         `Required build output is missing: ${file}\nRun ${command} from ${REPOSITORY_ROOT}`
@@ -27,24 +27,29 @@ requireBuild(
 
 // The compiled server is loaded through the Node CommonJS loader, exactly as
 // the previous `require` calls did, so a missing build fails at the same point
-// with the same message instead of at import resolution time.
-const loadCompiled = createRequire(import.meta.url);
-const { createHonoApp } = loadCompiled(path.join(SERVER_ROOT, 'app.js'));
-const { FrontendStaticAssets, NodeStaticAssets } = loadCompiled(path.join(
-    SERVER_ROOT,
-    'infra/http/filesystem/static-assets.js'
-));
-const { resolveFrontendRoute } = loadCompiled(path.join(
-    SERVER_ROOT,
-    'routing/frontend-route-policy.js'
-));
+// with the same message instead of at import resolution time. Each binding is
+// annotated with the type of the source module it was built from, so the
+// compiled surface is still checked against `src/**` instead of widening to
+// `any` at the CommonJS boundary.
+const loadCompiled = createRequire(__filename);
+const { createHonoApp }: typeof import('../../src/app') = loadCompiled(
+    path.join(SERVER_ROOT, 'app.js')
+);
+const {
+    FrontendStaticAssets,
+    NodeStaticAssets
+}: typeof import('../../src/infra/http/filesystem/static-assets') = loadCompiled(
+    path.join(SERVER_ROOT, 'infra/http/filesystem/static-assets.js')
+);
+const { resolveFrontendRoute }: typeof import(
+    '../../src/routing/frontend-route-policy'
+) = loadCompiled(path.join(SERVER_ROOT, 'routing/frontend-route-policy.js'));
 const {
     FRONTEND_PRERENDERED_ROUTES,
     FRONTEND_SPA_FALLBACK_PATTERNS
-} = loadCompiled(path.join(
-    SERVER_ROOT,
-    'routing/frontend-route-delivery.js'
-));
+}: typeof import('../../src/routing/frontend-route-delivery') = loadCompiled(
+    path.join(SERVER_ROOT, 'routing/frontend-route-delivery.js')
+);
 
 const SPA_ROUTE_CASES = {
     admin: {
@@ -84,7 +89,7 @@ const SPA_ROUTE_CASES = {
     }
 };
 
-function walkFiles(directory, root = directory) {
+function walkFiles(directory: string, root: string = directory): string[] {
     return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
         const absolute = path.join(directory, entry.name);
         assert.equal(entry.isSymbolicLink(), false, `build/client contains a symlink: ${absolute}`);
@@ -103,11 +108,15 @@ const app = createHonoApp(() => ({
     )
 }));
 
-async function request(pathname, init) {
+async function request(pathname: string, init?: RequestInit) {
     return app.request(`http://ims.test${pathname}`, init);
 }
 
-async function assertFileResponse(pathname, file, init) {
+async function assertFileResponse(
+    pathname: string,
+    file: string,
+    init?: RequestInit
+) {
     const response = await request(pathname, init);
     assert.equal(response.status, 200, pathname);
     assert.deepEqual(
@@ -134,7 +143,10 @@ test.describe('frontend routing', () => {
             await assertFileResponse(`${route}/`, path.join(FRONTEND_ROOT, asset));
         }
 
-        const patternsById = new Map(
+        const patternsById = new Map<
+            string,
+            (typeof FRONTEND_SPA_FALLBACK_PATTERNS)[number]
+        >(
             FRONTEND_SPA_FALLBACK_PATTERNS.map((pattern) => [pattern.id, pattern])
         );
         assert.equal(patternsById.size, FRONTEND_SPA_FALLBACK_PATTERNS.length);

@@ -13,9 +13,31 @@ import {
 
 const LOCAL_ADMIN_URL = 'postgresql://tester:secret@127.0.0.1:5432/postgres';
 
-function deferred() {
-    let resolve;
-    let reject;
+interface AllocatorFixtureOptions {
+    names?: string[];
+    queryFailure?: (sql: string) => boolean | undefined;
+    queryResult?: (
+        sql: string,
+        parameters: unknown[]
+    ) => { rows: unknown[] } | undefined;
+    endFailure?: (ended: number) => boolean | undefined;
+    migrationFailure?: boolean;
+    migratePostgres?: (
+        options: { connectionString: string; migrationsPath?: string }
+    ) => Promise<unknown>;
+    databaseDrainTimeoutMs?: number;
+    databaseDrainPollMs?: number;
+    // The allocator timing hooks are forwarded unvalidated on purpose: the
+    // "timing hooks reject invalid values" case proves the allocator itself
+    // refuses a non-number timeout, a non-function `now`, and a non-function
+    // `delay`, so the fixture has to pass those raw values through.
+    now?: unknown;
+    delay?: unknown;
+}
+
+function deferred<T = void>() {
+    let resolve!: (value: T | PromiseLike<T>) => void;
+    let reject!: (reason?: unknown) => void;
     const promise = new Promise((resolvePromise, rejectPromise) => {
         resolve = resolvePromise;
         reject = rejectPromise;
@@ -23,10 +45,13 @@ function deferred() {
     return { promise, resolve, reject };
 }
 
-function allocatorFixture(options = {}) {
-    const queries = [];
+function allocatorFixture(options: AllocatorFixtureOptions = {}) {
+    const queries: string[] = [];
     let ended = 0;
-    const migrations = [];
+    const migrations: Array<{
+        connectionString: string;
+        migrationsPath?: string;
+    }> = [];
     let nameIndex = 0;
     const names = options.names ?? [
         'ims_test_template_head_1_aaaaaaaaaaaa',
@@ -34,7 +59,7 @@ function allocatorFixture(options = {}) {
         'ims_test_database_1_cccccccccccc'
     ];
     const pool = {
-        async query(sql, parameters) {
+        async query(sql: string, parameters: unknown[]) {
             queries.push(sql);
             if (options.queryFailure?.(sql)) throw new Error('injected query failure');
             return options.queryResult?.(sql, parameters) ?? { rows: [] };
@@ -50,8 +75,10 @@ function allocatorFixture(options = {}) {
         createDatabaseName: () => names[nameIndex++],
         databaseDrainTimeoutMs: options.databaseDrainTimeoutMs,
         databaseDrainPollMs: options.databaseDrainPollMs,
-        delay: options.delay,
-        now: options.now,
+        delay: options.delay as
+            | ((milliseconds: number) => Promise<void>)
+            | undefined,
+        now: options.now as (() => number) | undefined,
         async migratePostgres(migrationOptions) {
             migrations.push(migrationOptions);
             if (options.migratePostgres) {
@@ -168,7 +195,7 @@ test.describe('PostgreSQL test lifecycle', () => {
         const fixture = allocatorFixture();
         const first = await fixture.allocator.allocate({ label: 'first' });
         const second = await fixture.allocator.allocate({ label: 'second' });
-        const closed = [];
+        const closed: string[] = [];
         await first.openConnection(async (options) => ({
             options,
             async close() { closed.push('primary'); }
@@ -242,7 +269,7 @@ test.describe('PostgreSQL test lifecycle', () => {
                             : []
                     };
                 },
-                async delay(milliseconds) {
+                async delay(milliseconds: number) {
                     assert.equal(milliseconds, 25);
                     active = false;
                 }
@@ -269,7 +296,7 @@ test.describe('PostgreSQL test lifecycle', () => {
 
         test('bounds timeout diagnostics before force-drop', async () => {
             let currentTime = 0;
-            const warnings = [];
+            const warnings: string[] = [];
             // The previous runner restored a mocked method after every test; Vitest
             // does not, so this spy restores itself as soon as the test finishes.
             const warn = vi
@@ -290,7 +317,7 @@ test.describe('PostgreSQL test lifecycle', () => {
                         }))
                     };
                 },
-                async delay(milliseconds) {
+                async delay(milliseconds: number) {
                     currentTime += milliseconds;
                 }
             });
@@ -323,7 +350,7 @@ test.describe('PostgreSQL test lifecycle', () => {
         });
 
         test('still force-drops when backend observation fails', async () => {
-            const warnings = [];
+            const warnings: string[] = [];
             const warn = vi
                 .spyOn(console, 'warn')
                 .mockImplementation((message) => warnings.push(message));

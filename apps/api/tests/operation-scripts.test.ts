@@ -30,26 +30,32 @@ const HASH_PASSWORD_SCRIPT = path.join(
 test.describe('operation scripts', () => {
     test.describe('categorized add-user script', () => {
         test('writes a PostgreSQL backoffice account', async () => {
-            const calls = [];
+            const calls: Array<{ sql: string; parameters: unknown[] }> = [];
             let poolConfiguration;
             let poolEnded = false;
 
             class FakePool {
-                constructor(configuration) {
+                constructor(configuration: {
+                    connectionString: string;
+                    application_name: string;
+                }) {
                     poolConfiguration = configuration;
                 }
 
-                async query(sql, parameters) {
+                async query(
+                    sql: string,
+                    parameters: unknown[]
+                ): Promise<{ rowCount: number; rows: Array<{ id: number }> }> {
                     calls.push({ sql, parameters });
                     return { rowCount: 1, rows: [{ id: 42 }] };
                 }
 
-                async end() {
+                async end(): Promise<void> {
                     poolEnded = true;
                 }
             }
 
-            const messages = [];
+            const messages: string[] = [];
             const environment = {
                 DATABASE_URL: 'postgresql://imsweb:secret@127.0.0.1:5432/imsweb',
                 IMS_NEW_USER_USERNAME: 'categorized-script-test',

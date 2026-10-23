@@ -3,7 +3,7 @@
 // named fixtures from different files cannot clash.
 
 import { assignedJson, buildIdolIndex, canonicalAssetUrl, extractCssReferences, extractHtmlReferences, mapAssetUrl, parseArguments, runWikiMediaSync, safeObjectKey } from '../../scripts/migration/wiki-media-sync';
-import { applyExistingSemanticMedia, parseWikiMetadataAuditArguments } from '../../scripts/migration/wiki-metadata-audit.ts';
+import { applyExistingSemanticMedia, parseWikiMetadataAuditArguments } from '../../scripts/migration/wiki-metadata-audit';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { test } from 'vitest';
@@ -25,10 +25,7 @@ import { test } from 'vitest';
         });
 
         test('no longer accepts a SQLite database option', () => {
-            const options = parseArguments([], {
-                IMS_SQLITE_PATH: '/tmp/imsweb.db',
-                IMS_STORY_DB_PATH: '/tmp/legacy-story.db'
-            });
+            const options = parseArguments([]);
             assert.equal(Object.hasOwn(options, 'database'), false);
             assert.throws(
                 () => parseArguments(['--database', '/tmp/imsweb.db']),
@@ -37,7 +34,7 @@ import { test } from 'vitest';
         });
 
         test('Wiki media crawl opens only the story repository when upload is disabled', async () => {
-            const calls = [];
+            const calls: string[] = [];
             const storyRepository = {
                 listIdolsWithAgencies: async () => [{
                     agency_code: 'sc',
@@ -59,7 +56,7 @@ import { test } from 'vitest';
                         throw new Error('storage must not be initialized');
                     },
                     closeStorage: async () => calls.push('close-storage'),
-                    syncWikiMedia: async (_options, index, storage) => {
+                    syncWikiMedia: async (_options: unknown, index: Map<string, unknown>, storage: unknown) => {
                         calls.push('crawl');
                         assert.equal(index.size, 1);
                         assert.equal(storage, undefined);
@@ -73,7 +70,7 @@ import { test } from 'vitest';
         });
 
         test('Wiki media upload reuses storage and closes resources after failure', async () => {
-            const calls = [];
+            const calls: string[] = [];
             const storage = { name: 'test-storage' };
             const storyRepository = {
                 listIdolsWithAgencies: async () => [{
@@ -95,7 +92,7 @@ import { test } from 'vitest';
                             return storage;
                         },
                         closeStorage: async () => calls.push('close-storage'),
-                        syncWikiMedia: async (_options, _index, receivedStorage) => {
+                        syncWikiMedia: async (_options: unknown, _index: Map<string, unknown>, receivedStorage: unknown) => {
                             calls.push('crawl');
                             assert.equal(receivedStorage, storage);
                             throw new Error('crawl failed');
@@ -250,18 +247,18 @@ import { test } from 'vitest';
                 'wiki/agencies/765/idols/amami_haruka/avatar.webp',
                 'wiki/agencies/765/idols/kisaragi_chihaya/avatar.webp'
             ]);
-            const updates = [];
+            const updates: Array<[string, number, string]> = [];
             const applied = await applyExistingSemanticMedia({
                 story: {
                     async listAgencies() { return agencies; },
                     async listIdolsWithAgencies() { return idols; },
-                    async setAgencyIconObjectKey(id, key) { updates.push(['agency', id, key]); },
-                    async setIdolAvatarObjectKey(id, key) { updates.push(['idol', id, key]); }
+                    async setAgencyIconObjectKey(id: number, key: string) { updates.push(['agency', id, key]); },
+                    async setIdolAvatarObjectKey(id: number, key: string) { updates.push(['idol', id, key]); }
                 },
                 storage: {
-                    async exists(key) { return existing.has(key); }
+                    async exists(key: string) { return existing.has(key); }
                 }
-            });
+            } as unknown as Parameters<typeof applyExistingSemanticMedia>[0]);
 
             assert.deepEqual(updates, [
                 ['idol', 10, 'wiki/agencies/765/idols/amami_haruka/avatar.webp'],

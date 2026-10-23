@@ -3,7 +3,7 @@ import path from 'node:path';
 import { test } from 'vitest';
 import {
     parseInformationPostMigrationArguments
-} from '../../scripts/migration/information-to-community-posts.ts';
+} from '../../scripts/migration/information-to-community-posts';
 
 test.describe('Information post migration', () => {
     test('is dry-run by default', () => {

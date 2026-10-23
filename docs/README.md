@@ -139,6 +139,8 @@ pnpm run test:infra
 
 ## 自动检查
 
-`pnpm run check:rules` 运行 agent/source/docs 三类规则。docs checker 验证 taxonomy、元信息、
-相对链接、旧路径、日期快照和一次性文档命名；`tests/test_docs.py` 固定这些约束。修复漂移时应
+`pnpm run check:rules` 运行 agent/source/docs 三类规则。docs checker 对 `docs/**/*.md` 验证
+taxonomy、元信息、旧路径、日期快照和一次性文档命名，同时校验全仓库 Markdown 与 `.rules`
+（根 `README.md`、`CONTRIBUTING.md`、各 workspace 的 `README.md`/`DESIGN.md`、`deploy/`、
+`.agents/` 技能文档等）的相对链接存在性；`tests/test_docs.py` 固定这些约束。修复漂移时应
 更新权威文档或删除一次性记录，不得通过降低检查范围保留过期内容。

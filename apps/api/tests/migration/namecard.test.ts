@@ -2,9 +2,10 @@
 // The block around every contribution gives it its own scope, so identically
 // named fixtures from different files cannot clash.
 
-import { parseNamecardThumbnailBackfillArguments } from '../../scripts/migration/namecard-thumbnail-backfill.ts';
+import { parseNamecardThumbnailBackfillArguments } from '../../scripts/migration/namecard-thumbnail-backfill';
 import { isClean, legacyMediaObjectKey, reconcile, summarize } from '../../scripts/migration/namecard-unification-reconcile.js';
-import { createPostgresTestHarness, postgresIntegrationEnabled } from '../integration/postgres-harness.ts';
+import { createPostgresTestHarness, postgresIntegrationEnabled } from '../integration/postgres-harness';
+import type { PostgresTestHarness } from '../integration/postgres-harness';
 import { closeSharedPostgresTestAllocator } from '../postgres-test-lifecycle.js';
 import assert from 'node:assert/strict';
 import { Client } from 'pg';
@@ -73,14 +74,14 @@ import { afterAll, onTestFinished, test } from 'vitest';
     // process-end cleanup.
     afterAll(() => closeSharedPostgresTestAllocator());
 
-    function poolClient(harness) {
+    function poolClient(harness: PostgresTestHarness) {
         // The reconcile() function only ever issues plain read queries, so a
         // bare `pg` client through the harness connection string is enough --
         // no need to route through the application's own SqlDatabase port.
         return new Client({ connectionString: harness.databaseUrl });
     }
 
-    async function insertLegacyCard(client, id, overrides = {}) {
+    async function insertLegacyCard(client: Client, id: number, overrides: Record<string, unknown> = {}) {
         const values = {
             image1_url: `/uploads/namecard/original/card-${id}-front.png`,
             image2_url: `/uploads/namecard/original/card-${id}-back.jpg`,
@@ -122,7 +123,7 @@ import { afterAll, onTestFinished, test } from 'vitest';
     // instead of CURRENT_TIMESTAMP: the caller's clock necessarily reads earlier
     // than the server's timestamp at INSERT time, which would trip
     // fudaba_cards' CHECK (deleted_at IS NULL OR deleted_at >= created_at).
-    async function insertUnifiedCompatCard(client, id, cardNumber, overrides = {}) {
+    async function insertUnifiedCompatCard(client: Client, id: string, cardNumber: number, overrides: Record<string, unknown> = {}) {
         const values = {
             origin: 'legacy',
             front_object_key: legacyMediaObjectKey(
@@ -298,27 +299,27 @@ import { afterAll, onTestFinished, test } from 'vitest';
             // pulled back here is coerced to a number before comparing.
             assert.deepEqual(result.missingFromUnified.map(Number), [1]);
             assert.deepEqual(
-                result.missingFromLegacy.map((row) => Number(row.card_number)),
+                result.missingFromLegacy.map((row: Record<string, unknown>) => Number(row.card_number)),
                 [2]
             );
             assert.deepEqual(
-                result.statusMismatches.map((row) => Number(row.legacy_id)),
+                result.statusMismatches.map((row: Record<string, unknown>) => Number(row.legacy_id)),
                 [3]
             );
             assert.deepEqual(
-                result.mediaMismatches.map((row) => Number(row.legacyId)),
+                result.mediaMismatches.map((row: Record<string, unknown>) => Number(row.legacyId)),
                 [4]
             );
             assert.deepEqual(
-                result.reactionDrift.map((row) => Number(row.legacy_id)),
+                result.reactionDrift.map((row: Record<string, unknown>) => Number(row.legacy_id)),
                 [5]
             );
             assert.deepEqual(
-                result.reactionOnlyOnUnifiedSide.map((row) => Number(row.legacy_id)),
+                result.reactionOnlyOnUnifiedSide.map((row: Record<string, unknown>) => Number(row.legacy_id)),
                 [6]
             );
             assert.deepEqual(
-                result.orphanedLegacyReactionRows.map((row) => Number(row.card_id)),
+                result.orphanedLegacyReactionRows.map((row: Record<string, unknown>) => Number(row.card_id)),
                 [999]
             );
 

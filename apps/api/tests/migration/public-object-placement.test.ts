@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import {
     parsePublicObjectPlacementArguments
-} from '../../scripts/migration/public-object-placement.ts';
+} from '../../scripts/migration/public-object-placement';
 
 const environment = {
     IMS_OBJECT_STORAGE: 's3',

@@ -107,7 +107,8 @@ export default defineConfig({
       "@base-ui/react/toggle-group",
     ],
   },
-  // The linked contracts workspace publishes CommonJS; Node must load it in SSR.
+  // The linked contracts workspace publishes dual CJS/ESM; keep the package
+  // external so prerendering loads its own ESM build instead of a second copy.
   ssr: {
     external: ["@imsweb/contracts"],
   },

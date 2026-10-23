@@ -10,11 +10,13 @@ import {
     prependTextToArticleBody,
     splitCmsArticleTitle,
     writeCmsArticleTitleBackfillReport
-} from '../../scripts/migration/cms-article-title-backfill.ts';
+} from '../../scripts/migration/cms-article-title-backfill';
+import type { CmsArticleTitleBackfillReport } from '../../scripts/migration/cms-article-title-backfill';
 import {
     createPostgresTestHarness,
     postgresIntegrationEnabled
-} from '../integration/postgres-harness.ts';
+} from '../integration/postgres-harness';
+import type { PostgresTestHarness } from '../integration/postgres-harness';
 import { closeSharedPostgresTestAllocator } from '../postgres-test-lifecycle.js';
 
 // The shared test allocator used to be closed by a module-level hook inside the
@@ -24,7 +26,19 @@ afterAll(() => closeSharedPostgresTestAllocator());
 
 const emptyBody = { type: 'doc', content: [] };
 
-async function insertArticle(harness, values) {
+interface ArticleInsertValues {
+    bodyHtml?: string;
+    bodyJson?: Record<string, unknown>;
+    contentType?: string;
+    event?: boolean;
+    eventTitle?: string;
+    revision?: number;
+    status?: string;
+    title: string;
+    updatedAt?: string;
+}
+
+async function insertArticle(harness: PostgresTestHarness, values: ArticleInsertValues) {
     const result = await harness.connection.pool.query(
         `INSERT INTO articles
             (content_type, title, body_json, body_html, status, revision, updated_at)
@@ -51,7 +65,7 @@ async function insertArticle(harness, values) {
     return id;
 }
 
-async function readArticle(harness, id) {
+async function readArticle(harness: PostgresTestHarness, id: number) {
     const result = await harness.connection.pool.query(
         `SELECT id, title, body_json, body_html, revision, updated_by, updated_at
          FROM articles WHERE id=$1`,
@@ -60,7 +74,7 @@ async function readArticle(harness, id) {
     return result.rows[0];
 }
 
-async function readEventTitle(harness, articleId) {
+async function readEventTitle(harness: PostgresTestHarness, articleId: number) {
     const result = await harness.connection.pool.query(
         'SELECT title FROM events WHERE article_id=$1',
         [articleId]
@@ -179,7 +193,7 @@ test.describe('CMS article', () => {
             const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'imsweb-cms-title-report-'));
             onTestFinished(() => fs.rm(directory, { recursive: true, force: true }));
             const target = path.join(directory, 'nested', 'report.json');
-            const report = {
+            const report: CmsArticleTitleBackfillReport = {
                 generatedAt: '2026-09-04T00:00:00.000Z',
                 apply: false,
                 mode: 'dry-run',
@@ -407,7 +421,7 @@ test.describe('CMS article', () => {
                 reason: `Article ${conflictingId} changed while the backfill was running`
             }]);
             assert.equal(
-                report.records.find((record) => record.id === conflictingId).status,
+                report.records.find((record) => record.id === conflictingId)!.status,
                 'conflict'
             );
             assert.equal((await readArticle(harness, firstId)).title, '【第一条】正文一');

@@ -1,4 +1,8 @@
 {
+  "build": {
+    "cjs": { "outDir": "dist/cjs", "module": "commonjs" },
+    "esm": { "outDir": "dist/esm", "module": "module" }
+  },
   "entrypoints": [
     { "subpath": ".", "source": "src/index.ts", "namespace": null, "runtime": "schema" },
     { "subpath": "./wiki", "source": "src/wiki.ts", "namespace": "wiki", "runtime": "schema" },

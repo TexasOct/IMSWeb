@@ -91,7 +91,7 @@ pnpm --filter @imsweb/api run test:server
 其他目标。RustFS 等非 R2 环境使用不带 `--apply` 的计划命令重新比对；它不执行 R2 专属断言，
 必须人工核对报告全部收敛。
 
-`test:server` 使用 Vitest 运行 `tests/server/` 下的用例，其中包含
+`test:server` 使用 Vitest 运行 `apps/api/tests/server/` 下的用例，其中包含
 `producer-map-content.test.ts`。需要只跑这一个文件时，从仓库根目录执行：
 
 ```sh

@@ -3,7 +3,7 @@ import { test } from 'vitest';
 import {
     parseSingleBucketConsolidationArguments,
     targetPlacement
-} from '../../scripts/migration/single-bucket-consolidation.ts';
+} from '../../scripts/migration/single-bucket-consolidation';
 
 const environment = {
     IMS_OBJECT_STORAGE: 's3',

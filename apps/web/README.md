@@ -111,7 +111,10 @@ App 底栏依次为首页、社区、交换地图、资料、我的。社区聚�
 
 切换栏目会恢复本次 App 使用期间的最近页面和阅读位置。重选当前栏目回到栏目首页，在首页再次点选则回到顶部；交换地图根页保留视角、筛选和 URL，不执行窗口回顶。返回沿实际浏览历史执行，因此跨栏目切换也会成为返回路径；从外部直接进入详情时，返回会替换为所属栏目首页。
 
-续看保留地址中的分页、筛选与 hash，不承诺刷新或进程重启后恢复，也不保存表单草稿和弹层。Wiki 内部交互与地图视角仍由各自页面管理。实现与回归约定见 [App 导航规范](../../.trellis/spec/web/frontend/app-navigation.md)。
+续看保留地址中的分页、筛选与 hash，不承诺刷新或进程重启后恢复，也不保存表单草稿和弹层。Wiki 内部交互与地图视角仍由各自页面管理。实现与回归约定见导航状态模块 [`app/lib/app-navigation-state.ts`](app/lib/app-navigation-state.ts)、
+解析层 [`app/lib/navigation/`](app/lib/navigation/)、单元测试
+[`tests/unit/lib/app-navigation-state.test.ts`](tests/unit/lib/app-navigation-state.test.ts) 与浏览器用例
+[`tests/e2e/app-navigation.spec.ts`](tests/e2e/app-navigation.spec.ts)。
 
 ## 目录边界
 

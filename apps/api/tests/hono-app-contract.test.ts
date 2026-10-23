@@ -5,6 +5,16 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { test } from 'vitest';
 
+interface SecurityHeaderSnapshot {
+    securityHeaders: Record<string, string | null>;
+    excludedSecurityHeaders: Record<string, string | null>;
+}
+
+interface RunIsolatedOptions {
+    cwd?: string;
+    env?: NodeJS.ProcessEnv;
+}
+
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const REPOSITORY_ROOT = path.resolve(PROJECT_ROOT, '../..');
 const SERVER_ENTRY = path.join(PROJECT_ROOT, 'dist/server/main.js');
@@ -32,7 +42,9 @@ const EXCLUDED_SECURITY_HEADERS = [
     'x-powered-by'
 ];
 
-function assertSecurityHeaderContract(response) {
+function assertSecurityHeaderContract(
+    response: SecurityHeaderSnapshot
+): void {
     assert.deepEqual(response.securityHeaders, EXPECTED_SECURITY_HEADERS);
     assert.deepEqual(
         response.excludedSecurityHeaders,
@@ -40,7 +52,7 @@ function assertSecurityHeaderContract(response) {
     );
 }
 
-function isolatedEnvironment(root) {
+function isolatedEnvironment(root: string): NodeJS.ProcessEnv {
     return {
         ...process.env,
         NODE_ENV: 'test',
@@ -54,7 +66,7 @@ function isolatedEnvironment(root) {
     };
 }
 
-function runIsolated(script, options = {}) {
+function runIsolated(script: string, options: RunIsolatedOptions = {}) {
     const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ims-hono-contract-'));
     try {
         return spawnSync(process.execPath, ['-e', script], {
@@ -85,7 +97,7 @@ test.describe('Hono app contract', () => {
             );
             fs.copyFileSync(ENVIRONMENT_LOADER_ENTRY, loaderEntry);
 
-            const environment = {
+            const environment: NodeJS.ProcessEnv = {
                 ...process.env,
                 IMS_ENV_PRIORITY: 'from-process'
             };
@@ -129,7 +141,7 @@ test.describe('Hono app contract', () => {
             EVENT_BASE: paths.EVENT_BASE
         }));
     `;
-        const env = { ...process.env, NODE_ENV: 'test' };
+        const env: NodeJS.ProcessEnv = { ...process.env, NODE_ENV: 'test' };
         for (const name of [
             'IMS_PROJECT_ROOT', 'IMS_PUBLIC_DIR',
             'IMS_STORY_DATA_DIR', 'IMS_UPLOADS_DIR', 'IMS_EVENT_BASE_DIR'
@@ -220,7 +232,7 @@ test.describe('Hono app contract', () => {
                 IMS_BACKOFFICE_JWT_SECRET: backofficeSecret,
                 IMS_JWT_SECRET: platformSecret
             }]
-        ]) {
+        ] satisfies Array<[string, NodeJS.ProcessEnv]>) {
             const sharedRealmSecret = runIsolated(
                 `require(${JSON.stringify(environmentEntry)});`,
                 {
@@ -248,7 +260,7 @@ test.describe('Hono app contract', () => {
         for (const [label, platformSecret, pattern] of [
             ['missing', '', /IMS_PLATFORM_JWT_SECRET.*required/i],
             ['short', 'too-short', /IMS_PLATFORM_JWT_SECRET.*at least 32 UTF-8 bytes/i]
-        ]) {
+        ] satisfies Array<[string, string, RegExp]>) {
             const result = runIsolated(
                 `require(${JSON.stringify(environmentEntry)});`,
                 {

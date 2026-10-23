@@ -14,7 +14,7 @@ const BUILD_SCRIPT = path.join(PACKAGE_ROOT, 'scripts/build/build-client.js');
 const CHECK_SCRIPT = path.join(PACKAGE_ROOT, 'scripts/build/check-client.js');
 const MANIFEST_PATH = path.join(PACKAGE_ROOT, 'dist/client-manifest.json');
 
-function walk(directory, root = directory) {
+function walk(directory: string, root: string = directory): string[] {
     return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
         const absolute = path.join(directory, entry.name);
         assert.equal(entry.isSymbolicLink(), false, `symlink in build output: ${absolute}`);
@@ -24,7 +24,7 @@ function walk(directory, root = directory) {
     });
 }
 
-function run(script, environment = process.env) {
+function run(script: string, environment: NodeJS.ProcessEnv = process.env) {
     return spawnSync(process.execPath, [script], {
         cwd: PACKAGE_ROOT,
         env: environment,
@@ -52,7 +52,7 @@ test.describe('client allowlist', () => {
         ));
         const webFiles = walk(WEB_ROOT).sort();
         assert.deepEqual(
-            manifest.files.filter((file) => !file.endsWith('.br') && !file.endsWith('.gz')),
+            manifest.files.filter((file: string) => !file.endsWith('.br') && !file.endsWith('.gz')),
             webFiles
         );
         assert.deepEqual(walk(CLIENT_ROOT).sort(), manifest.files);
@@ -80,7 +80,7 @@ test.describe('client allowlist', () => {
                 relative
             );
         }
-        for (const relative of manifest.files.filter((file) => file.endsWith('.br'))) {
+        for (const relative of manifest.files.filter((file: string) => file.endsWith('.br'))) {
             const sourceRelative = relative.slice(0, -3);
             assert.deepEqual(
                 brotliDecompressSync(fs.readFileSync(path.join(CLIENT_ROOT, relative))),
@@ -88,7 +88,7 @@ test.describe('client allowlist', () => {
                 relative
             );
         }
-        for (const relative of manifest.files.filter((file) => file.endsWith('.gz'))) {
+        for (const relative of manifest.files.filter((file: string) => file.endsWith('.gz'))) {
             const sourceRelative = relative.slice(0, -3);
             assert.deepEqual(
                 gunzipSync(fs.readFileSync(path.join(CLIENT_ROOT, relative))),
@@ -112,7 +112,7 @@ test.describe('client allowlist', () => {
 
     test('[AST-01] client check rejects missing and extra release files', () => {
         const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
-        const heldRelative = manifest.files.find((file) => file.startsWith('assets/'));
+        const heldRelative = manifest.files.find((file: string) => file.startsWith('assets/'));
         assert.ok(heldRelative, 'fixture requires a compiled asset');
         const heldFile = path.join(NODE_CLIENT_ROOT, heldRelative);
         const temporaryFile = `${heldFile}.held`;

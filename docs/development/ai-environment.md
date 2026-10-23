@@ -136,8 +136,8 @@ pnpm dev
 修改共享 contracts 源码后先运行 `pnpm --filter @imsweb/contracts run build`。
 Web 开发插件将构建后 JS 内容摘要纳入 Vite 依赖缓存标识，并监听 dist 内容变更重新优化，
 避免 API 已返回新配置而浏览器仍用旧 schema 拒绝解析。只改时间戳或声明文件不会重新优化。
-该刷新针对客户端预打包；如果改动影响开发服务端已经加载的外部 CommonJS 模块，仍须重启
-Web 进程以清除 Node 模块缓存。通过 `pnpm dev` 启动时，其子进程退出会连带停止其他应用子进程，
+该刷新针对客户端预打包；如果改动影响开发服务端已经加载的外部模块（contracts 已双发布
+CJS/ESM），仍须重启 Web 进程以清除 Node 模块缓存。通过 `pnpm dev` 启动时，其子进程退出会连带停止其他应用子进程，
 需要恢复完整开发入口；不要仅停止 Web 后误以为 API 和邮件 Worker 仍在运行。
 
 只有测试已认证写操作时才另外设置 `IMS_DEV_FUDABA_WRITE_ENABLED=true`。地点搜索默认关闭；需要
