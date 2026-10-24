@@ -488,6 +488,8 @@ export interface FudabaPublicOfficeRecord {
     is_open: boolean;
     visitor_count: number;
     series_codes: string[];
+    public_latitude_e1?: number | null;
+    public_longitude_e1?: number | null;
 }
 
 export interface FudabaPublicOfficeCursor {
@@ -496,6 +498,7 @@ export interface FudabaPublicOfficeCursor {
 }
 
 export interface ListFudabaPublicOfficesInput {
+    q?: string;
     city?: string;
     seriesCodes?: string[];
     isOpen?: boolean;

@@ -17,6 +17,8 @@ import { isFudabaMapStyleUrl } from "./runtime.js";
 import { wikiImageTransformSchema } from "../wiki.js";
 
 export {
+  fudabaMapConfigSchema,
+  fudabaRegionalProviderMapConfigSchema,
   fudabaMapDeliveryMutationSchema,
   fudabaMapDeliverySnapshotSchema,
   fudabaMapSourceActivationSchema,
@@ -26,17 +28,25 @@ export {
   fudabaMapSourceSchema,
   fudabaMapSourceWriteSchema,
   fudabaMapStyleUrlSchema,
+  fudabaMapProviderConfigSchema,
+  fudabaMapRoutingSchema,
+  fudabaMapSearchConfigSchema,
 } from "./map-delivery.js";
 export { NAMECARD_REACTION_EMOJIS } from "./reactions-runtime.js";
 export { NAMECARD_FAVORITE_CHARACTER_LIMIT } from "./characters.js";
 export { isFudabaMapStyleUrl } from "./runtime.js";
 export type {
+  FudabaMapConfig,
+  FudabaRegionalProviderMapConfig,
   FudabaMapDeliveryMutation,
   FudabaMapDeliverySnapshot,
   FudabaMapSource,
   FudabaMapSourceActivation,
   FudabaMapSourceDelete,
   FudabaMapSourceWrite,
+  FudabaMapProviderConfig,
+  FudabaMapRouting,
+  FudabaMapSearchConfig,
 } from "./map-delivery.js";
 export { hasAsciiControl };
 
@@ -80,6 +90,12 @@ export const fudabaSeriesListSchema = z
   })
   .strict();
 
+const publicOfficeLocationSchema = z.object({
+  latitude: regionalCoordinateSchema(-60, 60),
+  longitude: regionalCoordinateSchema(-180, 180),
+  precision: z.literal("regional"),
+}).strict();
+
 export const fudabaOfficeSchema = exactJsonResponse({
   id: z.string().min(1),
   slug: z.string().min(1),
@@ -92,6 +108,7 @@ export const fudabaOfficeSchema = exactJsonResponse({
   isOpen: z.boolean(),
   visitorCount: z.number().int().nonnegative(),
   seriesCodes: z.array(seriesCodeSchema),
+  location: publicOfficeLocationSchema.nullable().optional(),
 });
 
 export const fudabaCharacterSelectionSchema = z
@@ -200,13 +217,7 @@ export const fudabaMapOfficeSchema = z
     accent: accentSchema,
     isOpen: z.boolean(),
     seriesCodes: z.array(seriesCodeSchema),
-    location: z
-      .object({
-        latitude: regionalCoordinateSchema(-60, 60),
-        longitude: regionalCoordinateSchema(-180, 180),
-        precision: z.literal("regional"),
-      })
-      .strict(),
+    location: publicOfficeLocationSchema,
   })
   .strict();
 
@@ -237,22 +248,6 @@ export const fudabaPlaceSearchResponseSchema = successEnvelope({
   items: z.array(fudabaPlaceSearchResultSchema).max(5),
   attribution: z.string().min(1),
 }).strict();
-
-export const fudabaMapConfigSchema = z
-  .object({
-    styleUrl: z
-      .string()
-      .refine(
-        (value) => !hasAsciiControl(value),
-        "map style URL must not contain ASCII control characters",
-      )
-      .refine(
-        isFudabaMapStyleUrl,
-        "map style URL must be a same-origin absolute path or an absolute " +
-          "http(s) URL without credentials, query, or hash",
-      ),
-  })
-  .strict();
 
 export const ownerCardIdSchema = z
   .string()
@@ -439,6 +434,7 @@ export const fudabaEmptyQuerySchema = strictRequestObject({});
 // Legacy owner and moderation reads historically ignore query keys.
 export const fudabaIgnoredQuerySchema = legacyStripRequestObject({});
 export const fudabaOfficeQuerySchema = strictRequestObject({
+  q: queryValueSchema.optional(),
   city: queryValueSchema.optional(),
   series: queryValueSchema.optional(),
   open: queryValueSchema.optional(),
@@ -560,7 +556,6 @@ export type FudabaOfficeDetailResponse = z.infer<
 export type FudabaOfficeDetail = FudabaOfficeDetailResponse["office"];
 export type FudabaMapOffice = z.infer<typeof fudabaMapOfficeSchema>;
 export type FudabaMapOfficeList = z.infer<typeof fudabaMapOfficeListSchema>;
-export type FudabaMapConfig = z.infer<typeof fudabaMapConfigSchema>;
 export type FudabaPlaceSearchResult = z.infer<
   typeof fudabaPlaceSearchResultSchema
 >;

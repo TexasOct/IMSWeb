@@ -88,7 +88,11 @@ function installMapMocks(api: ApiDispatcher) {
     times: { min: 1, max: 2 },
     handle: () => ({
       status: 200,
-      json: { styleUrl: "/maps/exchange-test-style.json" },
+      json: {
+        provider: "maplibre",
+        search: { provider: "nominatim" },
+        styleUrl: "/maps/exchange-test-style.json",
+      },
     }),
   })
   api.expect({
@@ -190,6 +194,10 @@ test.describe("app map", () => {
           })
         }, nativeSearch)
         await page.goto("/community/exchange")
+        await expect(page.locator("[data-map-results-state]")).toHaveAttribute(
+          "data-map-results-state",
+          "ready"
+        )
         const card = page.getByRole("region", {
           name: "地点查找",
           includeHidden: true,
@@ -276,7 +284,8 @@ test.describe("app map", () => {
           await expect.poll(edges).toEqual({ x: 28, width: 384 })
           await emit(1, 40, 360)
           await expect.poll(edges).toEqual({ x: 28, width: 384 })
-          await card.getByRole("button", { name: "查找地点" }).click()
+          await card.getByRole("button", { name: "查找事务所" }).click()
+          await card.getByRole("tab", { name: "地点", exact: true }).click()
           const input = card.getByRole("textbox", { name: "搜索地点" })
           await input.fill("上海场馆")
           await card.getByRole("button", { name: "取消" }).click()
@@ -343,14 +352,12 @@ test.describe("app map", () => {
             .poll(async () => {
               const navigation = await nav.boundingBox()
               const surfaces = await card.evaluate((element) =>
-                [".exchange-search-surface", ".exchange-search-tools"].map(
-                  (selector) => {
-                    const box = element
-                      .querySelector(selector)!
-                      .getBoundingClientRect()
-                    return { left: box.left, right: box.right }
-                  }
-                )
+                [".exchange-search-surface"].map((selector) => {
+                  const box = element
+                    .querySelector(selector)!
+                    .getBoundingClientRect()
+                  return { left: box.left, right: box.right }
+                })
               )
               return (
                 Boolean(navigation) &&
@@ -399,7 +406,8 @@ test.describe("app map", () => {
         await page.screenshot({
           path: testInfo.outputPath(`r4-${width}-browse.png`),
         })
-        await card.getByRole("button", { name: "查找地点" }).click()
+        await card.getByRole("button", { name: "查找事务所" }).click()
+        await card.getByRole("tab", { name: "地点", exact: true }).click()
         await expect(nav).toBeHidden()
         const input = card.getByRole("textbox", { name: "搜索地点" })
         await input.fill("上海场馆")
@@ -421,7 +429,7 @@ test.describe("app map", () => {
         await card.getByRole("button", { name: "更多地图工具" }).click()
         await page
           .getByLabel("更多地图工具内容")
-          .getByRole("button", { name: "查看地图数据来源" })
+          .getByRole("menuitem", { name: "查看地图数据来源" })
           .click()
         const dialog = page.getByRole("dialog")
         await expect(dialog).toBeVisible()
@@ -480,13 +488,7 @@ test.describe("app map", () => {
           const capsule = element
             .querySelector(".exchange-search-surface")!
             .getBoundingClientRect()
-          const tools = element
-            .querySelector(".exchange-search-tools")!
-            .getBoundingClientRect()
-          const gapHit = document.elementFromPoint(
-            capsule.x + capsule.width / 2,
-            (capsule.bottom + tools.top) / 2
-          )
+          const card = element.getBoundingClientRect()
           const hostWidth = element.parentElement!.getBoundingClientRect().width
           const navigation = document
             .querySelector("nav > [data-glass-fallback]")
@@ -502,10 +504,9 @@ test.describe("app map", () => {
           return {
             widthFits: Math.abs(capsule.width - expected) < 1,
             searchHeight: capsule.height,
-            separate: tools.top - capsule.bottom >= 12,
+            oneRow: Math.abs(card.height - capsule.height) <= 1,
             docked:
-              !navigation || Math.abs(navigation.top - tools.bottom - 12) <= 2,
-            mapGap: !element.contains(gapHit),
+              !navigation || Math.abs(navigation.top - card.bottom - 12) <= 2,
             hits: [
               ...element.querySelectorAll("button"),
               ...document.querySelectorAll(
@@ -532,9 +533,8 @@ test.describe("app map", () => {
       .toEqual({
         widthFits: true,
         searchHeight: 44,
-        separate: true,
+        oneRow: true,
         docked: true,
-        mapGap: true,
         hits: true,
       })
     await page.screenshot({ path: testInfo.outputPath("a-dom-browse.png") })
@@ -559,23 +559,20 @@ test.describe("app map", () => {
               const more = element
                 .querySelector('[aria-label="更多地图工具"]')!
                 .getBoundingClientRect()
-              const tools = element
-                .querySelector(".exchange-search-tools")!
-                .getBoundingClientRect()
               const navigation = document
                 .querySelector("nav > [data-glass-fallback]")!
                 .getBoundingClientRect()
               const hit = document.elementFromPoint(
-                tools.x + tools.width / 2,
-                (tools.bottom + navigation.top) / 2
+                search.x + search.width / 2,
+                (search.bottom + navigation.top) / 2
               )
               return {
                 searchHeight: search.height,
                 moreWidth: more.width,
                 moreHeight: more.height,
-                gap: Math.round(navigation.top - tools.bottom),
+                gap: Math.round(navigation.top - search.bottom),
                 mapGap: !element.contains(hit),
-                navigationHit: navigation.top >= tools.bottom,
+                navigationHit: navigation.top >= search.bottom,
               }
             })
           )
@@ -599,9 +596,14 @@ test.describe("app map", () => {
       document.documentElement.style.removeProperty("font-size")
     })
     const search = card.getByRole("button", { name: "查找地点" })
-    await search.click()
+    await card.getByRole("button", { name: "查找事务所" }).click()
+    await expect(
+      card.getByRole("textbox", { name: "搜索事务所" })
+    ).toBeFocused()
+    await card.getByRole("tab", { name: "地点", exact: true }).click()
     await expect(page.getByRole("navigation", { name: "主导航" })).toBeHidden()
     const input = card.getByRole("textbox", { name: "搜索地点" })
+    await input.click()
     await expect(input).toBeFocused()
     await input.fill("上")
     await expect(
@@ -718,10 +720,11 @@ test.describe("app map", () => {
       )
       await applySafeArea(page)
       const trigger = page.getByRole("button", {
-        name: "查找地点",
+        name: "查找事务所",
         exact: true,
       })
       await trigger.click()
+      await page.getByRole("tab", { name: "地点", exact: true }).click()
       const query = page.getByRole("textbox", { name: "搜索地点" })
       await query.fill("西岸艺术中心")
       const focusedCard = page.locator("[data-app-search]")
@@ -805,7 +808,7 @@ test.describe("app map", () => {
       ).toHaveCount(0)
       const more = page.getByRole("button", { name: "更多地图工具" })
       await more.click()
-      await page.getByRole("button", { name: "查看地图数据来源" }).click()
+      await page.getByRole("menuitem", { name: "查看地图数据来源" }).click()
       const source = page.getByRole("dialog", { name: "地图数据来源" })
       await expect(source).toBeVisible()
       await expect(
@@ -826,7 +829,7 @@ test.describe("app map", () => {
   )
 
   test(
-    "uses browser geolocation to return to the current position",
+    "automatically locates on entry and retains manual geolocation retry",
     {
       tag: ["@app-iphone", "@app-landscape"],
     },
@@ -841,10 +844,11 @@ test.describe("app map", () => {
 
       const canvas = page.locator("canvas.maplibregl-canvas")
       await expect(canvas).toBeVisible({ timeout: 15_000 })
+      const marker = page.getByRole("img", { name: "您的当前位置" })
+      await expect(marker).toBeVisible()
       await page.getByRole("button", { name: "回到我的位置" }).click()
 
       await expect(page.getByText("已回到您的位置")).toBeAttached()
-      const marker = page.getByRole("img", { name: "您的当前位置" })
       await expect(marker).toBeVisible()
       await expect
         .poll(async () => {
@@ -895,20 +899,21 @@ test.describe("app map", () => {
       await expect(toolTrigger).toHaveAttribute("aria-expanded", "true")
       const toolbar = page.getByRole("region", { name: "地点查找" })
       await expect(toolbar).toBeVisible()
+      const menu = page.getByRole("menu", { name: "更多地图工具内容" })
       await expect(
-        toolbar.getByRole("button", { name: "打开筛选" })
+        menu.getByRole("menuitem", { name: "打开筛选" })
       ).toBeVisible()
       await expect(
-        toolbar.getByRole("button", { name: "打开事务所名录" })
+        menu.getByRole("menuitem", { name: "打开事务所名录" })
       ).toBeVisible()
       await expect(
-        toolbar.getByRole("button", { name: "打开名片名录" })
+        menu.getByRole("menuitem", { name: "打开名片名录" })
       ).toBeVisible()
 
       // The attribution entry lives in the same folding panel and opens the one
       // shared dialog. The panel collapses on the same click, so focus returns
       // to the always-visible menu trigger rather than the hidden entry.
-      const attributionEntry = toolbar.getByRole("button", {
+      const attributionEntry = menu.getByRole("menuitem", {
         name: "查看地图数据来源",
       })
       await expect(attributionEntry).toBeVisible()
@@ -924,6 +929,14 @@ test.describe("app map", () => {
         "href",
         "https://datav.aliyun.com/portal/school/atlas/area_selector"
       )
+      await expect(menu).toHaveCount(0)
+      await expect
+        .poll(() =>
+          attributionDialog.evaluate((dialog) =>
+            dialog.contains(document.activeElement)
+          )
+        )
+        .toBe(true)
       await page.keyboard.press("Escape")
       await expect(attributionDialog).toHaveCount(0)
       await expect(toolTrigger).toBeFocused()
@@ -1020,8 +1033,8 @@ test.describe("app map", () => {
       const toolTrigger = page.getByRole("button", { name: "更多地图工具" })
       await toolTrigger.click()
       await page
-        .getByRole("region", { name: "地点查找" })
-        .getByRole("button", { name: "打开筛选" })
+        .getByRole("menu", { name: "更多地图工具内容" })
+        .getByRole("menuitem", { name: "打开筛选" })
         .click()
       const filterDialog = page.getByRole("dialog", { name: "筛选地图" })
       await expect(filterDialog).toBeVisible()
@@ -1059,8 +1072,13 @@ test.describe("app map", () => {
       // substitute; its handler is covered by the component's gesture guard.
       await canvas.focus()
       const zoomBeforeKeyboard = await readStoredZoom()
+      const requestCountBeforeKeyboard = mapBounds.length
       await page.keyboard.press("Equal")
       await expect.poll(readStoredZoom).toBeGreaterThan(zoomBeforeKeyboard)
+      // Bounds requests follow the settled camera through the viewport debounce.
+      await expect
+        .poll(() => mapBounds.length)
+        .toBeGreaterThan(requestCountBeforeKeyboard)
 
       const zoomedBounds = mapBounds.at(-1)
       expect(zoomedBounds).toBeTruthy()
@@ -1127,8 +1145,8 @@ test.describe("app map", () => {
 
       await toolTrigger.click()
       await page
-        .getByRole("region", { name: "地点查找" })
-        .getByRole("button", { name: "打开筛选，已应用筛选" })
+        .getByRole("menu", { name: "更多地图工具内容" })
+        .getByRole("menuitem", { name: "打开筛选，已应用筛选" })
         .click()
       await expect(
         page

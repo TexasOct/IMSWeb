@@ -4,6 +4,7 @@ import { resolve, sep } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
+import { localContractsOptimizer } from "../../vite-contracts"
 import {
   parseByteRange,
   resolveExchangeMapAssetPath,
@@ -26,11 +27,36 @@ describe("Vite file watching", () => {
 })
 
 describe("Vite dependency optimization", () => {
+  it("registers a serve-only optimizer that invalidates linked contracts", () => {
+    expect(localContractsOptimizer(process.cwd())).toMatchObject({
+      name: "imsweb-local-contracts-optimizer",
+      apply: "serve",
+    })
+    expect(viteConfig.plugins).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "imsweb-local-contracts-optimizer",
+          apply: "serve",
+        }),
+      ])
+    )
+  })
   it("pre-bundles linked CommonJS runtime entrypoints", () => {
     expect(viteConfig.optimizeDeps?.include).toContain(
       "@imsweb/contracts/fudaba/runtime"
     )
   })
+})
+
+it("registers the local AMap security proxy without requiring credentials at build time", () => {
+  expect(viteConfig.plugins).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        name: "imsweb-local-amap-service-proxy",
+        apply: "serve",
+      }),
+    ])
+  )
 })
 
 describe("local exchange map asset delivery", () => {

@@ -10,7 +10,7 @@ Compose 发布脚本。API 镜像同时包含 Hono 服务、独立邮件 Worker�
 migrations；主机配置、数据库卷、对象存储凭据和应用秘密不进入 GitHub 构建制品。
 
 production 自动部署适用于单台 Linux 主机上的 PostgreSQL、API、邮件 Worker Compose 栈、宿主机
-Nginx 和 Cloudflare R2。preview 使用同一主机上的独立 rootless Compose 项目、本地 Valkey，对象存储
+Nginx、独立 Valkey 服务和 Cloudflare R2。preview 使用同一主机上的独立 rootless Compose 项目、本地 Valkey，对象存储
 直接使用共享的 Cloudflare R2 测试桶（与本地开发的 `deploy/.env.r2-test` 同一个 bucket），不运行本地
 RustFS。PostgreSQL 和 API 运行时状态仍位于部署用户的 home 下。两个环境的 `api` 都是单副本；邮件
 Worker 默认一个副本，可通过 `IMS_EMAIL_WORKER_REPLICAS` 扩展到最多 32 个。容器重建会产生短暂
@@ -58,9 +58,13 @@ CI、发布构建和部署配置校验都从 `.nvmrc` 读取当前 Node.js 版�
 `engines.node` 仍表示最低兼容版本，不是 CI 或生产运行时的版本选择器。
 
 Tag 必须使用 `vMAJOR.MINOR.PATCH`，例如 `v1.4.0`，并指向 `origin/main` 已包含的 commit。
-Tag push 会运行完整门禁、构建 `apps/api/Dockerfile`、把镜像推送到 GHCR、生成 provenance，
+Tag push 会运行 `pnpm run check` 和 `pnpm run test`、构建 `apps/api/Dockerfile`、把镜像推送到 GHCR、生成 provenance，
 最后按 registry 返回的 `sha256` digest 部署。镜像同时记录 release Tag 和完整 commit SHA；
 部署前要求两个镜像标签解析到同一个 digest。
+
+根检查和根测试不包含 Web/App Playwright。浏览器套件由 `ci.yml` 的独立 lane 执行，
+Firefox 和广泛布局由 `ui-extended.yml` 执行。稳定 Tag 工作流不会额外校验候选提交的这些 CI
+结果；发布记录应单独关联目标提交的浏览器验证证据，不能把 Tag 工作流成功解释为浏览器验收完成。
 
 手动触发不会重新构建镜像。操作者输入已有 Tag，并确认该版本与当前生产数据兼容；工作流只解析
 这个 Tag 与 commit 标签共同指向的已有 digest。这样同一 release 不会因重新构建产生不同
@@ -199,8 +203,11 @@ IMS_POSTGRES_PASSWORD=<secret>
 
 IMS_API_NODE_ENV=production
 IMS_API_DATABASE_URL=postgresql://imsweb:<url-encoded-password>@postgres:5432/imsweb
+IMS_BACKOFFICE_JWT_SECRET=<high-entropy-backoffice-secret>
 IMS_JWT_SECRET=<high-entropy-legacy-backoffice-secret>
 IMS_PLATFORM_JWT_SECRET=<high-entropy-platform-secret>
+IMS_CACHE_BACKEND=valkey
+IMS_VALKEY_URL=rediss://<private-valkey-host>:6379
 IMS_EMAIL_WORKER_REPLICAS=1
 IMS_COOKIE_SECURE=true
 IMS_CLIENT_ADDRESS_SOURCE=nginx
@@ -220,6 +227,24 @@ AWS_SECRET_ACCESS_KEY=<bucket-scoped-secret>
 不要照搬 `deploy/.env.example` 的本地密码、RustFS profile 或 development 配置。环境文件必须是
 普通文件，且 group/others 不得有任何权限。若使用其他绝对路径，在部署用户的非交互 SSH 环境中
 设置 `IMS_RUNTIME_ENV_FILE`；默认路径是 `/etc/imsweb/production.env`。
+
+`IMS_BACKOFFICE_JWT_SECRET` 与 `IMS_PLATFORM_JWT_SECRET` 是运行时必填项，均须至少 32 UTF-8
+字节，Platform 密钥不得与当前或兼容期 Backoffice 密钥相同。`IMS_JWT_SECRET` 在运行时只用于旧
+Backoffice 会话的兼容验证，但当前 `deploy-compose-release.sh` 仍将它列为发布必填项，因此使用
+该部署器时仍须保留。滚动升级与退役条件见 [运行手册](runbook.md#backoffice-会话滚动迁移)，
+不要仅删除环境变量来结束兼容窗口。
+
+### 生产 Valkey 前置条件
+
+生产发布脚本强制清空 `COMPOSE_PROFILES`，只管理 PostgreSQL、邮件 Worker 和 API；不会启动
+`local-cache` profile 中的 Valkey。部署前由运维准备独立、受访问控制的 Valkey 或兼容托管服务，
+并负责其网络、认证和可用性。`IMS_VALKEY_URL` 必须是 API 容器内可达的 `redis://` 或 `rediss://`
+地址。上例使用 TLS；按服务实际配置端口与认证，凭据只保存在受保护的运行环境文件中。
+
+不能直接沿用开发默认的 `redis://valkey:6379`，除非已在容器网络中独立提供该名称；容器内的
+`127.0.0.1` 也不会指向宿主机 Valkey。部署前从目标容器网络验证 DNS、连接、认证和 `PING`，
+部署后检查 `/api/health/ready`，并验证共享限流与邮箱冷却行为。缓存初始化失败会阻止 API ready，
+生产不允许把 backend 改为 `memory` 绕过检查。职责和故障策略见 [缓存架构](../architecture/cache.md)。
 
 生产机还需预先安装并验证宿主机 Nginx。入口必须只代理到回环地址上的 Hono；完整配置见
 [`deploy/nginx/`](../../deploy/nginx/README.md)。

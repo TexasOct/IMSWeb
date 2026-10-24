@@ -1,12 +1,8 @@
 import {
-  Building2Icon,
-  ContactRoundIcon,
   LoaderCircleIcon,
   MapPinIcon,
-  MoreHorizontalIcon,
   RefreshCwIcon,
   SearchIcon,
-  SlidersHorizontalIcon,
   XIcon,
 } from "lucide-react"
 import {
@@ -16,16 +12,17 @@ import {
   useMemo,
   useRef,
   useState,
+  type RefObject,
 } from "react"
 import { createPortal } from "react-dom"
 import { useNavigation } from "~/lib/navigation/use-navigation"
 
-import { NavigationLink } from "~/components/navigation/navigation-link"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import { IS_APP_TARGET } from "~/lib/app-target"
 import { suppressNativeTabBar } from "~/lib/native-tab-bar-suppression"
-import type { FudabaPlaceSearchResult } from "~/lib/api"
+import type { MapSearchPlace } from "~/lib/maps/map-search"
+import type { PlaceSearchDisplay } from "../hooks/use-place-search"
 import {
   shouldUseNativeGlassControls,
   type NativeGlassFrame,
@@ -39,12 +36,23 @@ import {
   type ExchangeNavigationLayout,
 } from "./exchange-navigation-layout"
 import type { NativeGlassColor } from "~/lib/native-glass"
-import { nativeGlassSearchTint } from "~/lib/native-glass-search"
+import {
+  nativeGlassSearchTint,
+  type NativeSearchStatus,
+} from "~/lib/native-glass-search"
 import type { ExchangePlaceSearchModel } from "../hooks/use-exchange-place-search"
 import { useNativeExchangeSearch } from "../hooks/use-native-exchange-search"
 import { expandedSearchMinimumHeight } from "./exchange-search-height"
+import type { WorkspaceSearchTabs } from "../hooks/use-map-workspace-search"
+import { ExchangeSearchTabs } from "./exchange-search-tabs"
+import { ExchangeMapToolsMenu } from "./exchange-map-tools-menu"
+import {
+  exchangeSearchStatus,
+  ExchangeSearchStatus,
+} from "./exchange-search-status"
 
 export interface ExchangeSearchCardTools {
+  filterAnchorRef?: RefObject<HTMLElement | null>
   filterApplied?: boolean
   onOpenFilter: () => void
   onOpenOffices: () => void
@@ -55,20 +63,24 @@ export interface ExchangeSearchCardTools {
   modalOpen?: boolean
 }
 
-export interface ExchangeSearchCardProps extends ExchangeSearchCardTools {
-  model: ExchangePlaceSearchModel
-  selectedPlace: FudabaPlaceSearchResult | null
-  onSelect: (place: FudabaPlaceSearchResult) => void
+export interface ExchangeSearchCardProps<
+  Place extends PlaceSearchDisplay = MapSearchPlace,
+> extends ExchangeSearchCardTools {
+  model: ExchangePlaceSearchModel<Place>
+  selectedPlace: Place | null
+  onSelect: (place: Place) => void
   onClear: () => void
   pointCount: number
   feedback?: React.ReactNode
   feedbackMessage?: string
+  feedbackKind?: NativeSearchStatus["kind"]
   onRetry?: () => void
   onOcclusion: (frame: NativeGlassFrame | null) => void
   onExpandedChange?: (expanded: boolean) => void
+  tabs?: WorkspaceSearchTabs
 }
 
-export function ExchangeSearchCard({
+export function ExchangeSearchCard<Place extends PlaceSearchDisplay>({
   model,
   selectedPlace,
   onSelect,
@@ -76,11 +88,14 @@ export function ExchangeSearchCard({
   pointCount,
   feedback,
   feedbackMessage,
+  feedbackKind = "notice",
   onRetry,
   onOcclusion,
   onExpandedChange,
+  tabs,
   ...tools
-}: ExchangeSearchCardProps) {
+}: ExchangeSearchCardProps<Place>) {
+  const subject = tabs?.active === "offices" ? "事务所" : "地点"
   const id = useId()
   const navigate = useNavigation()
   const cardRef = useRef<HTMLElement>(null)
@@ -126,7 +141,7 @@ export function ExchangeSearchCard({
   const drag = useRef<{ y: number; height: number } | null>(null)
   const suppressHandleClick = useRef(false)
   const [dragHeight, setDragHeight] = useState<number | null>(null)
-  const [collapsedHeight, setCollapsedHeight] = useState(158)
+  const [collapsedHeight, setCollapsedHeight] = useState(44)
   const [expandedMinimumHeight, setExpandedMinimumHeight] = useState(260)
   const mediumHeight = Math.min(
     available,
@@ -159,6 +174,28 @@ export function ExchangeSearchCard({
     onRetry || (!model.busy && !model.searched && !model.error)
       ? feedbackMessage
       : undefined
+  const status = useMemo(
+    () =>
+      exchangeSearchStatus({
+        busy: model.busy,
+        error: model.error,
+        searched: model.searched,
+        resultCount: model.results.length,
+        subject,
+        feedback: currentFeedback
+          ? { kind: feedbackKind, message: currentFeedback }
+          : undefined,
+      }),
+    [
+      model.busy,
+      model.error,
+      model.searched,
+      model.results.length,
+      currentFeedback,
+      feedbackKind,
+      subject,
+    ]
+  )
   const snapshot = useMemo(
     () =>
       tools.modalOpen || !hostFrame.width
@@ -166,6 +203,8 @@ export function ExchangeSearchCard({
         : {
             id: "exchange-search",
             revision: model.revision,
+            activeTab: tabs?.active,
+            hasMore: tabs?.hasMore,
             host: hostFrame,
             navigationFrame,
             bottomClearance: bottom,
@@ -177,32 +216,35 @@ export function ExchangeSearchCard({
             editing,
             query: model.query,
             busy: model.busy,
-            message: [
-              model.busy
-                ? "正在搜索地点"
-                : (model.error ??
-                  (model.searched && !model.results.length
-                    ? "没有找到地点，请尝试城市加场馆名或完整地址。"
-                    : "")),
-              expanded ? currentFeedback : undefined,
-            ]
-              .filter(Boolean)
-              .join("\n"),
-            attribution:
-              model.attribution ||
-              (selectedPlace ? "© OpenStreetMap contributors" : ""),
+            status,
+            attribution: expanded
+              ? model.attribution
+              : (selectedPlace?.attribution ?? model.attribution),
             selected: selectedPlace ? `已定位：${selectedPlace.label}` : "",
             selectedLabel: selectedPlace?.label ?? "",
             selectedAddress: selectedPlace?.address ?? "",
             filterApplied: Boolean(tools.filterApplied),
             pointCount,
             hasAttribution: Boolean(tools.onOpenAttribution),
-            results: model.results,
+            results: model.results.map(
+              ({ id, label, address, distanceLabel, disabled }) => ({
+                id,
+                disabled,
+                label,
+                address: [address, distanceLabel].filter(Boolean).join(" · "),
+              })
+            ),
             labels: {
-              search: "查找地点",
-              input: "搜索地点",
-              placeholder: "场馆、商圈或完整地址",
-              resultsHeading: "地点",
+              search: `查找${subject}`,
+              input: `搜索${subject}`,
+              placeholder:
+                subject === "事务所"
+                  ? "事务所名称、城市或地址"
+                  : "城市、地名或完整地址",
+              resultsHeading: subject,
+              officeTab: "事务所",
+              placeTab: "地点",
+              loadMore: "加载更多事务所",
               resultsSubtitle: "搜索结果",
               more: "更多",
               submit: "查找",
@@ -211,6 +253,7 @@ export function ExchangeSearchCard({
               shrink: "缩小结果",
               collapse: "收起地点查找",
               filter: "筛选",
+              filterApplied: "已应用筛选",
               offices: "事务所",
               cards: "名片",
               account: "我的交换账号",
@@ -239,20 +282,29 @@ export function ExchangeSearchCard({
       model.revision,
       model.query,
       model.busy,
-      model.error,
-      model.searched,
       model.results,
       model.attribution,
       selectedPlace,
       pointCount,
-      currentFeedback,
+      status,
       onRetry,
+      tabs?.active,
+      tabs?.hasMore,
+      subject,
     ]
   )
   const native = useNativeExchangeSearch(
     snapshot,
     (event) => {
-      if (event.action === "input") {
+      if (
+        event.action === "tab" &&
+        (event.value === "offices" || event.value === "places")
+      ) {
+        tabs?.onChange(event.value)
+      } else if (event.action === "loadMore") {
+        tabs?.onLoadMore()
+      } else if (event.action === "input") {
+        model.cancelPending()
         model.edit(event.value ?? "")
         setEditing(true)
       } else if (event.action === "submit") {
@@ -287,13 +339,16 @@ export function ExchangeSearchCard({
         })
       } else if (event.action === "tool") {
         collapse()
+        if (
+          ["filter", "offices", "cards", "source"].includes(event.value ?? "")
+        )
+          setReturnFocusMore(true)
         if (event.value === "filter") tools.onOpenFilter()
         else if (event.value === "offices") tools.onOpenOffices()
         else if (event.value === "cards") tools.onOpenCards()
         else if (event.value === "refresh") tools.onRefresh()
         else if (event.value === "retry") onRetry?.()
         else if (event.value === "source") {
-          setReturnFocusMore(true)
           tools.onOpenAttribution?.(moreRef.current)
         } else if (event.value === "account")
           void navigate("/community/exchange/me")
@@ -524,7 +579,6 @@ export function ExchangeSearchCard({
       const actions = card.querySelector<HTMLElement>(
         ".exchange-search-actions"
       )
-      const toolsRow = card.querySelector<HTMLElement>(".exchange-search-tools")
       if (expanded && box.width && surface && actions) {
         const reading = card.querySelector<HTMLElement>(
           ".exchange-search-content"
@@ -552,19 +606,10 @@ export function ExchangeSearchCard({
           ? Math.max(12, hostBox.bottom - end + 12)
           : Math.max(12, hostBox.bottom - box.top + 12)
       )
-      if (
-        !expanded &&
-        !card.querySelector('[aria-label="更多地图工具内容"]') &&
-        box.width &&
-        box.height
-      )
+      if (!expanded && box.width && box.height)
         setCollapsedHeight(
           IS_APP_TARGET
-            ? (surface?.getBoundingClientRect().height ?? 44) +
-                (toolsRow
-                  ? toolsRow.getBoundingClientRect().height +
-                    (parseFloat(getComputedStyle(toolsRow).marginTop) || 0)
-                  : 56)
+            ? (surface?.getBoundingClientRect().height ?? 44)
             : box.height
         )
       if (nativeOcclusion.current && !tools.modalOpen) {
@@ -823,8 +868,7 @@ export function ExchangeSearchCard({
         data-app-search={IS_APP_TARGET || undefined}
         style={{
           bottom: exiting && settlingDrag ? collapsedBottom.current : bottom,
-          height:
-            IS_APP_TARGET && !expanded && !more ? collapsedHeight : height,
+          height: IS_APP_TARGET && !expanded ? collapsedHeight : height,
           maxHeight: available,
         }}
         onTransitionEnd={(event) => {
@@ -836,7 +880,12 @@ export function ExchangeSearchCard({
             finishCollapse()
         }}
         onKeyDown={(event) => {
-          if (event.key !== "Escape" || event.nativeEvent.isComposing) return
+          if (
+            event.defaultPrevented ||
+            event.key !== "Escape" ||
+            event.nativeEvent.isComposing
+          )
+            return
           event.stopPropagation()
           if (more) {
             setMore(false)
@@ -953,11 +1002,18 @@ export function ExchangeSearchCard({
                 ref={inputRef}
                 id={id}
                 className="exchange-search-input"
-                aria-label="搜索地点"
-                placeholder="场馆、商圈或完整地址"
+                aria-label={`搜索${subject}`}
+                placeholder={
+                  subject === "事务所"
+                    ? "事务所名称、城市或地址"
+                    : "场馆、商圈或完整地址"
+                }
                 value={model.query}
                 maxLength={120}
-                onChange={(event) => model.edit(event.currentTarget.value)}
+                onChange={(event) => {
+                  model.cancelPending()
+                  model.edit(event.currentTarget.value)
+                }}
                 onFocus={() => setEditing(true)}
                 onKeyDown={(event) => {
                   if (event.key !== "Enter" || event.nativeEvent.isComposing)
@@ -983,7 +1039,7 @@ export function ExchangeSearchCard({
                   <span>{selectedPlace.address}</span>
                   {!IS_APP_TARGET ? (
                     <span>
-                      {model.attribution || "© OpenStreetMap contributors"}
+                      {selectedPlace.attribution ?? model.attribution}
                     </span>
                   ) : null}
                 </span>
@@ -996,7 +1052,7 @@ export function ExchangeSearchCard({
                 aria-expanded={false}
                 onClick={openSearch}
               >
-                查找地点
+                查找{subject}
               </Button>
             )}
             {expanded && model.query ? (
@@ -1027,20 +1083,29 @@ export function ExchangeSearchCard({
                 <XIcon aria-hidden="true" />
               </Button>
             ) : null}
-            <Button
-              ref={moreRef}
-              className="exchange-search-round"
-              variant="secondary"
-              aria-label="更多地图工具"
-              aria-expanded={more}
-              onClick={() => {
-                inputRef.current?.blur()
-                setEditing(false)
-                setMore((value) => !value)
+            <ExchangeMapToolsMenu
+              triggerRef={moreRef}
+              triggerClassName="exchange-search-round"
+              open={more && !native && !tools.modalOpen}
+              onOpenChange={(value) => {
+                if (value) {
+                  inputRef.current?.blur()
+                  setEditing(false)
+                }
+                setMore(value)
               }}
-            >
-              <MoreHorizontalIcon aria-hidden="true" />
-            </Button>
+              filterApplied={tools.filterApplied}
+              modalOpen={tools.modalOpen}
+              pointCount={pointCount}
+              onOpenFilter={() => tool(tools.onOpenFilter)}
+              onOpenOffices={() => tool(tools.onOpenOffices)}
+              onOpenCards={() => tool(tools.onOpenCards)}
+              onOpenAttribution={
+                tools.onOpenAttribution
+                  ? (trigger) => tool(() => tools.onOpenAttribution?.(trigger))
+                  : undefined
+              }
+            />
           </div>
         </div>
 
@@ -1081,84 +1146,32 @@ export function ExchangeSearchCard({
               </Button>
             ) : null}
           </div>
-        ) : (
-          <div key="tools" className="exchange-search-tools">
-            <Button
-              className="exchange-search-pill"
-              variant="secondary"
-              aria-label={
-                tools.filterApplied ? "打开筛选，已应用筛选" : "打开筛选"
-              }
-              aria-pressed={tools.filterApplied}
-              onClick={() => tool(tools.onOpenFilter)}
-            >
-              <SlidersHorizontalIcon aria-hidden="true" />
-              筛选{tools.filterApplied ? " ·" : ""}
-            </Button>
-            <Button
-              className="exchange-search-pill"
-              variant="secondary"
-              aria-label="打开事务所名录"
-              onClick={() => tool(tools.onOpenOffices)}
-            >
-              <Building2Icon aria-hidden="true" />
-              事务所
-            </Button>
-            <Button
-              className="exchange-search-pill"
-              variant="secondary"
-              aria-label="打开名片名录"
-              onClick={() => tool(tools.onOpenCards)}
-            >
-              <ContactRoundIcon aria-hidden="true" />
-              名片
-            </Button>
-          </div>
-        )}
-
-        {more ? (
-          <div
-            className="exchange-search-content"
-            aria-label="更多地图工具内容"
-          >
-            <p>当前范围：{pointCount} 个区域点</p>
-            <NavigationLink
-              to="/community/exchange/me"
-              className="exchange-search-menu-item"
-            >
-              我的交换账号
-            </NavigationLink>
-            {tools.onOpenAttribution ? (
-              <Button
-                variant="ghost"
-                className="exchange-search-menu-item"
-                aria-label="查看地图数据来源"
-                aria-haspopup="dialog"
-                onClick={() => {
-                  setMore(false)
-                  tool(() => tools.onOpenAttribution?.(moreRef.current))
-                }}
-              >
-                地图来源
-              </Button>
-            ) : null}
-          </div>
         ) : null}
 
         {expanded ? (
           <div
             className="exchange-search-content"
-            aria-label="地点搜索结果"
+            data-placeholder={!model.results.length || undefined}
+            role={tabs ? "tabpanel" : undefined}
+            id={tabs?.panelId}
+            aria-labelledby={
+              tabs?.panelId ? `${tabs.panelId}-${tabs.active}` : undefined
+            }
+            aria-label={`${subject}搜索结果`}
             inert={exiting || undefined}
           >
-            {model.results.length ? (
-              <h2 className="text-lg font-semibold">地点</h2>
+            {tabs ? (
+              <ExchangeSearchTabs tabs={tabs} />
+            ) : model.results.length ? (
+              <h2 className="text-lg font-semibold">{subject}</h2>
             ) : null}
             {feedback}
-            {currentFeedback ? (
-              <div role="status">
-                <p>{currentFeedback}</p>
-                {onRetry ? (
+            {status ? (
+              <ExchangeSearchStatus
+                status={status}
+                compact={Boolean(model.results.length)}
+              >
+                {currentFeedback && onRetry ? (
                   <Button
                     className="exchange-search-pill"
                     variant="secondary"
@@ -1167,7 +1180,7 @@ export function ExchangeSearchCard({
                     重试地图
                   </Button>
                 ) : null}
-                {onRetry ? (
+                {currentFeedback && onRetry ? (
                   <Button
                     className="exchange-search-pill"
                     variant="ghost"
@@ -1176,19 +1189,13 @@ export function ExchangeSearchCard({
                     查看名录
                   </Button>
                 ) : null}
-              </div>
-            ) : null}
-            {model.busy ? <p role="status">正在搜索地点</p> : null}
-            {model.error ? (
-              <p role="alert">{model.error} 可以重新查找。</p>
-            ) : null}
-            {model.searched && !model.results.length && !model.busy ? (
-              <p role="status">没有找到地点，请尝试城市加场馆名或完整地址。</p>
+              </ExchangeSearchStatus>
             ) : null}
             {model.results.map((place) => (
               <button
                 key={place.id}
                 type="button"
+                disabled={place.disabled}
                 className="exchange-search-result"
                 onClick={() => {
                   onSelect(place)
@@ -1196,9 +1203,22 @@ export function ExchangeSearchCard({
                 }}
               >
                 <strong>{place.label}</strong>
-                <span>{place.address}</span>
+                <span>
+                  {[place.address, place.distanceLabel]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
               </button>
             ))}
+            {tabs?.hasMore ? (
+              <Button
+                variant="ghost"
+                disabled={model.busy}
+                onClick={tabs.onLoadMore}
+              >
+                加载更多事务所
+              </Button>
+            ) : null}
             {!IS_APP_TARGET && model.attribution ? (
               <p className="text-xs text-muted-foreground">
                 {model.attribution}

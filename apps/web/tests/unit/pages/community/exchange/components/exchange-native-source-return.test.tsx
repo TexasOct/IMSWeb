@@ -91,6 +91,8 @@ describe("native source return intent", () => {
       })
     )
     await user.click(screen.getByRole("button", { name: "关闭来源测试面板" }))
+    expect(latest()[0]?.returnFocusMore).toBe(true)
+    act(() => latest()[2]())
     expect(latest()[0]?.returnFocusMore).toBe(false)
     view.unmount()
   })

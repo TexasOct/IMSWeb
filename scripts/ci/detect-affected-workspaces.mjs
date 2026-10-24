@@ -78,7 +78,7 @@ const SHARED_WEB_FILES = new Set([
 const INTEGRATION_ONLY_FILES = new Set([
   "apps/api/scripts/build/build-client.js",
   "apps/api/scripts/build/check-client.js",
-  "apps/api/tests/assets/frontend-routing.contract.test.js",
+  "apps/api/tests/assets/frontend-routing.contract.test.ts",
   "apps/api/tests/assets/static-preview.contract.test.ts",
 ]);
 

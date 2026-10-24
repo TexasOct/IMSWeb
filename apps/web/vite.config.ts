@@ -9,11 +9,13 @@ import {
   PUBLIC_SITE_PROXY_PATH_PREFIXES,
 } from "./app/lib/bundle-path-policy"
 import { mockWorkerScriptPlugin } from "./mocks/worker-script-plugin"
+import { localAMapServiceProxy } from "./vite-amap-service-proxy"
 import {
   localExchangeMapAssets,
   TAURI_MAP_ORIGINS,
 } from "./vite-exchange-map-assets"
 import { GENERATED_BUILD_WATCH_OPTIONS } from "./vite-watch"
+import { localContractsOptimizer } from "./vite-contracts"
 
 const honoOrigin = process.env.IMS_API_ORIGIN ?? "http://127.0.0.1:3000"
 const publicSiteProxyOrigin =
@@ -80,6 +82,8 @@ export default defineConfig({
   },
   plugins: [
     mockWorkerScriptPlugin(),
+    localContractsOptimizer(workspaceRoot),
+    localAMapServiceProxy(fileURLToPath(new URL(".", import.meta.url))),
     localExchangeMapAssets(workspaceRoot),
     tailwindcss(),
     reactRouter(),
@@ -103,7 +107,8 @@ export default defineConfig({
       "@base-ui/react/toggle-group",
     ],
   },
-  // The linked contracts workspace publishes CommonJS; Node must load it in SSR.
+  // The linked contracts workspace publishes dual CJS/ESM; keep the package
+  // external so prerendering loads its own ESM build instead of a second copy.
   ssr: {
     external: ["@imsweb/contracts"],
   },

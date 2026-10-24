@@ -41,16 +41,18 @@ final class ExchangeMoreTitleTests: XCTestCase {
     return Fixture(window: window, parent: parent, host: host, webview: webview)
   }
 
-  private func snapshot(_ size: CGSize, more: String = "更多", detent: String = "medium", busy: Bool = false, message: String = "", hasResults: Bool = true) throws -> NativeSearchArgs {
+  private func snapshot(_ size: CGSize, more: String = "更多", detent: String = "medium", busy: Bool = false, statusKind: String = "idle", message: String = "", hasResults: Bool = true, filterApplied: Bool = false) throws -> NativeSearchArgs {
+    let status: Any = hasResults && message.isEmpty ? NSNull() : ["kind": statusKind, "title": message, "description": "试试搜索城市、场馆或完整地址。"]
     let data = try JSONSerialization.data(withJSONObject: [
       "id": "exchange-search", "generation": 1, "revision": 1,
       "host": ["x": 0, "y": 0, "width": size.width, "height": size.height],
       "bottomClearance": 0, "dark": false, "detent": detent, "editing": false,
-      "query": "上海", "busy": busy, "message": message, "attribution": "",
+      "query": "上海", "busy": busy,
+      "status": status, "attribution": "",
       "selected": "上海站", "selectedLabel": "上海站", "selectedAddress": "上海市静安区",
-      "filterApplied": false, "pointCount": 1, "hasAttribution": true,
+      "filterApplied": filterApplied, "pointCount": 1, "hasAttribution": true,
       "results": hasResults ? [["id": "station", "label": "上海站", "address": "上海市静安区"]] : [],
-      "labels": ["filter": "筛选", "offices": "事务所", "cards": "名片",
+      "labels": ["filter": "筛选", "filterApplied": "已应用筛选", "offices": "事务所", "cards": "名片",
                  "more": more, "source": "地图来源", "account": "我的交换账号",
                  "submit": "查找", "collapse": "收起", "expand": "展开", "cancel": "取消"]
     ])
@@ -105,41 +107,99 @@ final class ExchangeMoreTitleTests: XCTestCase {
     try assertCompleteTitle(updated, expected: "更多操作")
   }
 
-  func testRetainedPortraitToolsFitLiveTextAndRestoreWithoutRendering() async throws {
+  private func menuActions(_ menu: UIMenu) -> [UIAction] {
+    menu.children.flatMap { child in
+      if let nested = child as? UIMenu { return menuActions(nested) }
+      return (child as? UIAction).map { [$0] } ?? []
+    }
+  }
+
+  private func scrollAncestors(of control: UIView) {
+    var parent = control.superview
+    while let view = parent {
+      if let scroll = view as? UIScrollView, scroll.isScrollEnabled {
+        scroll.setContentOffset(CGPoint(x: 0, y: 8), animated: false)
+      }
+      parent = view.superview
+    }
+  }
+
+  func testBrowsingHeaderStaysCenteredAndToolsRemainInMenuThroughLiveTextChanges() async throws {
     for size in [CGSize(width: 375, height: 667), CGSize(width: 402, height: 874), CGSize(width: 440, height: 956)] {
       let fixture = fixture()
       defer { fixture.window.isHidden = true }
       fixture.layout(size)
-      fixture.host.render(try snapshot(size, detent: "collapsed"))
+      fixture.host.render(try snapshot(size, detent: "collapsed", filterApplied: true))
       await settleTraits()
       fixture.layout(size)
-      let keys = ["filter", "offices", "cards"]
-      let titles = ["筛选", "事务所", "名片"]
-      let buttons = try keys.map { try descendant(fixture.host.view, id: "ims-native-exchange-\($0)", type: UIButton.self) }
-      let fonts = try buttons.map { try XCTUnwrap($0.titleLabel?.font).pointSize }
+      let summary = try descendant(fixture.host.view, id: "ims-native-exchange-selected-summary", type: UIButton.self)
+      let glass = try descendant(fixture.host.view, id: "ims-native-exchange-search", type: UIView.self)
       let field = try descendant(fixture.host.view, id: "ims-native-exchange-search-input", type: UISearchTextField.self)
       let table = try descendant(fixture.host.view, id: "ims-native-exchange-search-results", type: UITableView.self)
       let more = try descendant(fixture.host.view, id: "ims-native-exchange-more", type: UIButton.self)
       let menu = try XCTUnwrap(more.menu)
-      for category in [UIContentSizeCategory.extraLarge, .large] {
+      for category in [UIContentSizeCategory.extraLarge, .accessibilityExtraExtraExtraLarge, .large] {
         fixture.parent.traitOverrides.preferredContentSizeCategory = category
         await settleTraits()
         fixture.layout(size)
-        for index in keys.indices {
-          let button = try descendant(fixture.host.view, id: "ims-native-exchange-\(keys[index])", type: UIButton.self)
-          XCTAssertTrue(button === buttons[index])
-          try assertCompleteTitle(button, expected: titles[index])
-          let pointSize = try XCTUnwrap(button.titleLabel?.font).pointSize
-          if category == .extraLarge { XCTAssertGreaterThan(pointSize, fonts[index]) }
-          else { XCTAssertEqual(pointSize, fonts[index], accuracy: 0.1) }
-        }
+        let before = summary.convert(summary.bounds, to: fixture.host.view)
+        scrollAncestors(of: summary)
+        fixture.layout(size)
+        let after = summary.convert(summary.bounds, to: fixture.host.view)
+        let surface = glass.convert(glass.bounds, to: fixture.host.view)
+        XCTAssertEqual(after.minY, before.minY, accuracy: 0.5)
+        XCTAssertEqual(after.midY, surface.midY, accuracy: 0.5)
+        XCTAssertGreaterThanOrEqual(after.height, summary.intrinsicContentSize.height - 0.5)
+        XCTAssertEqual(more.convert(more.bounds, to: fixture.host.view).midY, surface.midY, accuracy: 0.5)
+        XCTAssertEqual(Array(menuActions(menu).prefix(3)).map(\.title), ["筛选", "事务所", "名片"])
+        XCTAssertEqual(menuActions(menu).first?.state, .on)
+        XCTAssertEqual(more.accessibilityValue, "已应用筛选")
         XCTAssertTrue(field === (try descendant(fixture.host.view, id: "ims-native-exchange-search-input", type: UISearchTextField.self)))
         XCTAssertTrue(table === (try descendant(fixture.host.view, id: "ims-native-exchange-search-results", type: UITableView.self)))
         XCTAssertTrue(menu === more.menu)
         XCTAssertEqual(field.text, "上海")
         XCTAssertEqual(table.numberOfRows(inSection: 0), 1)
       }
+      fixture.host.render(try snapshot(size, detent: "collapsed"))
+      XCTAssertEqual(menuActions(try XCTUnwrap(more.menu)).first?.state, .off)
     }
+  }
+
+  func testShortViewportRetainsInputAndSubmitWithoutMovingThemIntoReadingScroll() async throws {
+    let fixture = fixture()
+    defer { fixture.window.isHidden = true }
+    let portrait = CGSize(width: 402, height: 874)
+    fixture.layout(portrait)
+    fixture.host.render(try snapshot(portrait))
+    let field = try descendant(fixture.host.view, id: "ims-native-exchange-search-input", type: UISearchTextField.self)
+    let submit = try descendant(fixture.host.view, id: "ims-native-exchange-submit", type: UIButton.self)
+    let reading = try descendant(fixture.host.view, id: "ims-native-exchange-reading-viewport", type: UIScrollView.self)
+    fixture.parent.traitOverrides.preferredContentSizeCategory = .accessibilityExtraExtraExtraLarge
+    await settleTraits()
+    let short = CGSize(width: 874, height: 220)
+    fixture.layout(short)
+    fixture.host.render(try snapshot(short))
+    fixture.layout(short)
+    let before = field.convert(field.bounds, to: fixture.host.view)
+    scrollAncestors(of: field)
+    reading.setContentOffset(CGPoint(x: 0, y: 20), animated: false)
+    fixture.layout(short)
+    XCTAssertEqual(field.convert(field.bounds, to: fixture.host.view), before)
+    XCTAssertEqual(submit.accessibilityLabel, "查找")
+    XCTAssertFalse(field.convert(field.bounds, to: fixture.host.view).intersects(submit.convert(submit.bounds, to: fixture.host.view)))
+    for control in [field, submit] as [UIView] {
+      let frame = control.convert(control.bounds, to: fixture.host.view)
+      XCTAssertGreaterThanOrEqual(frame.height, 44)
+      XCTAssertGreaterThanOrEqual(frame.minY, 0)
+      XCTAssertLessThanOrEqual(frame.maxY, short.height)
+    }
+    fixture.layout(portrait)
+    fixture.host.render(try snapshot(portrait))
+    fixture.layout(portrait)
+    XCTAssertTrue(field === (try descendant(fixture.host.view, id: "ims-native-exchange-search-input", type: UISearchTextField.self)))
+    XCTAssertTrue(submit === (try descendant(fixture.host.view, id: "ims-native-exchange-submit", type: UIButton.self)))
+    XCTAssertEqual(field.text, "上海")
+    XCTAssertGreaterThan(submit.convert(submit.bounds, to: fixture.host.view).minY, field.convert(field.bounds, to: fixture.host.view).maxY)
   }
 
   func testExpandedInputSubmitSpacingAndEssentialRowsAcrossSearchStates() async throws {
@@ -155,8 +215,8 @@ final class ExchangeMoreTitleTests: XCTestCase {
     for category in [UIContentSizeCategory.large, .extraLarge, .accessibilityExtraExtraExtraLarge] {
       fixture.parent.traitOverrides.preferredContentSizeCategory = category
       await settleTraits()
-      for (busy, message, hasResults) in [(false, "", true), (true, "查找中", false), (false, "请稍后重试", false), (false, "没有匹配地点", false)] {
-        fixture.host.render(try snapshot(size, busy: busy, message: message, hasResults: hasResults))
+      for (busy, kind, message, hasResults) in [(false, "idle", "", true), (true, "loading", "查找中", false), (false, "error", "请稍后重试", false), (false, "empty", "没有匹配地点", false)] {
+        fixture.host.render(try snapshot(size, busy: busy, statusKind: kind, message: message, hasResults: hasResults))
         fixture.layout(size)
         let inputFrame = field.convert(field.bounds, to: fixture.host.view)
         let submitFrame = submit.convert(submit.bounds, to: fixture.host.view)

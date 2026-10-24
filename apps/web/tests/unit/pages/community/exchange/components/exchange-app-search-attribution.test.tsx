@@ -13,7 +13,11 @@ vi.mock("~/lib/app-target", () => ({ IS_APP_TARGET: true }))
 vi.mock("~/lib/api", async (original) => ({
   ...(await original<typeof import("~/lib/api")>()),
   getFudabaMapConfig: () => ({
-    send: async () => ({ styleUrl: "/maps/exchange-test-style.json" }),
+    send: async () => ({
+      provider: "maplibre",
+      search: { provider: "nominatim" },
+      styleUrl: "/maps/exchange-test-style.json",
+    }),
   }),
   getFudabaMapOffices: () => ({
     send: async () => ({ items: [], truncated: false }),
@@ -35,7 +39,10 @@ const place = {
 describe("App search source ownership", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.search.mockReturnValue({ send: mocks.send })
+    mocks.search.mockReturnValue({
+      send: mocks.send,
+      abort: vi.fn().mockResolvedValue(undefined),
+    })
   })
 
   it("preserves selected provenance independently of new results and errors without inline notices", async () => {
@@ -62,7 +69,8 @@ describe("App search source ownership", () => {
         }}
       />
     )
-    await user.click(screen.getByRole("button", { name: "查找地点" }))
+    await user.click(screen.getByRole("button", { name: "查找事务所" }))
+    await user.click(screen.getByRole("tab", { name: "地点" }))
     let input = screen.getByRole("textbox", { name: "搜索地点" })
     await user.type(input, "西岸")
     expect(mocks.search).not.toHaveBeenCalled()

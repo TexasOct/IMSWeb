@@ -1,8 +1,11 @@
 import { expect, test } from "./fixtures/test"
 import { installBrowserIconMock } from "./fixtures/homepage"
 
-test.describe("A exchange DOM geometry", () => {
+test.describe("exchange Web search geometry", () => {
   for (const [width, height] of [
+    [1440, 900],
+    [1440, 2560],
+    [1280, 720],
     [320, 568],
     [390, 844],
     [402, 874],
@@ -13,7 +16,7 @@ test.describe("A exchange DOM geometry", () => {
     [844, 390],
     [667, 375],
   ]) {
-    test(`fits separate surfaces and control hits at ${width}x${height}`, async ({
+    test(`retains input and reachable controls at ${width}x${height}`, async ({
       page,
       api,
     }, testInfo) => {
@@ -46,7 +49,11 @@ test.describe("A exchange DOM geometry", () => {
         "/api/community/exchange/map/config",
         (route) =>
           route.fulfill({
-            json: { styleUrl: "/maps/exchange-test-style.json" },
+            json: {
+              provider: "maplibre",
+              search: { provider: "nominatim" },
+              styleUrl: "/maps/exchange-test-style.json",
+            },
           }),
         "GET",
         1
@@ -90,146 +97,92 @@ test.describe("A exchange DOM geometry", () => {
         "data-map-state",
         "ready"
       )
-      const card = page.getByRole("region", { name: "地点查找" })
-      const measure = () =>
-        card.evaluate((element) => {
-          const surface = element
-            .querySelector(".exchange-search-surface")!
-            .getBoundingClientRect()
-          const tools = element
-            .querySelector(".exchange-search-tools")!
-            .getBoundingClientRect()
-          const controls = document
-            .querySelector("[data-exchange-side-controls]")!
-            .getBoundingClientRect()
-          const refresh = document
-            .querySelector(".exchange-map-refresh-button")!
-            .getBoundingClientRect()
-          const locate = document
-            .querySelector('[data-native-glass-control="locate"]')!
-            .getBoundingClientRect()
-          const hit = (button: Element) => {
-            const box = button.getBoundingClientRect()
+      const workspace = page.getByRole("region", { name: "地点查找" })
+      const input = workspace.getByRole("textbox", { name: "搜索地点" })
+      await workspace.getByRole("button", { name: "展开地图面板" }).click()
+      await workspace.getByRole("tab", { name: "地点", exact: true }).click()
+      await workspace.getByRole("button", { name: "收起地图面板" }).click()
+      const originalInput = await input.elementHandle()
+      const canvas = page.locator("canvas.maplibregl-canvas")
+      const mapFrame = await canvas.boundingBox()
+      await expect(input).toBeVisible()
+      const reachable = () =>
+        workspace.locator(".exchange-web-search-dock").evaluate((element) => {
+          const controls = [
+            ...element.querySelectorAll("button:enabled, input"),
+          ]
+          return controls.every((control) => {
+            const rect = control.getBoundingClientRect()
             return (
-              box.width >= 44 &&
-              box.height >= 44 &&
-              box.top >= 0 &&
-              box.bottom <= innerHeight &&
-              button.contains(
+              rect.width >= 44 &&
+              rect.height >= 44 &&
+              rect.top >= 0 &&
+              rect.bottom <= innerHeight &&
+              rect.left >= 0 &&
+              rect.right <= innerWidth &&
+              control.contains(
                 document.elementFromPoint(
-                  box.x + box.width / 2,
-                  box.y + box.height / 2
+                  rect.x + rect.width / 2,
+                  rect.y + rect.height / 2
                 )
               )
             )
-          }
-          const gapX = surface.x + surface.width / 2
-          const gapY = (surface.bottom + tools.top) / 2
-          const gapHit = document.elementFromPoint(gapX, gapY)
-          return {
-            width: Math.round(surface.width * 10) / 10,
-            separate: tools.top - surface.bottom >= 12,
-            mapGap: !element.contains(gapHit),
-            hits: [
-              ...element.querySelectorAll("button"),
-              ...document.querySelectorAll(
-                "[data-exchange-side-controls] button"
-              ),
-            ].every(hit),
-            controlsClear:
-              controls.bottom <= surface.top - 12 ||
-              controls.left >= surface.right + 12,
-            grouped:
-              Math.abs(refresh.bottom - locate.top) <= 1 &&
-              Math.abs(refresh.x - locate.x) <= 1,
-          }
+          })
         })
-      const expectedWidth =
-        Math.round(
-          (height <= 500 && width >= 640
-            ? Math.min(420, Math.max(320, width * 0.48))
-            : width < 768
-              ? width - 16
-              : Math.min(560, width - 16)) * 10
-        ) / 10
-      await expect.poll(measure).toEqual({
-        width: expectedWidth,
-        separate: true,
-        mapGap: true,
-        hits: true,
-        controlsClear: true,
-        grouped: true,
-      })
-      await page.screenshot({ path: testInfo.outputPath("a-browse.png") })
-      await card.getByRole("button", { name: "查找地点", exact: true }).click()
-      const input = card.getByRole("textbox", { name: "搜索地点" })
-      await expect(input).toBeFocused()
+      await expect.poll(reachable).toBe(true)
+      const footerClearance = () =>
+        workspace.evaluate(
+          (element) =>
+            element.parentElement!.getBoundingClientRect().bottom -
+            element.getBoundingClientRect().bottom
+        )
+      await expect.poll(footerClearance).toBeGreaterThanOrEqual(56)
+      await page.screenshot({ path: testInfo.outputPath("browse.png") })
       await input.fill("西岸")
       expect(searches).toBe(0)
-      await expect
-        .poll(() =>
-          card.evaluate((element) => {
-            const targets = element.querySelectorAll(
-              ".exchange-search-row input, .exchange-search-row button, .exchange-search-actions button"
-            )
-            return [...targets].every((target) => {
-              const box = target.getBoundingClientRect()
-              return (
-                box.width >= 44 &&
-                box.height >= 44 &&
-                box.top >= 0 &&
-                box.bottom <= innerHeight &&
-                target.contains(
-                  document.elementFromPoint(
-                    box.x + box.width / 2,
-                    box.y + box.height / 2
-                  )
-                )
-              )
-            })
-          })
-        )
-        .toBe(true)
-      await page.screenshot({ path: testInfo.outputPath("a-edit.png") })
-      await card.getByRole("button", { name: "查找", exact: true }).click()
-      const result = card.getByRole("button", {
+      await expect.poll(reachable).toBe(true)
+      await expect.poll(() => canvas.boundingBox()).toEqual(mapFrame)
+      await workspace.getByRole("button", { name: "搜索", exact: true }).click()
+      const result = workspace.getByRole("button", {
         name: "西岸艺术中心 上海市徐汇区",
         exact: true,
       })
       await expect(result).toBeVisible()
+      await result.scrollIntoViewIfNeeded()
       expect(
         await result.evaluate((element) => {
-          const box = element.getBoundingClientRect()
-          return (
-            box.top >= 0 &&
-            box.bottom <= innerHeight &&
-            element.contains(
-              document.elementFromPoint(
-                box.x + box.width / 2,
-                box.y + box.height / 2
-              )
+          const rect = element.getBoundingClientRect()
+          return element.contains(
+            document.elementFromPoint(
+              rect.x + rect.width / 2,
+              rect.y + rect.height / 2
             )
           )
         })
       ).toBe(true)
-      await page.screenshot({ path: testInfo.outputPath("a-results.png") })
+      await page.screenshot({ path: testInfo.outputPath("results.png") })
       await result.click()
-      const selected = card.getByRole("button", {
-        name: "已定位：西岸艺术中心，展开地点查找",
-      })
-      await expect(selected).toBeFocused()
+      await expect(input).toBeFocused()
+      await expect(input).toHaveValue("西岸艺术中心")
+      expect(
+        await input.evaluate(
+          (element, original) => element === original,
+          originalInput
+        )
+      ).toBe(true)
+      await expect(workspace.getByRole("status")).toContainText(
+        "已定位：西岸艺术中心"
+      )
+      await expect.poll(reachable).toBe(true)
+      await expect.poll(() => canvas.boundingBox()).toEqual(mapFrame)
+      await expect.poll(footerClearance).toBeGreaterThanOrEqual(56)
       await expect(
-        card.getByRole("button", { name: "查找地点", exact: true })
-      ).toHaveCount(0)
-      await expect.poll(measure).toEqual({
-        width: expectedWidth,
-        separate: true,
-        mapGap: true,
-        hits: true,
-        controlsClear: true,
-        grouped: true,
-      })
-      await page.screenshot({ path: testInfo.outputPath("a-selected.png") })
+        page.getByRole("button", { name: "回到我的位置" })
+      ).toBeInViewport()
+      await expect(
+        page.getByRole("button", { name: "刷新地图结果" })
+      ).toBeInViewport()
+      await page.screenshot({ path: testInfo.outputPath("selected.png") })
       expect(searches).toBe(1)
       expect(
         await page.evaluate(

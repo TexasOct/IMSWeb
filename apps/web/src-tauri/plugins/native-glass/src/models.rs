@@ -128,6 +128,25 @@ pub struct NativeSearchResult {
     pub id: String,
     pub label: String,
     pub address: String,
+    #[serde(default)]
+    pub disabled: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NativeSearchStatusKind {
+    Idle,
+    Loading,
+    Empty,
+    Error,
+    Notice,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct NativeSearchStatus {
+    pub kind: NativeSearchStatusKind,
+    pub title: String,
+    pub description: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -136,6 +155,10 @@ pub struct SetSearchArgs {
     pub id: String,
     pub generation: u64,
     pub revision: u64,
+    #[serde(default)]
+    pub active_tab: Option<String>,
+    #[serde(default)]
+    pub has_more: bool,
     pub host: NativeGlassFrame,
     #[serde(default)]
     pub navigation_frame: Option<NativeGlassFrame>,
@@ -151,7 +174,7 @@ pub struct SetSearchArgs {
     pub editing: bool,
     pub query: String,
     pub busy: bool,
-    pub message: String,
+    pub status: Option<NativeSearchStatus>,
     pub attribution: String,
     pub selected: String,
     #[serde(default)]

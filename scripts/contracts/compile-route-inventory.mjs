@@ -13,7 +13,7 @@ const BASELINE = { mountedMethodPaths: 249, carriers: 316, reject: 61, acceptAnd
 const EXPLICIT_QUERY_ADDITIONS = [
   { module: "@imsweb/contracts/platform", symbol: "platformProfileAvatarQuerySchema", carriers: 2, policy: "accept-and-project" },
   { module: "@imsweb/contracts/site-packages", symbol: "siteContentCacheBusterQuerySchema", carriers: 8, policy: "accept-and-project" },
-  { module: "@imsweb/contracts/fudaba/map-delivery", symbol: "fudabaMapDeliveryQuerySchema", carriers: 1, policy: "passthrough" },
+  { module: "@imsweb/contracts/fudaba/map-delivery", symbol: "fudabaMapDeliveryQuerySchema", carriers: 1, policy: "reject" },
   { module: "@imsweb/contracts/fudaba", symbol: "fudabaIgnoredQuerySchema", carriers: 6, policy: "accept-and-project" },
   { module: "@imsweb/contracts/fudaba", symbol: "fudabaMediaQuerySchema", carriers: 6, policy: "accept-and-project" },
 ];

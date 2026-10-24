@@ -66,11 +66,10 @@ const governancePythonTests = Object.freeze([
   "tests/test_workspace_boundaries.py",
 ]);
 const apiNodeTests = Object.freeze([
-  "tests/hono-app-contract.test.js",
-  "tests/node-listener-probe.test.js",
-  "tests/node-security.test.js",
-  "tests/operation-scripts.test.js",
-  "tests/postgres-test-lifecycle.test.js",
+  "tests/hono-app-contract.test.ts",
+  "tests/node.test.ts",
+  "tests/operation-scripts.test.ts",
+  "tests/postgres-test-lifecycle.test.ts",
 ]);
 // `tests/assets` verifies the built Web client (apps/web/build/client), so it
 // needs the delivery integration profile that builds it. The standalone API
@@ -200,7 +199,7 @@ function apiPlan(profile, buildPrepared = false) {
   // the config's `include` already resolves `tests/**`, so the per-suite
   // `test:server` / `test:wiki` / `test:migration` steps are subsumed. The
   // packaged-Web suite stays out of it, because only delivery integration
-  // builds the Web client it asserts. The `node` profile still names its five
+  // builds the Web client it asserts. The `node` profile still names its four
   // built-artifact files explicitly so a test dropping out of that plan stays
   // visible.
   plan.push(

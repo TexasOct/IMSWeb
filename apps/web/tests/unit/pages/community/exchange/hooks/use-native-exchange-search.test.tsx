@@ -29,7 +29,7 @@ const snapshot: Omit<NativeGlassSearchSnapshot, "generation"> = {
   editing: false,
   query: "上海",
   busy: false,
-  message: "",
+  status: null,
   attribution: "© OpenStreetMap contributors",
   selected: "",
   filterApplied: false,
@@ -118,6 +118,8 @@ describe("useNativeExchangeSearch", () => {
         value: "place:1",
       },
       { ...snapshot, generation, action: "select", value: "unknown" },
+      { ...snapshot, generation, revision: 3, action: "tab", value: "offices" },
+      { ...snapshot, generation, revision: 3, action: "loadMore" },
     ])
       act(() =>
         window.dispatchEvent(

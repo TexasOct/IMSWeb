@@ -183,16 +183,20 @@ describe("CommunityExchangePage App search tools", () => {
     const user = userEvent.setup()
     renderPage(<CommunityExchangePage />, { route: "/community/exchange" })
     const more = await screen.findByRole("button", { name: "更多地图工具" })
-    // jsdom has no layout. The existing page focus owner rejects zero-size entries.
-    vi.spyOn(more, "getClientRects").mockReturnValue(
-      Object.assign([new DOMRect(0, 0, 44, 44)], { item: () => null })
-    )
     await user.click(more)
+    await screen.findByRole("menu", { name: "更多地图工具内容" })
     expect(
-      screen.queryByRole("button", { name: "查看地图数据来源" })
+      screen.queryByRole("menuitem", { name: "查看地图数据来源" })
     ).not.toBeInTheDocument()
+    await user.keyboard("{Escape}")
+    await waitFor(() =>
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument()
+    )
     await user.click(screen.getByRole("button", { name: "加载搜索来源" }))
-    await user.click(screen.getByRole("button", { name: "查看地图数据来源" }))
+    await user.click(screen.getByRole("button", { name: "更多地图工具" }))
+    await user.click(
+      await screen.findByRole("menuitem", { name: "查看地图数据来源" })
+    )
     expect(
       await screen.findByRole("dialog", { name: "地图数据来源" })
     ).toBeVisible()

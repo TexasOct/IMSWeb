@@ -146,12 +146,12 @@ test.describe('route inventory compiler', () => {
       noInputRoutes: 91,
       requestCarriers: 339,
       policies: {
-        reject: 61,
+        reject: 62,
         "accept-and-project": 183,
-        passthrough: 18,
+        passthrough: 17,
         "non-object-applicable": 77,
       },
-      responses: { total: 697, json: 633, nonJson: 64 },
+      responses: { total: 698, json: 634, nonJson: 64 },
       unresolved: 0,
     });
     assert.deepEqual(current, artifact);

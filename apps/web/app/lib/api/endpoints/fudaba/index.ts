@@ -6,6 +6,10 @@ import {
 import { producerMapGeometrySchema } from "@imsweb/contracts/producer-map"
 import { z } from "@imsweb/contracts/z"
 import type { GeoJSONSourceSpecification } from "maplibre-gl"
+import type {
+  FudabaMapSourceWrite,
+  FudabaMapRouting,
+} from "@imsweb/contracts/fudaba"
 
 import {
   normalizeFudabaCardMutation,
@@ -236,6 +240,7 @@ export interface FudabaMapOfficeRequest {
 }
 
 function officePageParams({
+  q,
   city,
   series,
   open,
@@ -243,6 +248,7 @@ function officePageParams({
   cursor,
 }: FudabaOfficePageRequest) {
   const params = new URLSearchParams({ limit: String(limit) })
+  if (q?.trim()) params.set("q", q.trim())
   if (city?.trim()) params.set("city", city.trim())
   for (const seriesCode of series ?? []) params.append("series", seriesCode)
   if (open !== undefined) params.set("open", String(open))
@@ -304,6 +310,7 @@ function withQuery(path: string, parameters: URLSearchParams) {
 }
 
 export interface FudabaOfficePageRequest {
+  q?: string
   city?: string
   series?: readonly string[]
   open?: boolean
@@ -399,14 +406,10 @@ export function getAdminFudabaMapDelivery() {
   )
 }
 
-export function createAdminFudabaMapSource(
-  name: string,
-  styleUrl: string,
-  revision: string | null
-) {
+export function createAdminFudabaMapSource(source: FudabaMapSourceWrite) {
   return adminApiClient.Post(
     adminExchangePath("/map-delivery/sources"),
-    { name, styleUrl, revision },
+    source,
     parsed(fudabaMapDeliveryMutationSchema, {
       errorSchema: fudabaErrorResponseSchema,
       businessErrorSchema: fudabaErrorResponseSchema,
@@ -417,13 +420,11 @@ export function createAdminFudabaMapSource(
 
 export function updateAdminFudabaMapSource(
   sourceId: string,
-  name: string,
-  styleUrl: string,
-  revision: string | null
+  source: FudabaMapSourceWrite
 ) {
   return adminApiClient.Put(
     adminExchangePath(`/map-delivery/sources/${encodeURIComponent(sourceId)}`),
-    { name, styleUrl, revision },
+    source,
     parsed(fudabaMapDeliveryMutationSchema, {
       errorSchema: fudabaErrorResponseSchema,
       businessErrorSchema: fudabaErrorResponseSchema,
@@ -449,11 +450,12 @@ export function deleteAdminFudabaMapSource(
 
 export function activateAdminFudabaMapSource(
   sourceId: string,
-  revision: string | null
+  revision: string | null,
+  routing?: FudabaMapRouting | null
 ) {
   return adminApiClient.Put(
     adminExchangePath("/map-delivery/active"),
-    { sourceId, revision },
+    { sourceId, revision, ...(routing === undefined ? {} : { routing }) },
     parsed(fudabaMapDeliveryMutationSchema, {
       errorSchema: fudabaErrorResponseSchema,
       businessErrorSchema: fudabaErrorResponseSchema,
@@ -470,6 +472,7 @@ export function searchFudabaPlaces(query: string) {
       new URLSearchParams({ q: search })
     ),
     parsed(fudabaPlaceSearchResponseSchema, {
+      shareRequest: false,
       errorSchema: fudabaErrorResponseSchema,
       businessErrorSchema: fudabaErrorResponseSchema,
       meta: withPlatformAuth(),
@@ -699,7 +702,10 @@ function appendCardFields(form: FormData, fields: FudabaCardFields) {
   form.append("producerName", fields.producerName)
   form.append("displayName", fields.displayName)
   form.append("seriesCode", fields.seriesCode)
-  form.append("favoriteCharacterIds", JSON.stringify(fields.favoriteCharacterIds))
+  form.append(
+    "favoriteCharacterIds",
+    JSON.stringify(fields.favoriteCharacterIds)
+  )
   form.append("accent", fields.accent)
   form.append("bio", fields.bio)
   form.append("tradeNote", fields.tradeNote)

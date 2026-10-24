@@ -17,7 +17,7 @@ interface ExchangeMapAttributionDialogProps {
 }
 
 /**
- * Renders the parsed OpenMapTiles notice. Segments keep the authored order, so
+ * Renders the active providers' notices. Segments keep the authored order, so
  * links and plain text stay interleaved exactly as the style file spells them.
  * Nothing here builds HTML, which is why untrusted anchor markup can render
  * through React instead of `dangerouslySetInnerHTML`.
@@ -43,7 +43,7 @@ export function ExchangeMapAttributionDialog({
           <DialogTitle>地图数据来源</DialogTitle>
           <DialogDescription>
             {attribution
-              ? "地图数据来自 OpenFreeMap、OpenMapTiles 与 OpenStreetMap。以下授权信息按许可要求保留。"
+              ? "当前地图使用以下数据来源，授权信息按许可要求保留。"
               : "以下地点搜索授权信息按许可要求保留。"}
           </DialogDescription>
         </DialogHeader>

@@ -56,9 +56,16 @@ export function useNativeExchangeSearch(
       )
         return
       if (
+        (event.action === "tab" || event.action === "loadMore") &&
+        event.revision !== active.revision
+      )
+        return
+      if (
         event.action === "select" &&
         (event.revision !== active.revision ||
-          !active.results.some((place) => place.id === event.value))
+          !active.results.some(
+            (place) => place.id === event.value && !place.disabled
+          ))
       )
         return
       handler.current(event)

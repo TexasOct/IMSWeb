@@ -32,10 +32,17 @@ export function nativeGlassSearchTint(
   }
 }
 export type NativeSearchDetent = "collapsed" | "medium" | "large"
+export type NativeSearchStatus = {
+  kind: "idle" | "loading" | "empty" | "error" | "notice"
+  title: string
+  description: string
+}
 export type NativeGlassSearchSnapshot = {
   id: string
   generation: number
   revision: number
+  activeTab?: "offices" | "places"
+  hasMore?: boolean
   host: NativeGlassFrame
   /** Actual visible DOM tab capsule, in CSS viewport coordinates. */
   navigationFrame?: NativeGlassFrame
@@ -48,7 +55,7 @@ export type NativeGlassSearchSnapshot = {
   editing: boolean
   query: string
   busy: boolean
-  message: string
+  status: NativeSearchStatus | null
   attribution: string
   selected: string
   selectedLabel?: string
@@ -56,7 +63,7 @@ export type NativeGlassSearchSnapshot = {
   filterApplied: boolean
   pointCount: number
   hasAttribution: boolean
-  results: { id: string; label: string; address: string }[]
+  results: { id: string; label: string; address: string; disabled?: boolean }[]
   labels: Record<string, string>
 }
 export type NativeGlassSearchEvent = {
@@ -72,6 +79,8 @@ export type NativeGlassSearchEvent = {
     | "detent"
     | "geometry"
     | "tool"
+    | "tab"
+    | "loadMore"
   value?: string
   frame?: NativeGlassFrame
 }
@@ -113,14 +122,21 @@ export function nativeGlassSearchEvent(
       "detent",
       "geometry",
       "tool",
+      "tab",
+      "loadMore",
     ].includes(String(detail.action))
   )
     return null
   if (
-    ["input", "submit", "select", "detent", "tool"].includes(
+    ["input", "submit", "select", "detent", "tool", "tab"].includes(
       String(detail.action)
     ) &&
     typeof detail.value !== "string"
+  )
+    return null
+  if (
+    detail.action === "tab" &&
+    !["offices", "places"].includes(String(detail.value))
   )
     return null
   if (detail.action === "geometry") {
