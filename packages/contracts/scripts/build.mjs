@@ -52,10 +52,12 @@ for (const { format, config } of builds) {
   // Clean first so a failed compile cannot leave a stale tree that the
   // entrypoint checker would accept.
   rmSync(path.join(packageRoot, build.outDir), { recursive: true, force: true });
+  // On Windows the TypeScript CLI is a .cmd shim, which Node cannot spawn
+  // without a shell.
   const result = spawnSync(
     tsc,
     ["-p", config, "--outDir", build.outDir],
-    { cwd: packageRoot, stdio: "inherit" },
+    { cwd: packageRoot, stdio: "inherit", shell: process.platform === "win32" },
   );
   if (result.error) throw result.error;
   if (result.status !== 0) process.exit(result.status ?? 1);
