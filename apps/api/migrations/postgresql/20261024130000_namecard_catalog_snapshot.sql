@@ -39,6 +39,15 @@ BEGIN
     member_names TEXT[] NOT NULL
   ) ON COMMIT DROP;
 
+  CREATE TEMP TABLE agency_alias (
+    primary_code TEXT PRIMARY KEY,
+    alternate_code TEXT NOT NULL
+  ) ON COMMIT DROP;
+
+  INSERT INTO agency_alias (primary_code, alternate_code) VALUES
+    ('765as', '765'),
+    ('gaku', 'gk');
+
   INSERT INTO character_seed (agency_code, category, is_fallback, name_cn, name_ja, name_en, aliases, display_order) VALUES
   ('765as', 'chara', FALSE, '黑井崇男', '黒井崇男', 'Takao Kuroi', NULL, 0),
   ('765as', 'chara', FALSE, '音无琴美', '音無琴美', 'Kotomi Otonashi', NULL, 1),
@@ -1032,7 +1041,14 @@ HighxJoker', 607, ARRAY['sidem', 'sidem', 'sidem', 'sidem', 'sidem'], ARRAY['秋
       display_order = seed.display_order,
       updated_at = CURRENT_TIMESTAMP
   FROM character_seed seed
-  JOIN public.agencies agency ON agency.code = seed.agency_code
+  JOIN LATERAL (
+    SELECT candidate.id
+    FROM public.agencies candidate
+    WHERE candidate.code = seed.agency_code
+       OR candidate.code = COALESCE((SELECT alias.alternate_code FROM agency_alias alias WHERE alias.primary_code = seed.agency_code), '')
+    ORDER BY (candidate.code = seed.agency_code) DESC
+    LIMIT 1
+  ) agency ON TRUE
   WHERE character.deleted_at IS NULL
     AND character.agency_id = agency.id
     AND character.name_cn = seed.name_cn;
@@ -1041,7 +1057,14 @@ HighxJoker', 607, ARRAY['sidem', 'sidem', 'sidem', 'sidem', 'sidem'], ARRAY['秋
   INSERT INTO public.namecard_characters (agency_id, category, is_fallback, name_cn, name_ja, name_en, aliases, display_order)
   SELECT agency.id, seed.category, seed.is_fallback, seed.name_cn, seed.name_ja, seed.name_en, seed.aliases, seed.display_order
   FROM character_seed seed
-  JOIN public.agencies agency ON agency.code = seed.agency_code
+  JOIN LATERAL (
+    SELECT candidate.id
+    FROM public.agencies candidate
+    WHERE candidate.code = seed.agency_code
+       OR candidate.code = COALESCE((SELECT alias.alternate_code FROM agency_alias alias WHERE alias.primary_code = seed.agency_code), '')
+    ORDER BY (candidate.code = seed.agency_code) DESC
+    LIMIT 1
+  ) agency ON TRUE
   WHERE NOT EXISTS (
     SELECT 1 FROM public.namecard_characters existing
     WHERE existing.deleted_at IS NULL
@@ -1074,7 +1097,14 @@ HighxJoker', 607, ARRAY['sidem', 'sidem', 'sidem', 'sidem', 'sidem'], ARRAY['秋
   FROM unit_seed seed
   JOIN public.namecard_units unit ON unit.deleted_at IS NULL AND unit.name_cn = seed.name_cn
   CROSS JOIN LATERAL unnest(seed.agency_codes) WITH ORDINALITY AS agency_seed(code, ordinality)
-  JOIN public.agencies agency ON agency.code = agency_seed.code
+  JOIN LATERAL (
+    SELECT candidate.id
+    FROM public.agencies candidate
+    WHERE candidate.code = agency_seed.code
+       OR candidate.code = COALESCE((SELECT alias.alternate_code FROM agency_alias alias WHERE alias.primary_code = agency_seed.code), '')
+    ORDER BY (candidate.code = agency_seed.code) DESC
+    LIMIT 1
+  ) agency ON TRUE
   WHERE NOT EXISTS (
     SELECT 1 FROM public.namecard_unit_agencies link
     WHERE link.unit_id = unit.id AND link.agency_id = agency.id
@@ -1097,8 +1127,12 @@ HighxJoker', 607, ARRAY['sidem', 'sidem', 'sidem', 'sidem', 'sidem'], ARRAY['秋
     FROM public.namecard_characters candidate
     JOIN public.agencies candidate_agency ON candidate_agency.id = candidate.agency_id
     WHERE candidate.deleted_at IS NULL
-      AND candidate_agency.code = member_seed.agency_code
       AND candidate.name_cn = member_seed.character_name
+      AND (
+        candidate_agency.code = member_seed.agency_code
+        OR candidate_agency.code = COALESCE((SELECT alias.alternate_code FROM agency_alias alias WHERE alias.primary_code = member_seed.agency_code), '')
+      )
+    ORDER BY (candidate_agency.code = member_seed.agency_code) DESC
     LIMIT 1
   ) character ON TRUE;
   GET DIAGNOSTICS member_links = ROW_COUNT;
