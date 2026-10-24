@@ -60,9 +60,7 @@ export default defineConfig<ApiTestOptions>({
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   timeout: 20_000,
-  // A single retry on CI: the suite is timing-sensitive on shared runners and a
-  // flaky expectation otherwise blocks the release gates for unrelated changes.
-  retries: process.env.CI ? 1 : 0,
+  retries: 0,
   workers: 1,
   reporter: "list",
   expect: {
