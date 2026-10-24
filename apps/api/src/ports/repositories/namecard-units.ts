@@ -52,6 +52,7 @@ export interface NamecardUnitMemberRecord {
  */
 export interface NamecardUnitListFilter {
     query: string | null;
+    memberIds: number[];
     agencyId: number | null;
 }
 

@@ -78,6 +78,12 @@ export const namecardUnitListSchema = successEnvelope({
 
 export const namecardUnitListQuerySchema = strictRequestObject({
   query: z.string().trim().min(1).max(NAMECARD_UNIT_MAX_QUERY_LENGTH).optional(),
+  /** Comma-separated character ids; the unit must contain every one of them. */
+  memberIds: z
+    .string()
+    .trim()
+    .regex(/^\d+(,\d+)*$/)
+    .optional(),
   agencyId: z.string().regex(/^\d+$/).optional(),
   page: z.string().regex(/^\d+$/).optional(),
   pageSize: z.string().regex(/^\d+$/).optional(),

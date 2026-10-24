@@ -8,7 +8,11 @@ export async function handleListAdminNamecardUnits(
 ): Promise<Response> {
     const query = c.req.valid('query');
     const repository = namecardUnitRepository(c);
-    const filter = { query: query.query, agencyId: query.agencyId };
+    const filter = {
+        query: query.query,
+        memberIds: query.memberIds,
+        agencyId: query.agencyId
+    };
     const [records, total] = await Promise.all([
         repository.listNamecardUnits({
             ...filter,

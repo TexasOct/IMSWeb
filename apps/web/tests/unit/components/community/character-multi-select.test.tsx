@@ -79,9 +79,8 @@ describe("CharacterMultiSelect", () => {
     await user.type(screen.getByRole("searchbox", { name: "" }), "allstars")
 
     const group = screen.getByRole("group", { name: "组合" })
-    // Both tail forms ship: a container query swaps them by row width.
-    expect(screen.getByText("天海春香、如月千早")).toBeInTheDocument()
-    expect(screen.getByText("天海春香等2名偶像")).toBeInTheDocument()
+    // One truncated line; the full roster sits in the tooltip.
+    expect(screen.getByTitle("天海春香、如月千早")).toBeInTheDocument()
     await user.click(within(group).getByRole("checkbox", { name: /765PRO/ }))
 
     const selected = screen.getByLabelText("已选担当角色")

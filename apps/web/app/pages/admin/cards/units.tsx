@@ -1,15 +1,23 @@
 import {
-  ArrowLeftIcon,
-  ArrowRightIcon,
   LayersIcon,
   PencilIcon,
   PlusIcon,
   RefreshCwIcon,
+  XIcon,
 } from "lucide-react"
-import { useCallback, useEffect, useState, type FormEvent } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react"
 import { useSearchParams } from "react-router"
 import { toast } from "sonner"
 
+import { AdminPagination } from "~/components/admin/admin-pagination"
+import { MemberChipFilter } from "~/components/admin/member-chip-filter"
 import {
   AdminEmptyState,
   AdminPageHeader,
@@ -17,6 +25,7 @@ import {
   adminControlClass,
 } from "~/components/admin/admin-ui"
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
+import { UnitMemberSummary } from "~/components/shared/unit-member-summary"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
@@ -38,12 +47,6 @@ import {
   TableHeader,
   TableRow,
 } from "~/components/ui/table"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "~/components/ui/tooltip"
 import { adminErrorMessage } from "~/lib/admin-error"
 import {
   createAdminNamecardUnit,
@@ -55,10 +58,11 @@ import {
   updateAdminNamecardUnit,
   type NamecardCharacter,
   type NamecardCharacterAgency,
+  type NamecardCharacterCategory,
   type NamecardUnit,
   type NamecardUnitList,
 } from "~/lib/api"
-import { useDebouncedValue } from "~/lib/use-debounced-value"
+import { useNamecardCharacterCatalog } from "~/lib/use-namecard-character-catalog"
 import { UnitEditorDialog } from "./unit-editor-dialog"
 import {
   NAMECARD_UNIT_CONFLICT_MESSAGE,
@@ -92,8 +96,29 @@ export default function AdminCardsUnitsPage() {
   const page =
     Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
 
+  const memberIdsParam = searchParams.get("memberIds") ?? ""
+  const selectedMemberIds = useMemo(
+    () =>
+      memberIdsParam
+        .split(",")
+        .map((part) => Number(part))
+        .filter((id) => Number.isSafeInteger(id) && id > 0),
+    [memberIdsParam]
+  )
+
   const [draftQuery, setDraftQuery] = useState(queryParam)
+  // The applied keyword drives the request. It only reaches the URL through
+  // `commitQuery`, so typing pauses do not run a router transition.
+  const [appliedQuery, setAppliedQuery] = useState(queryParam)
+  const queryTimer = useRef<number | undefined>(undefined)
   const [draftAgency, setDraftAgency] = useState(agencyIdParam)
+
+  // Clearing a search should land back on the page the operator was browsing,
+  // not jump to the first page; remember it while no search is active.
+  const browsingPage = useRef(1)
+  useEffect(() => {
+    if (!appliedQuery && memberIdsParam === "") browsingPage.current = page
+  }, [page, appliedQuery, memberIdsParam])
 
   const [units, setUnits] = useState<NamecardUnit[]>([])
   const [pageInfo, setPageInfo] =
@@ -127,7 +152,9 @@ export default function AdminCardsUnitsPage() {
     try {
       applyResult(
         await getAdminNamecardUnits({
-          query: queryParam || undefined,
+          query: appliedQuery || undefined,
+          memberIds:
+            selectedMemberIds.length > 0 ? selectedMemberIds : undefined,
           agencyId:
             agencyIdParam === ALL_VALUE ? undefined : Number(agencyIdParam),
           page,
@@ -138,12 +165,13 @@ export default function AdminCardsUnitsPage() {
     } finally {
       setLoading(false)
     }
-  }, [applyResult, agencyIdParam, page, queryParam])
+  }, [applyResult, agencyIdParam, selectedMemberIds, page, appliedQuery])
 
   useEffect(() => {
     let active = true
     getAdminNamecardUnits({
-      query: queryParam || undefined,
+      query: appliedQuery || undefined,
+      memberIds: selectedMemberIds.length > 0 ? selectedMemberIds : undefined,
       agencyId: agencyIdParam === ALL_VALUE ? undefined : Number(agencyIdParam),
       page,
     })
@@ -162,7 +190,28 @@ export default function AdminCardsUnitsPage() {
     return () => {
       active = false
     }
-  }, [applyResult, agencyIdParam, page, queryParam])
+  }, [applyResult, agencyIdParam, appliedQuery, selectedMemberIds, page])
+
+  // A narrower query can leave the list past its last page, which renders as an empty table
+  // even though the search has hits. Pull the paging back inside the result set: a search
+  // restarts at the first page, a shrunken unfiltered list lands on its last page.
+  useEffect(() => {
+    const lastPage = Math.max(1, pageInfo.totalPages)
+    if (pageInfo.page <= lastPage) return
+    const target = appliedQuery || selectedMemberIds.length > 0 ? 1 : lastPage
+    if (Math.max(1, page) === target) return
+    const next = new URLSearchParams(searchParams)
+    if (target <= 1) next.delete("page")
+    else next.set("page", String(target))
+    setSearchParams(next, { replace: true })
+  }, [
+    appliedQuery,
+    page,
+    pageInfo,
+    searchParams,
+    selectedMemberIds,
+    setSearchParams,
+  ])
 
   useEffect(() => {
     let active = true
@@ -179,29 +228,67 @@ export default function AdminCardsUnitsPage() {
     }
   }, [])
 
-  const debouncedQuery = useDebouncedValue(draftQuery)
+  /** Re-applies the remembered browsing page to a fresh param set. */
+  function restorePage(next: URLSearchParams) {
+    if (browsingPage.current > 1) next.set("page", String(browsingPage.current))
+    else next.delete("page")
+  }
 
-  // The keyword box drives the request on its own; `replace` keeps a burst of
-  // typing out of the history stack.
-  useEffect(() => {
-    const trimmed = debouncedQuery.trim()
-    if (trimmed === queryParam) return
+  // The catalog doubles as the label source for the member chips, so a shared
+  // request serves the filter and the editor's picker alike.
+  const { catalog } = useNamecardCharacterCatalog()
+  const memberChips = useMemo(() => {
+    const names = new Map<number, string>()
+    for (const entry of catalog?.characters ?? [])
+      names.set(entry.id, entry.nameCn)
+    return selectedMemberIds.map((id) => ({
+      id,
+      nameCn: names.get(id) ?? `#${id}`,
+    }))
+  }, [catalog, selectedMemberIds])
+
+  /** Records a committed keyword in the URL (share/refresh), without a re-query. */
+  function writeQueryParam(next: string) {
+    const params = new URLSearchParams(searchParams)
+    if (next) {
+      params.set("query", next)
+      params.delete("page")
+    } else {
+      params.delete("query")
+      restorePage(params)
+    }
+    setSearchParams(params, { replace: true })
+  }
+
+  /** Debounces typing into the applied keyword; never touches the URL. */
+  function scheduleQuery(next: string) {
+    window.clearTimeout(queryTimer.current)
+    queryTimer.current = window.setTimeout(
+      () => setAppliedQuery(next.trim()),
+      300
+    )
+  }
+
+  /** Replaces the member filter; an empty list clears it and restores the page. */
+  function setMemberFilter(ids: number[]) {
     const next = new URLSearchParams(searchParams)
-    if (trimmed) next.set("query", trimmed)
-    else next.delete("query")
-    next.delete("page")
-    setSearchParams(next, { replace: true })
-  }, [debouncedQuery, queryParam, searchParams, setSearchParams])
+    if (ids.length > 0) {
+      next.set("memberIds", ids.join(","))
+      next.delete("page")
+    } else {
+      next.delete("memberIds")
+      restorePage(next)
+    }
+    setSearchParams(next)
+  }
 
-  /** Enter flushes the keyword immediately instead of waiting out the delay. */
+  /** Enter flushes the keyword immediately and records it in the URL. */
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    window.clearTimeout(queryTimer.current)
     const trimmed = draftQuery.trim()
-    const next = new URLSearchParams(searchParams)
-    if (trimmed) next.set("query", trimmed)
-    else next.delete("query")
-    next.delete("page")
-    setSearchParams(next)
+    setAppliedQuery(trimmed)
+    writeQueryParam(trimmed)
   }
 
   function selectAgency(value: string) {
@@ -213,9 +300,21 @@ export default function AdminCardsUnitsPage() {
     setSearchParams(next)
   }
 
+  /** Clears only the keyword; the member/agency filters stay put. */
+  function clearKeyword() {
+    window.clearTimeout(queryTimer.current)
+    setDraftQuery("")
+    setAppliedQuery("")
+    writeQueryParam("")
+  }
+
   function clearSearch() {
+    window.clearTimeout(queryTimer.current)
+    setAppliedQuery("")
     setDraftQuery("")
     setDraftAgency(ALL_VALUE)
+    // Clearing the whole filter form starts a fresh browse, so it drops the
+    // remembered page instead of restoring it.
     setSearchParams(new URLSearchParams())
   }
 
@@ -244,10 +343,16 @@ export default function AdminCardsUnitsPage() {
   }, [])
 
   const loadEditorMembers = useCallback(
-    async (query: string) => {
+    async (
+      query: string,
+      agencyId: number | null,
+      category: NamecardCharacterCategory | null
+    ) => {
       try {
         const result = await getAdminNamecardCharacters({
           query: query || undefined,
+          agencyId: agencyId ?? undefined,
+          category: category ?? undefined,
           pageSize: 100,
         }).send()
         setEditorMembers(result.characters)
@@ -269,7 +374,11 @@ export default function AdminCardsUnitsPage() {
 
   /** Stable so the dialog's debounced search effect does not re-fire per render. */
   const searchEditorMembers = useCallback(
-    (query: string) => void loadEditorMembers(query),
+    (
+      query: string,
+      agencyId: number | null,
+      category: NamecardCharacterCategory | null
+    ) => void loadEditorMembers(query, agencyId, category),
     [loadEditorMembers]
   )
 
@@ -277,7 +386,7 @@ export default function AdminCardsUnitsPage() {
     setEditorTarget(null)
     setEditorDraft(emptyUnitDraft())
     setEditorMembers(null)
-    searchEditorMembers("")
+    searchEditorMembers("", null, null)
     setEditorOpen(true)
   }
 
@@ -293,7 +402,7 @@ export default function AdminCardsUnitsPage() {
       }))
     )
     setEditorMembers(null)
-    searchEditorMembers("")
+    searchEditorMembers("", null, null)
     setEditorOpen(true)
   }
 
@@ -308,9 +417,7 @@ export default function AdminCardsUnitsPage() {
         ).send()
         toast.success("组合已更新")
       } else {
-        await createAdminNamecardUnit(
-          buildUnitCreateInput(editorDraft)
-        ).send()
+        await createAdminNamecardUnit(buildUnitCreateInput(editorDraft)).send()
         toast.success("组合已新增")
       }
       setEditorOpen(false)
@@ -402,12 +509,42 @@ export default function AdminCardsUnitsPage() {
       >
         <label className="flex min-w-0 flex-1 flex-col gap-1.5">
           <span className="text-sm font-medium">关键字</span>
-          <Input
-            value={draftQuery}
-            placeholder="搜索中文名 / 日文名 / 英文名 / 别名"
-            className={adminControlClass}
+          <div className="relative">
+            <Input
+              value={draftQuery}
+              placeholder="搜索中文名 / 日文名 / 英文名 / 别名"
+              className={
+                draftQuery ? adminControlClass + " pr-9" : adminControlClass
+              }
+              disabled={loading}
+              onChange={(event) => {
+                setDraftQuery(event.target.value)
+                scheduleQuery(event.target.value)
+              }}
+            />
+            {draftQuery ? (
+              <button
+                type="button"
+                aria-label="清除关键字"
+                className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                onClick={clearKeyword}
+              >
+                <XIcon className="size-4" />
+              </button>
+            ) : null}
+          </div>
+        </label>
+        <label
+          className="flex min-w-0 flex-1 flex-col gap-1.5"
+          htmlFor="namecard-unit-member-filter"
+        >
+          <span className="text-sm font-medium">成员</span>
+          <MemberChipFilter
+            id="namecard-unit-member-filter"
+            selected={memberChips}
+            characters={catalog?.characters ?? []}
             disabled={loading}
-            onChange={(event) => setDraftQuery(event.target.value)}
+            onChange={setMemberFilter}
           />
         </label>
         <label className="flex flex-col gap-1.5 lg:w-56">
@@ -458,9 +595,7 @@ export default function AdminCardsUnitsPage() {
         ) : error ? (
           <Alert variant="destructive">
             <AlertTitle>无法读取组合列表</AlertTitle>
-            <AlertDescription>
-              请确认管理会话有效，然后重试。
-            </AlertDescription>
+            <AlertDescription>请确认管理会话有效，然后重试。</AlertDescription>
             <div className="mt-3">
               <Button
                 type="button"
@@ -479,144 +614,137 @@ export default function AdminCardsUnitsPage() {
             description="调整筛选条件，或新增一个组合条目。"
           />
         ) : (
-          <TooltipProvider>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>中文名</TableHead>
-                    <TableHead>日文名</TableHead>
-                    <TableHead>英文名</TableHead>
-                    <TableHead>所属企划</TableHead>
-                    <TableHead>成员数</TableHead>
-                    <TableHead>排序值</TableHead>
-                    <TableHead className="text-right">操作</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {units.map((unit) => {
-                    const memberNames = unit.members
-                      .map((member) => member.nameCn)
-                      .join("、")
-                    return (
-                      <TableRow key={unit.id}>
-                        <TableCell className="min-w-32 whitespace-normal font-medium">
-                          {unit.nameCn}
-                        </TableCell>
-                        <TableCell className="min-w-28 whitespace-normal">
-                          {unit.nameJa ?? "—"}
-                        </TableCell>
-                        <TableCell className="min-w-28 whitespace-normal">
-                          {unit.nameEn ?? "—"}
-                        </TableCell>
-                        <TableCell className="min-w-40 whitespace-normal">
-                          {unit.agencies.length === 0 ? (
-                            "—"
-                          ) : (
-                            <span className="flex flex-wrap gap-1">
-                              {unit.agencies.map((agency) => (
-                                <Badge
-                                  key={agency.id}
-                                  variant="secondary"
-                                  className="gap-1.5"
-                                >
-                                  <span
-                                    className="size-2.5 rounded-sm border"
-                                    style={{ backgroundColor: agency.color }}
-                                    aria-hidden="true"
-                                  />
-                                  {agency.name}
-                                </Badge>
-                              ))}
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {unit.members.length === 0 ? (
-                            "—"
-                          ) : (
-                            <Tooltip>
-                              <TooltipTrigger
-                                render={
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-auto px-2"
-                                    aria-label={`查看 ${unit.nameCn} 的成员名单`}
-                                  >
-                                    {unit.members.length} 人
-                                  </Button>
-                                }
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>中文名</TableHead>
+                  <TableHead>日文名</TableHead>
+                  <TableHead>英文名</TableHead>
+                  <TableHead>所属企划</TableHead>
+                  <TableHead>成员</TableHead>
+                  <TableHead>排序值</TableHead>
+                  <TableHead className="text-right">操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {units.map((unit) => {
+                  return (
+                    <TableRow key={unit.id}>
+                      <TableCell
+                        className="max-w-44 truncate font-medium"
+                        title={unit.nameCn}
+                      >
+                        {unit.nameCn}
+                      </TableCell>
+                      <TableCell
+                        className="max-w-44 truncate"
+                        title={unit.nameJa ?? undefined}
+                      >
+                        {unit.nameJa ?? "—"}
+                      </TableCell>
+                      <TableCell
+                        className="max-w-44 truncate"
+                        title={unit.nameEn ?? undefined}
+                      >
+                        {unit.nameEn ?? "—"}
+                      </TableCell>
+                      <TableCell className="max-w-36 whitespace-nowrap">
+                        {unit.agencies.length === 0 ? (
+                          "—"
+                        ) : unit.agencies.length > 2 ? (
+                          // Three or more agencies will not fit as named badges,
+                          // so the cell keeps one badge that carries the colours
+                          // only; the names move to the dot titles.
+                          <Badge
+                            variant="secondary"
+                            className="gap-1.5"
+                            aria-label={unit.agencies
+                              .map((agency) => agency.name)
+                              .join("、")}
+                          >
+                            {unit.agencies.map((agency) => (
+                              <span
+                                key={agency.id}
+                                className="size-2.5 shrink-0 rounded-full"
+                                style={{ backgroundColor: agency.color }}
+                                title={agency.name}
                               />
-                              <TooltipContent className="max-w-xs block">
-                                <span className="block whitespace-normal leading-5">
-                                  {memberNames}
-                                </span>
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
-                        </TableCell>
-                        <TableCell>{unit.displayOrder}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex flex-wrap justify-end gap-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              disabled={saving || deleting}
-                              onClick={() => openEdit(unit)}
-                            >
-                              <PencilIcon data-icon="inline-start" />
-                              编辑
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="destructive"
-                              disabled={saving || deleting}
-                              onClick={() => setDeleteTarget(unit)}
-                            >
-                              删除
-                            </Button>
+                            ))}
+                          </Badge>
+                        ) : (
+                          <span className="flex flex-nowrap gap-1">
+                            {unit.agencies.map((agency) => (
+                              <Badge
+                                key={agency.id}
+                                variant="secondary"
+                                className="gap-1.5"
+                              >
+                                <span
+                                  className="size-2.5 rounded-sm border"
+                                  style={{ backgroundColor: agency.color }}
+                                  aria-hidden="true"
+                                />
+                                {agency.name}
+                              </Badge>
+                            ))}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {unit.members.length === 0 ? (
+                          "—"
+                        ) : (
+                          <div className="max-w-40">
+                            <UnitMemberSummary
+                              className="text-sm"
+                              names={unit.members.map(
+                                (member) => member.nameCn
+                              )}
+                            />
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </TooltipProvider>
+                        )}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {unit.displayOrder}
+                      </TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        <div className="flex flex-nowrap justify-end gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={saving || deleting}
+                            onClick={() => openEdit(unit)}
+                          >
+                            <PencilIcon data-icon="inline-start" />
+                            编辑
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="destructive"
+                            disabled={saving || deleting}
+                            onClick={() => setDeleteTarget(unit)}
+                          >
+                            删除
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </div>
         )}
 
-        <div className="mt-5 flex items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">
-            第 {pageInfo.page} / {Math.max(1, pageInfo.totalPages)} 页
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={loading || pageInfo.page <= 1}
-              onClick={() => changePage(pageInfo.page - 1)}
-            >
-              <ArrowLeftIcon data-icon="inline-start" />
-              上一页
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={loading || !pageInfo.hasNextPage}
-              onClick={() => changePage(pageInfo.page + 1)}
-            >
-              下一页
-              <ArrowRightIcon data-icon="inline-end" />
-            </Button>
-          </div>
-        </div>
+        <AdminPagination
+          page={pageInfo.page}
+          totalPages={pageInfo.totalPages}
+          disabled={loading}
+          onChange={changePage}
+        />
       </AdminPanel>
 
       <UnitEditorDialog

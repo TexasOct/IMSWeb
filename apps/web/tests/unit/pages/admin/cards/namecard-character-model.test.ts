@@ -43,6 +43,13 @@ describe("namecard character draft", () => {
     expect(emptyCharacterDraft(null).agencyId).toBe("")
   })
 
+  it("honours the category the list is filtered by", () => {
+    expect(emptyCharacterDraft(5, "rival")).toMatchObject({
+      agencyId: "5",
+      category: "rival",
+    })
+  })
+
   it("turns absent optional fields into empty inputs", () => {
     const draft = characterDraftFrom({
       ...character,
@@ -124,6 +131,24 @@ describe("namecard character draft", () => {
 
     expect(update.revision).toBe(4)
     expect(update.nameCn).toBe("天海春香")
+  })
+
+  it("keeps a fallback entry flagged although the dialog hides the field", () => {
+    const fallback: NamecardCharacter = {
+      ...character,
+      id: 1,
+      category: "mascot",
+      isFallback: true,
+      nameCn: "其他吉祥物",
+    }
+
+    expect(
+      buildCharacterUpdateInput(characterDraftFrom(fallback), 1)
+    ).toMatchObject({
+      isFallback: true,
+      category: "mascot",
+      nameCn: "其他吉祥物",
+    })
   })
 
   it("labels every category in display order", () => {

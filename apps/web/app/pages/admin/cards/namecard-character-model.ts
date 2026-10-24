@@ -23,11 +23,12 @@ export interface CharacterDraft {
 }
 
 export function emptyCharacterDraft(
-  defaultAgencyId: number | null
+  defaultAgencyId: number | null,
+  defaultCategory: NamecardCharacterCategory = "idol"
 ): CharacterDraft {
   return {
     agencyId: defaultAgencyId === null ? "" : String(defaultAgencyId),
-    category: "idol",
+    category: defaultCategory,
     nameCn: "",
     nameJa: "",
     nameEn: "",

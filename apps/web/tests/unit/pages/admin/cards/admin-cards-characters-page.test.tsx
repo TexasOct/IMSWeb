@@ -155,4 +155,35 @@ describe("admin namecard characters page", () => {
     ).toBeInTheDocument()
     expect(within(dialog).getByLabelText("企划")).toBeInTheDocument()
   })
+
+  it("pulls the paging back into range when a search shrinks the result set", async () => {
+    const requestedUrls: URL[] = []
+    installFetchMock(async (input, init) => {
+      const url = new URL(requestFrom(input, init).url, "http://ims.test")
+      requestedUrls.push(url)
+      if (url.pathname.endsWith("/cards/characters/agencies")) {
+        return jsonResponse(agenciesPayload)
+      }
+      const page = Number(url.searchParams.get("page") ?? "1")
+      return jsonResponse({
+        ...listPayload,
+        pageInfo: { page, pageSize: 20, total: 1, totalPages: 1, hasNextPage: false },
+      })
+    })
+
+    renderPage(<AdminCardsCharactersPage />, {
+      route: "/admin/cards/characters?page=9&query=姫",
+    })
+
+    await waitFor(() => {
+      expect(
+        requestedUrls.some(
+          (url) =>
+            url.searchParams.get("page") === "1" &&
+            url.searchParams.get("query") === "姫",
+        ),
+      ).toBe(true)
+    })
+    expect(await screen.findByText("共 1 条记录，第 1 页")).toBeInTheDocument()
+  })
 })

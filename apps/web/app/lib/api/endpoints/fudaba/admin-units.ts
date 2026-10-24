@@ -29,6 +29,8 @@ export interface AdminNamecardUnitSearchInput {
   agencyId?: number
   page?: number
   pageSize?: number
+  /** Units that contain every one of these characters. */
+  memberIds?: number[]
 }
 
 export type AdminNamecardUnitCreateInput = NamecardUnitCreateRequest
@@ -39,6 +41,8 @@ export type AdminNamecardUnitUpdateInput = NamecardUnitUpdateRequest
 function searchParams(input: AdminNamecardUnitSearchInput) {
   const params: Record<string, string> = {}
   if (input.query) params.query = input.query
+  if (input.memberIds && input.memberIds.length > 0)
+    params.memberIds = input.memberIds.join(",")
   if (input.agencyId !== undefined) params.agencyId = String(input.agencyId)
   if (input.page !== undefined) params.page = String(input.page)
   if (input.pageSize !== undefined) params.pageSize = String(input.pageSize)

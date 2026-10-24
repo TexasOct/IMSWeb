@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select"
+import { UnitMemberSummary } from "~/components/shared/unit-member-summary"
 import { NAMECARD_CHARACTER_CATEGORY_LABELS } from "~/lib/namecard-character-categories"
 
 /** Sentinel for the two filters' 「全部」 option; never collides with an id or category. */
@@ -41,28 +42,6 @@ function matchesQuery(fields: (string | null)[], normalizedQuery: string) {
     (field) =>
       field !== null &&
       field.toLocaleLowerCase("zh-CN").includes(normalizedQuery)
-  )
-}
-
-/**
- * The members a unit contributes, listed at the tail of its row. A narrow row
- * cannot hold every name, so a container query swaps the list for
- * 「第一名等N名偶像」 — an ellipsis would hide how many members the unit brings.
- * Units only ever hold idols, so the summary says 偶像 even though the field
- * itself is 「担当角色」.
- */
-function UnitMemberSummary({ names }: { names: string[] }) {
-  if (!names.length) return null
-  const full = names.join("、")
-  const short = `${names[0]}等${names.length}名偶像`
-  return (
-    <span
-      className="max-w-[45%] min-w-0 truncate text-xs text-muted-foreground"
-      title={full}
-    >
-      <span className="hidden @[26rem]:inline">{full}</span>
-      <span className="@[26rem]:hidden">{short}</span>
-    </span>
   )
 }
 
@@ -101,8 +80,7 @@ export function CharacterMultiSelect({
 
   const controlDisabled = disabled || loading
   const normalizedQuery = query.trim().toLocaleLowerCase("zh-CN")
-  const reachedLimit =
-    selectedIds.length >= NAMECARD_FAVORITE_CHARACTER_LIMIT
+  const reachedLimit = selectedIds.length >= NAMECARD_FAVORITE_CHARACTER_LIMIT
 
   const characterById = useMemo(
     () =>
@@ -157,9 +135,8 @@ export function CharacterMultiSelect({
   const selectedAgencyId =
     agencyCode === ALL_VALUE
       ? null
-      : ((catalog?.agencies ?? []).find(
-          (agency) => agency.code === agencyCode
-        )?.id ?? null)
+      : ((catalog?.agencies ?? []).find((agency) => agency.code === agencyCode)
+          ?.id ?? null)
   const matchedUnits = normalizedQuery
     ? (catalog?.units ?? []).filter(
         (unit) =>
@@ -229,9 +206,7 @@ export function CharacterMultiSelect({
     const removedIds = new Set(removed.memberIds)
     setSelectedUnits(remaining)
     onChange(
-      selectedIds.filter(
-        (id) => !removedIds.has(id) || stillCovered.has(id)
-      )
+      selectedIds.filter((id) => !removedIds.has(id) || stillCovered.has(id))
     )
   }
 
@@ -253,9 +228,7 @@ export function CharacterMultiSelect({
         <Checkbox
           checked={checked}
           disabled={controlDisabled || (!checked && reachedLimit)}
-          onCheckedChange={(value) =>
-            changeCharacter(entry.id, value === true)
-          }
+          onCheckedChange={(value) => changeCharacter(entry.id, value === true)}
         />
         <span className="min-w-0 flex-1 truncate text-sm">{entry.nameCn}</span>
         <span className="text-xs text-muted-foreground">
@@ -269,7 +242,8 @@ export function CharacterMultiSelect({
     <Field id={id} data-disabled={controlDisabled || undefined}>
       <FieldLabel id={`${id}-label`}>担当角色</FieldLabel>
       <FieldDescription>
-        可跨企划选择，最多 {NAMECARD_FAVORITE_CHARACTER_LIMIT} 人；搜索支持角色名、别名与组合名。
+        可跨企划选择，最多 {NAMECARD_FAVORITE_CHARACTER_LIMIT}{" "}
+        人；搜索支持角色名、别名与组合名。
       </FieldDescription>
 
       <div
@@ -381,8 +355,7 @@ export function CharacterMultiSelect({
                         <Checkbox
                           checked={checked}
                           disabled={
-                            controlDisabled ||
-                            (!checked && reachedLimit)
+                            controlDisabled || (!checked && reachedLimit)
                           }
                           onCheckedChange={(value) =>
                             changeUnit(unit, value === true)
@@ -392,9 +365,14 @@ export function CharacterMultiSelect({
                           {unit.nameCn}
                         </span>
                         <UnitMemberSummary
+                          className="max-w-[45%] text-xs text-muted-foreground"
                           names={unit.memberIds
-                            .map((memberId) => characterById.get(memberId)?.nameCn)
-                            .filter((name): name is string => name !== undefined)}
+                            .map(
+                              (memberId) => characterById.get(memberId)?.nameCn
+                            )
+                            .filter(
+                              (name): name is string => name !== undefined
+                            )}
                         />
                       </label>
                     )
@@ -461,9 +439,7 @@ export function CharacterMultiSelect({
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            尚未选择担当角色。
-          </p>
+          <p className="text-sm text-muted-foreground">尚未选择担当角色。</p>
         )}
       </div>
     </Field>

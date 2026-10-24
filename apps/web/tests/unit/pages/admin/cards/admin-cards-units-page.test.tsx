@@ -71,6 +71,27 @@ const listPayload = {
   },
 }
 
+const catalogPayload = {
+  agencies: [{ id: 2, code: "765as", name: "本家", color: "#f34f6d" }],
+  categories: ["idol", "staff", "rival", "mascot", "chara", "other"],
+  characters: [
+    {
+      id: 30,
+      agencyId: 2,
+      agencyCode: "765as",
+      agencyName: "本家",
+      agencyColor: "#f34f6d",
+      category: "idol",
+      isFallback: false,
+      nameCn: "星井美希",
+      nameJa: "星井美希",
+      nameEn: null,
+      aliases: "",
+    },
+  ],
+  units: [],
+}
+
 /**
  * Serves the reads the page issues on mount, recording every URL so a test can
  * assert on the query the debounced search produced.
@@ -80,6 +101,9 @@ function installPageApi(listStatus = 200) {
   const fetchMock = installFetchMock(async (input, init) => {
     const url = new URL(requestFrom(input, init).url, "http://ims.test")
     requestedUrls.push(url)
+    if (url.pathname.endsWith("/community/exchange/characters")) {
+      return jsonResponse(catalogPayload)
+    }
     if (url.pathname.endsWith("/cards/characters/agencies")) {
       return jsonResponse(agenciesPayload)
     }
@@ -107,7 +131,7 @@ describe("admin namecard units page", () => {
 
     expect(await screen.findByText("共 1 条记录，第 1 页")).toBeInTheDocument()
     expect(screen.getByText("Project Fairy")).toBeInTheDocument()
-    expect(screen.getByText("1 人")).toBeInTheDocument()
+    expect(screen.getByTitle("星井美希")).toBeInTheDocument()
   })
 
   it("surfaces a failed load with a retry action", async () => {
@@ -150,5 +174,109 @@ describe("admin namecard units page", () => {
       within(dialog).getByRole("heading", { name: "新增组合" })
     ).toBeInTheDocument()
     expect(within(dialog).getByLabelText("中文名")).toBeInTheDocument()
+  })
+
+  it("pulls the paging back into range when the member filter shrinks the result set", async () => {
+    const requestedUrls: URL[] = []
+    installFetchMock(async (input, init) => {
+      const url = new URL(requestFrom(input, init).url, "http://ims.test")
+      requestedUrls.push(url)
+      if (url.pathname.endsWith("/community/exchange/characters")) {
+        return jsonResponse(catalogPayload)
+      }
+      if (url.pathname.endsWith("/cards/characters/agencies")) {
+        return jsonResponse(agenciesPayload)
+      }
+      const page = Number(url.searchParams.get("page") ?? "1")
+      return jsonResponse({
+        ...listPayload,
+        pageInfo: { page, pageSize: 20, total: 1, totalPages: 1, hasNextPage: false },
+      })
+    })
+
+    renderPage(<AdminCardsUnitsPage />, {
+      route: "/admin/cards/units?page=9&memberIds=30",
+    })
+
+    await waitFor(() => {
+      expect(
+        requestedUrls.some(
+          (url) =>
+            url.searchParams.get("page") === "1" &&
+            url.searchParams.get("memberIds") === "30",
+        ),
+      ).toBe(true)
+    })
+    expect(await screen.findByText("共 1 条记录，第 1 页")).toBeInTheDocument()
+  })
+
+  it("filters by members picked as removable chips", async () => {
+    const { requestedUrls } = installPageApi()
+
+    renderPage(<AdminCardsUnitsPage />, { route: "/admin/cards/units" })
+    await screen.findByText("Project Fairy")
+
+    await userEvent.type(screen.getByLabelText("按成员筛选"), "星井")
+    await userEvent.click(await screen.findByRole("option", { name: /星井美希/ }))
+
+    expect(screen.getByLabelText("移除成员 星井美希")).toBeInTheDocument()
+    await waitFor(() => {
+      expect(
+        requestedUrls.some((url) => url.searchParams.get("memberIds") === "30"),
+      ).toBe(true)
+    })
+  })
+
+  it("clears every picked member at once", async () => {
+    installPageApi()
+
+    renderPage(<AdminCardsUnitsPage />, {
+      route: "/admin/cards/units?memberIds=30",
+    })
+    await screen.findByText("Project Fairy")
+
+    await userEvent.click(screen.getByLabelText("清除成员筛选"))
+    await waitFor(() => {
+      expect(screen.queryByLabelText("移除成员 星井美希")).toBeNull()
+    })
+  })
+
+  it("keeps the picked members when the field label is clicked", async () => {
+    installPageApi()
+
+    renderPage(<AdminCardsUnitsPage />, {
+      route: "/admin/cards/units?memberIds=30",
+    })
+    await screen.findByText("Project Fairy")
+
+    const filterLabel = screen.getByLabelText("按成员筛选").closest("label")
+    expect(filterLabel).not.toBeNull()
+    await userEvent.click(filterLabel as HTMLLabelElement)
+    expect(screen.getByLabelText("移除成员 星井美希")).toBeInTheDocument()
+  })
+
+  it("returns to the browsed page after clearing the keyword", async () => {
+    const { requestedUrls } = installPageApi()
+
+    renderPage(<AdminCardsUnitsPage />, {
+      route: "/admin/cards/units?page=3",
+    })
+    await screen.findByText("Project Fairy")
+
+    await userEvent.type(
+      screen.getByPlaceholderText("搜索中文名 / 日文名 / 英文名 / 别名"),
+      "Project",
+    )
+    await waitFor(() => {
+      expect(
+        requestedUrls.some((url) => url.searchParams.get("query") === "Project"),
+      ).toBe(true)
+    })
+
+    await userEvent.click(screen.getByLabelText("清除关键字"))
+    await waitFor(() => {
+      expect(requestedUrls.at(-1)?.searchParams.get("page")).toBe("3")
+      expect(requestedUrls.at(-1)?.searchParams.get("query")).toBeNull()
+    })
   })
 })

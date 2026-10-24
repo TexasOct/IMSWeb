@@ -71,6 +71,18 @@ function unitFilter(filter: NamecardUnitListFilter): FilterFragment {
         );
         values.push(filter.query, filter.query, filter.query, filter.query);
     }
+    // Every selected character has to be on the unit, so each id narrows the set.
+    for (const memberId of filter.memberIds) {
+        clauses.push(
+            `EXISTS (SELECT 1 FROM namecard_unit_members member
+                      JOIN namecard_characters member_character
+                        ON member_character.id=member.character_id
+                     WHERE member.unit_id=unit.id
+                       AND member_character.deleted_at IS NULL
+                       AND member_character.id=?)`
+        );
+        values.push(memberId);
+    }
     if (filter.agencyId !== null) {
         clauses.push(
             `EXISTS (SELECT 1 FROM namecard_unit_agencies link

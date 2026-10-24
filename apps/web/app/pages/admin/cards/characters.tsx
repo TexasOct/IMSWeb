@@ -1,15 +1,15 @@
 import {
-  ArrowLeftIcon,
-  ArrowRightIcon,
+  XIcon,
   ContactRoundIcon,
   PencilIcon,
   PlusIcon,
   RefreshCwIcon,
 } from "lucide-react"
-import { useCallback, useEffect, useState, type FormEvent } from "react"
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { useSearchParams } from "react-router"
 import { toast } from "sonner"
 
+import { AdminPagination } from "~/components/admin/admin-pagination"
 import {
   AdminEmptyState,
   AdminPageHeader,
@@ -18,7 +18,6 @@ import {
 } from "~/components/admin/admin-ui"
 import { ConfirmActionDialog } from "~/components/shared/confirm-action-dialog"
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert"
-import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import {
@@ -52,7 +51,6 @@ import {
   type NamecardCharacterCategory,
   type NamecardCharacterList,
 } from "~/lib/api"
-import { useDebouncedValue } from "~/lib/use-debounced-value"
 import { CharacterEditorDialog } from "./character-editor-dialog"
 import {
   NAMECARD_CHARACTER_CATEGORY_LABELS,
@@ -82,7 +80,9 @@ const categoryItems = [
   })),
 ]
 
-function isCategoryFilter(value: string | null): value is NamecardCharacterCategory {
+function isCategoryFilter(
+  value: string | null
+): value is NamecardCharacterCategory {
   return NAMECARD_CHARACTER_CATEGORIES.some((category) => category === value)
 }
 
@@ -101,8 +101,20 @@ export default function AdminCardsCharactersPage() {
     Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
 
   const [draftQuery, setDraftQuery] = useState(queryParam)
+  // The applied keyword drives the request. It only reaches the URL through
+  // `commitQuery`-style handlers, so typing pauses do not run a router
+  // transition.
+  const [appliedQuery, setAppliedQuery] = useState(queryParam)
+  const queryTimer = useRef<number | undefined>(undefined)
   const [draftAgency, setDraftAgency] = useState(agencyIdParam)
   const [draftCategory, setDraftCategory] = useState(categoryParam)
+
+  // Clearing a search should land back on the page the operator was browsing,
+  // not jump to the first page; remember it while no keyword is active.
+  const browsingPage = useRef(1)
+  useEffect(() => {
+    if (!appliedQuery) browsingPage.current = page
+  }, [page, appliedQuery])
 
   const [characters, setCharacters] = useState<NamecardCharacter[]>([])
   const [pageInfo, setPageInfo] =
@@ -112,13 +124,17 @@ export default function AdminCardsCharactersPage() {
   const [error, setError] = useState(false)
 
   const [editorOpen, setEditorOpen] = useState(false)
-  const [editorTarget, setEditorTarget] = useState<NamecardCharacter | null>(null)
+  const [editorTarget, setEditorTarget] = useState<NamecardCharacter | null>(
+    null
+  )
   const [editorDraft, setEditorDraft] = useState<CharacterDraft>(
     emptyCharacterDraft(null)
   )
   const [saving, setSaving] = useState(false)
 
-  const [deleteTarget, setDeleteTarget] = useState<NamecardCharacter | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<NamecardCharacter | null>(
+    null
+  )
   const [deleting, setDeleting] = useState(false)
 
   const applyResult = useCallback((result: NamecardCharacterList) => {
@@ -132,7 +148,7 @@ export default function AdminCardsCharactersPage() {
     try {
       applyResult(
         await getAdminNamecardCharacters({
-          query: queryParam || undefined,
+          query: appliedQuery || undefined,
           agencyId:
             agencyIdParam === ALL_VALUE ? undefined : Number(agencyIdParam),
           category: categoryParam === ALL_VALUE ? undefined : categoryParam,
@@ -144,12 +160,12 @@ export default function AdminCardsCharactersPage() {
     } finally {
       setLoading(false)
     }
-  }, [applyResult, agencyIdParam, categoryParam, page, queryParam])
+  }, [applyResult, agencyIdParam, appliedQuery, categoryParam, page])
 
   useEffect(() => {
     let active = true
     getAdminNamecardCharacters({
-      query: queryParam || undefined,
+      query: appliedQuery || undefined,
       agencyId: agencyIdParam === ALL_VALUE ? undefined : Number(agencyIdParam),
       category: categoryParam === ALL_VALUE ? undefined : categoryParam,
       page,
@@ -169,7 +185,21 @@ export default function AdminCardsCharactersPage() {
     return () => {
       active = false
     }
-  }, [applyResult, agencyIdParam, categoryParam, page, queryParam])
+  }, [applyResult, agencyIdParam, appliedQuery, categoryParam, page])
+
+  // A narrower query can leave the list past its last page, which renders as an empty table
+  // even though the search has hits. Pull the paging back inside the result set: a search
+  // restarts at the first page, a shrunken unfiltered list lands on its last page.
+  useEffect(() => {
+    const lastPage = Math.max(1, pageInfo.totalPages)
+    if (pageInfo.page <= lastPage) return
+    const target = appliedQuery ? 1 : lastPage
+    if (Math.max(1, page) === target) return
+    const next = new URLSearchParams(searchParams)
+    if (target <= 1) next.delete("page")
+    else next.set("page", String(target))
+    setSearchParams(next, { replace: true })
+  }, [appliedQuery, page, pageInfo, searchParams, setSearchParams])
 
   useEffect(() => {
     let active = true
@@ -186,29 +216,41 @@ export default function AdminCardsCharactersPage() {
     }
   }, [])
 
-  const debouncedQuery = useDebouncedValue(draftQuery)
+  /** Re-applies the remembered browsing page to a fresh param set. */
+  function restorePage(next: URLSearchParams) {
+    if (browsingPage.current > 1) next.set("page", String(browsingPage.current))
+    else next.delete("page")
+  }
 
-  // The keyword box drives the request on its own; `replace` keeps a burst of
-  // typing out of the history stack.
-  useEffect(() => {
-    const trimmed = debouncedQuery.trim()
-    if (trimmed === queryParam) return
-    const next = new URLSearchParams(searchParams)
-    if (trimmed) next.set("query", trimmed)
-    else next.delete("query")
-    next.delete("page")
-    setSearchParams(next, { replace: true })
-  }, [debouncedQuery, queryParam, searchParams, setSearchParams])
+  /** Records a committed keyword in the URL (share/refresh), without a re-query. */
+  function writeQueryParam(next: string) {
+    const params = new URLSearchParams(searchParams)
+    if (next) {
+      params.set("query", next)
+      params.delete("page")
+    } else {
+      params.delete("query")
+      restorePage(params)
+    }
+    setSearchParams(params, { replace: true })
+  }
 
-  /** Enter flushes the keyword immediately instead of waiting out the delay. */
+  /** Debounces typing into the applied keyword; never touches the URL. */
+  function scheduleQuery(next: string) {
+    window.clearTimeout(queryTimer.current)
+    queryTimer.current = window.setTimeout(
+      () => setAppliedQuery(next.trim()),
+      300
+    )
+  }
+
+  /** Enter flushes the keyword immediately and records it in the URL. */
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    window.clearTimeout(queryTimer.current)
     const trimmed = draftQuery.trim()
-    const next = new URLSearchParams(searchParams)
-    if (trimmed) next.set("query", trimmed)
-    else next.delete("query")
-    next.delete("page")
-    setSearchParams(next)
+    setAppliedQuery(trimmed)
+    writeQueryParam(trimmed)
   }
 
   function selectAgency(value: string) {
@@ -229,10 +271,22 @@ export default function AdminCardsCharactersPage() {
     setSearchParams(next)
   }
 
+  /** Clears only the keyword; the member/agency filters stay put. */
+  function clearKeyword() {
+    window.clearTimeout(queryTimer.current)
+    setDraftQuery("")
+    setAppliedQuery("")
+    writeQueryParam("")
+  }
+
   function clearSearch() {
+    window.clearTimeout(queryTimer.current)
+    setAppliedQuery("")
     setDraftQuery("")
     setDraftAgency(ALL_VALUE)
     setDraftCategory(ALL_VALUE)
+    // Clearing the whole filter form starts a fresh browse, so it drops the
+    // remembered page instead of restoring it.
     setSearchParams(new URLSearchParams())
   }
 
@@ -244,8 +298,16 @@ export default function AdminCardsCharactersPage() {
   }
 
   function openCreate() {
+    // Default to whatever the list is filtered by, so a new entry lands in view.
+    const filteredAgencyId =
+      agencies.find((agency) => String(agency.id) === agencyIdParam)?.id ?? null
     setEditorTarget(null)
-    setEditorDraft(emptyCharacterDraft(agencies[0]?.id ?? null))
+    setEditorDraft(
+      emptyCharacterDraft(
+        filteredAgencyId ?? agencies[0]?.id ?? null,
+        categoryParam === ALL_VALUE ? "idol" : categoryParam
+      )
+    )
     setEditorOpen(true)
   }
 
@@ -360,13 +422,30 @@ export default function AdminCardsCharactersPage() {
       >
         <label className="flex min-w-0 flex-1 flex-col gap-1.5">
           <span className="text-sm font-medium">关键字</span>
-          <Input
-            value={draftQuery}
-            placeholder="搜索中文名 / 日文名 / 英文名 / 别名"
-            className={adminControlClass}
-            disabled={loading}
-            onChange={(event) => setDraftQuery(event.target.value)}
-          />
+          <div className="relative">
+            <Input
+              value={draftQuery}
+              placeholder="搜索中文名 / 日文名 / 英文名 / 别名"
+              className={
+                draftQuery ? adminControlClass + " pr-9" : adminControlClass
+              }
+              disabled={loading}
+              onChange={(event) => {
+                setDraftQuery(event.target.value)
+                scheduleQuery(event.target.value)
+              }}
+            />
+            {draftQuery ? (
+              <button
+                type="button"
+                aria-label="清除关键字"
+                className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                onClick={clearKeyword}
+              >
+                <XIcon className="size-4" />
+              </button>
+            ) : null}
+          </div>
         </label>
         <label className="flex flex-col gap-1.5 lg:w-56">
           <span className="text-sm font-medium">企划</span>
@@ -438,9 +517,7 @@ export default function AdminCardsCharactersPage() {
         ) : error ? (
           <Alert variant="destructive">
             <AlertTitle>无法读取角色列表</AlertTitle>
-            <AlertDescription>
-              请确认管理会话有效，然后重试。
-            </AlertDescription>
+            <AlertDescription>请确认管理会话有效，然后重试。</AlertDescription>
             <div className="mt-3">
               <Button
                 type="button"
@@ -469,7 +546,6 @@ export default function AdminCardsCharactersPage() {
                   <TableHead>企划</TableHead>
                   <TableHead>分类</TableHead>
                   <TableHead>别名</TableHead>
-                  <TableHead>兜底</TableHead>
                   <TableHead>排序值</TableHead>
                   <TableHead className="text-right">操作</TableHead>
                 </TableRow>
@@ -477,7 +553,7 @@ export default function AdminCardsCharactersPage() {
               <TableBody>
                 {characters.map((character) => (
                   <TableRow key={character.id}>
-                    <TableCell className="min-w-32 whitespace-normal font-medium">
+                    <TableCell className="min-w-32 font-medium whitespace-normal">
                       {character.nameCn}
                     </TableCell>
                     <TableCell className="min-w-28 whitespace-normal">
@@ -499,23 +575,20 @@ export default function AdminCardsCharactersPage() {
                     <TableCell>
                       {NAMECARD_CHARACTER_CATEGORY_LABELS[character.category]}
                     </TableCell>
-                    <TableCell className="max-w-56 whitespace-normal text-sm text-muted-foreground">
+                    <TableCell className="max-w-56 text-sm whitespace-normal text-muted-foreground">
                       {character.aliases ? (
-                        <span className="line-clamp-2">{character.aliases}</span>
+                        <span className="line-clamp-2">
+                          {character.aliases}
+                        </span>
                       ) : (
                         "—"
                       )}
                     </TableCell>
-                    <TableCell>
-                      {character.isFallback ? (
-                        <Badge variant="secondary">兜底</Badge>
-                      ) : (
-                        "—"
-                      )}
+                    <TableCell className="whitespace-nowrap">
+                      {character.displayOrder}
                     </TableCell>
-                    <TableCell>{character.displayOrder}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex flex-wrap justify-end gap-2">
+                    <TableCell className="text-right whitespace-nowrap">
+                      <div className="flex flex-nowrap justify-end gap-2">
                         <Button
                           type="button"
                           size="sm"
@@ -544,33 +617,12 @@ export default function AdminCardsCharactersPage() {
           </div>
         )}
 
-        <div className="mt-5 flex items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">
-            第 {pageInfo.page} / {Math.max(1, pageInfo.totalPages)} 页
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={loading || pageInfo.page <= 1}
-              onClick={() => changePage(pageInfo.page - 1)}
-            >
-              <ArrowLeftIcon data-icon="inline-start" />
-              上一页
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={loading || !pageInfo.hasNextPage}
-              onClick={() => changePage(pageInfo.page + 1)}
-            >
-              下一页
-              <ArrowRightIcon data-icon="inline-end" />
-            </Button>
-          </div>
-        </div>
+        <AdminPagination
+          page={pageInfo.page}
+          totalPages={pageInfo.totalPages}
+          disabled={loading}
+          onChange={changePage}
+        />
       </AdminPanel>
 
       <CharacterEditorDialog
