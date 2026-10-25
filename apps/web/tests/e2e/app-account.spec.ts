@@ -328,6 +328,21 @@ test.describe("app account", () => {
         "opacity",
         "0"
       )
+      const profileLink = page.locator('a[href="/account/me/profile"]')
+      const cardsLink = page.locator('a[href="/account/me/cards"]')
+      for (const width of [390, 1440]) {
+        await page.setViewportSize({ width, height: 844 })
+        const profileBox = await profileLink.boundingBox()
+        const cardsBox = await cardsLink.boundingBox()
+        expect(cardsBox!.x).toBe(profileBox!.x)
+        expect(cardsBox!.y).toBeGreaterThan(profileBox!.y)
+        expect(
+          await page.evaluate(
+            () => document.documentElement.scrollWidth <= innerWidth
+          )
+        ).toBe(true)
+      }
+      await page.setViewportSize({ width: 390, height: 844 })
       await page.screenshot({
         path: testInfo.outputPath("app-personal-hub.png"),
       })

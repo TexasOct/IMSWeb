@@ -78,7 +78,7 @@ function AccountWorkspaceBackLink() {
   return (
     <NavigationLink
       to="/account/me"
-      className="mb-6 inline-flex min-h-10 items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+      className="mb-6 inline-flex min-h-10 items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground lg:hidden"
     >
       <ArrowLeftIcon className="size-4" aria-hidden="true" />
       返回我的
@@ -88,6 +88,7 @@ function AccountWorkspaceBackLink() {
 
 export type CommunityExchangeMeWorkspaceProps = {
   section?: ProfileWorkspaceSection
+  onLogout?: () => void
   sectionBasePath?: string
   initialCardId?: string
   initialOfficeId?: string
@@ -111,6 +112,7 @@ export function CommunityExchangeMeWorkspace(
 function ProfileWorkspace({
   section,
   sectionBasePath,
+  onLogout,
   initialCardId,
   initialOfficeId,
   platform,
@@ -416,7 +418,13 @@ function ProfileWorkspace({
     <ExchangePageSurface
       id="main-content"
       className="min-w-0"
-      data-account-section-layout={accountSectionBasePath ? "stack" : undefined}
+      data-account-section-layout={
+        accountSectionBasePath
+          ? IS_APP_TARGET || embedded
+            ? "stack"
+            : "account"
+          : undefined
+      }
     >
       {accountSectionBasePath ? null : (
         <header className="relative border-b bg-muted/25">
@@ -461,7 +469,9 @@ function ProfileWorkspace({
         className={cn(
           "mx-auto grid w-full min-w-0",
           accountSectionBasePath
-            ? "max-w-3xl"
+            ? IS_APP_TARGET || embedded
+              ? "max-w-3xl"
+              : "max-w-3xl lg:max-w-7xl lg:grid-cols-[18rem_minmax(0,1fr)]"
             : "max-w-7xl lg:grid-cols-[15rem_minmax(0,1fr)]"
         )}
       >
@@ -470,6 +480,8 @@ function ProfileWorkspace({
           cardCount={state.cards.length}
           activeSection={activeSection}
           sectionBasePath={accountSectionBasePath}
+          onLogout={onLogout}
+          embedded={Boolean(embedded)}
         />
 
         <div

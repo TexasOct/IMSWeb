@@ -7,6 +7,9 @@ import {
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
+import { ThemeToggle } from "~/components/shared/theme-toggle"
+import { Button } from "~/components/ui/button"
+import { useDesktopAccountWorkspace } from "~/lib/use-desktop-account-workspace"
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar"
 import type { PlatformProfile } from "~/lib/api"
 import { cn } from "~/lib/utils"
@@ -86,19 +89,29 @@ export function ProfileWorkspaceNavigation({
   cardCount,
   activeSection,
   sectionBasePath,
+  onLogout,
+  embedded,
 }: {
   profile: PlatformProfile
   cardCount: number
   activeSection: ProfileWorkspaceSection
+  onLogout?: () => void
   sectionBasePath?: string
+  embedded?: boolean
 }) {
   const { t } = useTranslation()
-  const avatarSource = sectionBasePath ? null : profile.avatarUrl
+  const desktopAccount = useDesktopAccountWorkspace()
+  const avatarSource = profile.avatarUrl
 
-  if (sectionBasePath) return null
+  if (sectionBasePath && (!desktopAccount || embedded)) return null
 
   return (
-    <aside className="min-w-0 border-b bg-muted/15 lg:sticky lg:top-16 lg:max-h-[calc(100svh-4rem)] lg:self-start lg:overflow-y-auto lg:border-r lg:border-b-0">
+    <aside
+      className={cn(
+        sectionBasePath && "hidden lg:block",
+        "min-w-0 border-b bg-muted/15 lg:sticky lg:top-16 lg:max-h-[calc(100svh-4rem)] lg:self-start lg:overflow-y-auto lg:border-r lg:border-b-0"
+      )}
+    >
       <div className="flex min-w-0 items-center gap-3 p-4 sm:px-6 lg:p-5">
         <Avatar size="lg" className="size-12 shrink-0">
           {avatarSource ? (
@@ -127,8 +140,9 @@ export function ProfileWorkspaceNavigation({
         {profileWorkspaceSections.map((section) => {
           const active = activeSection === section.id
           const Icon = section.icon
-          const href =
-            section.id === "profile"
+          const href = sectionBasePath
+            ? `${sectionBasePath}/${section.id}`
+            : section.id === "profile"
               ? "/community/exchange/me"
               : `/community/exchange/me?section=${section.id}`
           return (
@@ -170,6 +184,33 @@ export function ProfileWorkspaceNavigation({
           )
         })}
       </nav>
+      {sectionBasePath ? <AccountSidebarUtilities onLogout={onLogout} /> : null}
     </aside>
+  )
+}
+
+function AccountSidebarUtilities({ onLogout }: { onLogout?: () => void }) {
+  const { t } = useTranslation()
+  return (
+    <div className="space-y-4 border-t p-5 text-sm">
+      <NavigationLink
+        to="/account/security"
+        className="block hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        {t("platformAccount.security.title")}
+      </NavigationLink>
+      <div className="flex items-center justify-between gap-3">
+        <span>{t("platformAccount.app.theme")}</span>
+        <ThemeToggle />
+      </div>
+      <NavigationLink to="/about" className="block hover:text-primary">
+        {t("navigation.about")}
+      </NavigationLink>
+      {onLogout ? (
+        <Button variant="outline" onClick={onLogout}>
+          {t("platformAccount.logout")}
+        </Button>
+      ) : null}
+    </div>
   )
 }

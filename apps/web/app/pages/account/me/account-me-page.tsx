@@ -20,8 +20,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Skeleton } from "~/components/ui/skeleton"
+import { useDesktopAccountWorkspace } from "~/lib/use-desktop-account-workspace"
+import { CommunityExchangeMeWorkspace } from "~/pages/community/exchange/me/community-exchange-me-workspace"
 import { IS_APP_TARGET } from "~/lib/app-target"
-import { profileWorkspaceSections } from "~/pages/community/exchange/me/profile-workspace-navigation"
+import {
+  type ProfileWorkspaceSection,
+  profileWorkspaceSections,
+} from "~/pages/community/exchange/me/profile-workspace-navigation"
 
 type LogoutFeedback = "idle" | "pending" | "success" | "error"
 
@@ -59,9 +64,12 @@ function AccountUtilities() {
   )
 }
 
-export default function AccountMePage() {
+export function AccountMePage({
+  section = "profile",
+}: { section?: ProfileWorkspaceSection } = {}) {
   const { t } = useTranslation()
   const platform = usePlatformSession()
+  const desktop = useDesktopAccountWorkspace()
   const avatarSource = platform.session?.profile.avatarUrl
   const [logoutAttempt, setLogoutAttempt] =
     useState<Exclude<LogoutFeedback, "success">>("idle")
@@ -75,6 +83,19 @@ export default function AccountMePage() {
   function logout() {
     setLogoutAttempt("pending")
     void platform.logout().catch(() => setLogoutAttempt("error"))
+  }
+
+  if (
+    desktop &&
+    (platform.status === "authenticated" || platform.status === "restricted")
+  ) {
+    return (
+      <CommunityExchangeMeWorkspace
+        section={section}
+        sectionBasePath="/account/me"
+        onLogout={logout}
+      />
+    )
   }
 
   if (platform.status === "loading") {
@@ -390,3 +411,5 @@ export default function AccountMePage() {
     </PageShell>
   )
 }
+
+export default AccountMePage

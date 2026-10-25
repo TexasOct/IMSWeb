@@ -1,14 +1,18 @@
+import { successFlagSchema } from "@imsweb/contracts/common"
+import { platformHttpErrorSchema } from "@imsweb/contracts/platform"
+
 import AxeBuilder from "@axe-core/playwright"
 
 import { expect, test } from "./fixtures/test"
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
 
-test("opens every personal hub action as a standalone page with refresh and return @mobile", async ({
+test("opens personal content with desktop sidebar and mobile standalone navigation @mobile", async ({
   page,
   api,
   isMobile,
 }, testInfo) => {
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" })
   await page.setViewportSize(
     isMobile ? { width: 390, height: 844 } : { width: 1440, height: 900 }
   )
@@ -39,7 +43,7 @@ test("opens every personal hub action as a standalone page with refresh and retu
     {
       method: "GET",
       path: "/api/community/exchange/characters",
-      times: { min: 1, max: 8 },
+      times: { min: 1, max: 12 },
     },
     (route) => route.fulfill({ json: makeCharacterCatalog() })
   )
@@ -47,12 +51,12 @@ test("opens every personal hub action as a standalone page with refresh and retu
     {
       method: "GET",
       path: "/api/platform/auth/session",
-      times: { min: 1, max: 8 },
+      times: { min: 1, max: 12 },
     },
     (route) => route.fulfill({ json: session })
   )
   await api.mock(
-    { method: "GET", path: "/api/platform/me", times: { min: 5, max: 8 } },
+    { method: "GET", path: "/api/platform/me", times: isMobile ? 7 : 5 },
     (route) =>
       route.fulfill({
         json: {
@@ -68,16 +72,15 @@ test("opens every personal hub action as a standalone page with refresh and retu
     "/api/community/exchange/me/offices",
     "/api/community/exchange/me/claim-envelopes",
   ]) {
-    await api.mock(
-      { method: "GET", path, times: { min: 5, max: 8 } },
-      (route) => route.fulfill({ json: { items: [] } })
+    await api.mock({ method: "GET", path, times: isMobile ? 7 : 5 }, (route) =>
+      route.fulfill({ json: { items: [] } })
     )
   }
   await api.mock(
     {
       method: "GET",
       path: "/api/community/exchange/me/favorites",
-      times: { min: 5, max: 8 },
+      times: isMobile ? 7 : 5,
     },
     (route) =>
       route.fulfill({
@@ -100,9 +103,72 @@ test("opens every personal hub action as a standalone page with refresh and retu
       route.fulfill({ json })
     )
   }
-  await expect(
-    page.getByRole("heading", { name: "我的", exact: true })
-  ).toBeVisible()
+  const links = isMobile
+    ? page
+        .locator("section[aria-labelledby='account-business-title']")
+        .getByRole("link")
+    : page.getByRole("navigation", { name: "个人档案菜单" }).getByRole("link")
+  await expect(links).toHaveCount(5)
+  if (!isMobile) {
+    await expect(
+      page.locator("#profile-workspace-section-profile")
+    ).toBeVisible()
+    await expect(
+      page.getByRole("textbox", { name: "显示名称", exact: true })
+    ).toBeVisible()
+    await expect(links.first()).toHaveAttribute("aria-current", "page")
+    for (const [width, theme] of [
+      [1440, "light"],
+      [1920, "dark"],
+    ] as const) {
+      await page.setViewportSize({ width, height: 1080 })
+      const root = page.locator("html")
+      const dark = await root.evaluate((node) =>
+        node.classList.contains("dark")
+      )
+      if (dark !== (theme === "dark")) {
+        await page
+          .getByRole("button", { name: "切换亮色或暗色模式", exact: true })
+          .first()
+          .click()
+      }
+      await expect(root).toHaveCSS("color-scheme", theme)
+      const first = await links.nth(0).boundingBox()
+      const second = await links.nth(1).boundingBox()
+      const content = await page
+        .locator("#profile-workspace-section-profile")
+        .boundingBox()
+      expect(second!.y).toBeGreaterThan(first!.y)
+      expect(content!.x).toBeGreaterThan(first!.x + first!.width)
+      expect(
+        (
+          await new AxeBuilder({ page })
+            .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+            .analyze()
+        ).violations
+      ).toEqual([])
+      await page.screenshot({
+        path: testInfo.outputPath(`personal-workspace-${width}-${theme}.png`),
+        fullPage: true,
+      })
+    }
+    await page
+      .getByRole("button", { name: "切换亮色或暗色模式", exact: true })
+      .first()
+      .click()
+    await expect(page.locator("html")).toHaveCSS("color-scheme", "light")
+  }
+  await links.first().focus()
+  await expect(links.first()).toBeFocused()
+  await page.keyboard.press("Tab")
+  await expect(links.nth(1)).toBeFocused()
+  expect(
+    (
+      await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+        .analyze()
+    ).violations
+  ).toEqual([])
   await page.screenshot({
     path: testInfo.outputPath("personal-hub.png"),
     fullPage: true,
@@ -143,14 +209,33 @@ test("opens every personal hub action as a standalone page with refresh and retu
         .analyze()
       expect(accessibility.violations).toEqual([])
     }
-    await page.getByRole("link", { name: "返回我的", exact: true }).click()
-    await expect(page).toHaveURL(/\/account\/me$/)
+    if (isMobile) {
+      await page.getByRole("link", { name: "返回我的", exact: true }).click()
+      await expect(page).toHaveURL(/\/account\/me$/)
+    } else {
+      await expect(
+        page
+          .getByRole("navigation", { name: "个人档案菜单" })
+          .getByRole("link", { name: label, exact: true })
+      ).toHaveAttribute("aria-current", "page")
+      await expect(
+        page.getByRole("link", { name: "返回我的", exact: true })
+      ).toBeHidden()
+    }
   }
+  await page.goto("/account/me")
   // A direct URL must work independently of navigation state, including after reload.
   await page.goto("/account/me/claims")
   await expect(page.locator("#profile-workspace-section-claims")).toBeVisible()
   await page.goBack()
   await expect(page).toHaveURL(/\/account\/me$/)
+  if (!isMobile) {
+    await expect(
+      page
+        .getByRole("navigation", { name: "个人档案菜单" })
+        .getByRole("link", { name: "个人资料", exact: true })
+    ).toHaveAttribute("aria-current", "page")
+  }
   await page.getByRole("link", { name: /帐号安全/ }).click()
   await expect(page).toHaveURL(/\/account\/security$/)
   await expect(
@@ -159,4 +244,111 @@ test("opens every personal hub action as a standalone page with refresh and retu
   await expect(page.getByRole("dialog")).toHaveCount(0)
   await page.getByRole("link", { name: "返回我的", exact: true }).click()
   await expect(page).toHaveURL(/\/account\/me$/)
+})
+
+test("desktop root and section preserve pending, failed, retry and successful logout", async ({
+  page,
+  api,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.addInitScript(() => {
+    localStorage.setItem("imsweb.language", "zh-CN")
+    document.cookie = "ims_platform_csrf=logout-feedback; path=/"
+  })
+  await page.context().addCookies([
+    {
+      name: "ims_platform_access",
+      value: "logout-feedback",
+      domain: "127.0.0.1",
+      path: "/",
+    },
+  ])
+  const session = {
+    success: true,
+    account: { id: "logout-feedback", status: "active" },
+    profile: {
+      displayName: "退出验证制作人",
+      avatarUrl: null,
+      homeCity: "上海",
+      bio: "",
+    },
+  }
+  await installEmptyWikiCatalogMock(api, 1)
+  await api.mock(
+    { method: "GET", path: "/api/community/exchange/characters", times: 2 },
+    (route) => route.fulfill({ json: makeCharacterCatalog() })
+  )
+  await api.mock(
+    { method: "GET", path: "/api/platform/auth/session", times: 2 },
+    (route) => route.fulfill({ json: session })
+  )
+  await api.mock(
+    { method: "GET", path: "/api/platform/me", times: 2 },
+    (route) =>
+      route.fulfill({
+        json: {
+          ...session,
+          capabilities: { fudabaWrite: true },
+          profile: { ...session.profile, updatedAt: 1 },
+        },
+      })
+  )
+  for (const path of [
+    "/api/community/exchange/me/series",
+    "/api/community/exchange/me/cards",
+    "/api/community/exchange/me/offices",
+    "/api/community/exchange/me/claim-envelopes",
+  ]) {
+    await api.mock({ method: "GET", path, times: 2 }, (route) =>
+      route.fulfill({ json: { items: [] } })
+    )
+  }
+  await api.mock(
+    { method: "GET", path: "/api/community/exchange/me/favorites", times: 2 },
+    (route) =>
+      route.fulfill({
+        json: { items: [], pageInfo: { hasNextPage: false, nextCursor: null } },
+      })
+  )
+  const releases: Array<() => void> = []
+  const gates = Array.from(
+    { length: 4 },
+    () => new Promise<void>((resolve) => releases.push(resolve))
+  )
+  let attempts = 0
+  api.expect({
+    method: "POST",
+    path: "/api/platform/auth/logout",
+    times: 4,
+    responses: { 200: successFlagSchema, 500: platformHttpErrorSchema },
+    handle: async () => {
+      const attempt = attempts++
+      await gates[attempt]
+      return attempt % 2 === 0
+        ? { status: 500, json: { error: "logout unavailable" } }
+        : { status: 200, json: { success: true } }
+    },
+  })
+  for (const [index, path] of [
+    "/account/me",
+    "/account/me/profile",
+  ].entries()) {
+    await page.goto(path)
+    await expect(
+      page.getByRole("textbox", { name: "显示名称", exact: true })
+    ).toBeVisible()
+    await page.getByRole("button", { name: "退出帐号", exact: true }).click()
+    await expect(
+      page.getByRole("main", { name: "正在退出帐号" })
+    ).toHaveAttribute("aria-busy", "true")
+    await expect.poll(() => attempts).toBe(index * 2 + 1)
+    releases[index * 2]()
+    await expect(page.getByText("退出帐号失败", { exact: true })).toBeVisible()
+    await page.getByRole("button", { name: "重试退出", exact: true }).click()
+    await expect(page.getByRole("main", { name: "正在退出帐号" })).toBeVisible()
+    await expect.poll(() => attempts).toBe(index * 2 + 2)
+    releases[index * 2 + 1]()
+    await expect(page.getByText("已退出帐号", { exact: true })).toBeVisible()
+    await expect(page).toHaveURL(new RegExp(`${path}$`))
+  }
 })
