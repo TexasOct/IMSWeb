@@ -30,6 +30,21 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
       bio: "",
     },
   }
+  // Desktop: root, profile, reload, root, claims, back, direct claims, security return.
+  // Mobile: five sections, offices reload, claims link, direct claims.
+  const workspaceLoads = 8
+  async function expectAccountRootReady() {
+    await expect(page).toHaveURL(/\/account\/me$/)
+    if (isMobile) {
+      await expect(
+        page.getByRole("heading", { name: "我的", exact: true })
+      ).toBeVisible()
+    } else {
+      await expect(
+        page.getByRole("textbox", { name: "显示名称", exact: true })
+      ).toHaveValue(session.profile.displayName)
+    }
+  }
   await page.context().addCookies([
     {
       name: "ims_platform_access",
@@ -56,7 +71,7 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
     (route) => route.fulfill({ json: session })
   )
   await api.mock(
-    { method: "GET", path: "/api/platform/me", times: isMobile ? 7 : 5 },
+    { method: "GET", path: "/api/platform/me", times: workspaceLoads },
     (route) =>
       route.fulfill({
         json: {
@@ -72,7 +87,7 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
     "/api/community/exchange/me/offices",
     "/api/community/exchange/me/claim-envelopes",
   ]) {
-    await api.mock({ method: "GET", path, times: isMobile ? 7 : 5 }, (route) =>
+    await api.mock({ method: "GET", path, times: workspaceLoads }, (route) =>
       route.fulfill({ json: { items: [] } })
     )
   }
@@ -80,7 +95,7 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
     {
       method: "GET",
       path: "/api/community/exchange/me/favorites",
-      times: isMobile ? 7 : 5,
+      times: workspaceLoads,
     },
     (route) =>
       route.fulfill({
@@ -224,17 +239,25 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
     }
   }
   await page.goto("/account/me")
-  // A direct URL must work independently of navigation state, including after reload.
-  await page.goto("/account/me/claims")
+  await expectAccountRootReady()
+  // Exercise client-side history without depending on document BFCache behavior.
+  await page.getByRole("link", { name: /^认领消息/ }).click()
   await expect(page.locator("#profile-workspace-section-claims")).toBeVisible()
   await page.goBack()
-  await expect(page).toHaveURL(/\/account\/me$/)
+  await expectAccountRootReady()
   if (!isMobile) {
     await expect(
       page
         .getByRole("navigation", { name: "个人档案菜单" })
         .getByRole("link", { name: "个人资料", exact: true })
     ).toHaveAttribute("aria-current", "page")
+  }
+  // A direct URL must work independently of navigation state, including after reload.
+  await page.goto("/account/me/claims")
+  await expect(page.locator("#profile-workspace-section-claims")).toBeVisible()
+  if (isMobile) {
+    await page.getByRole("link", { name: "返回我的", exact: true }).click()
+    await expectAccountRootReady()
   }
   await page.getByRole("link", { name: /帐号安全/ }).click()
   await expect(page).toHaveURL(/\/account\/security$/)
@@ -243,7 +266,7 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
   ).toBeVisible()
   await expect(page.getByRole("dialog")).toHaveCount(0)
   await page.getByRole("link", { name: "返回我的", exact: true }).click()
-  await expect(page).toHaveURL(/\/account\/me$/)
+  await expectAccountRootReady()
 })
 
 test("desktop root and section preserve pending, failed, retry and successful logout", async ({
