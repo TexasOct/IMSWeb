@@ -182,7 +182,6 @@ export async function handleReviewFudabaRegisteredCard(
                         console.error('Failed to protect registered card media', protectionError);
                     })
             ));
-            mediaNeedsProtection = false;
         }
         if (approvingRevision !== null && compensationSafe && !protectionFailed) {
             await repository.rollbackRegisteredCardReview(cardId, approvingRevision)

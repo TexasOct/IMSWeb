@@ -12,7 +12,6 @@ import {
 
 import { NAMECARD_FAVORITE_CHARACTER_LIMIT } from "./characters.js";
 import { NAMECARD_REACTION_EMOJIS } from "./reactions-runtime.js";
-import { isFudabaMapStyleUrl } from "./runtime.js";
 
 import { wikiImageTransformSchema } from "../wiki.js";
 

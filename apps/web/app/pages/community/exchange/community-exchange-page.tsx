@@ -872,7 +872,7 @@ export default function CommunityExchangePage() {
                 <Sheet open={filterOpen} onOpenChange={setFilterOpen}>
                   <SheetContent
                     side="bottom"
-                    initialFocus={IS_APP_TARGET ? filterTitleRef : undefined}
+                    initialFocus={filterTitleRef}
                     className="exchange-map-filter-sheet overflow-y-auto pb-4"
                   >
                     <SheetHeader className="border-b pr-14">
