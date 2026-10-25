@@ -1243,8 +1243,10 @@ test.describe("app map", () => {
               cornerPasses: !group.contains(corner),
             }
           })
+        // The side pill shares the 44px/22px grid with the tools trigger, so
+        // refresh, locate and "more" keep one vertical centre line.
         expect(material).toEqual({
-          radius: ["24px", "24px", "24px", "24px"],
+          radius: ["22px", "22px", "22px", "22px"],
           groupPaints: true,
           childrenTransparent: true,
           childBlur: "none",
@@ -1347,8 +1349,8 @@ test.describe("app map", () => {
       expect(nativeTwin).toEqual({
         hidden: true,
         restoredHidden: true,
-        measured: { width: 48, height: 48, radius: "24px" },
-        standalone: { width: 48, height: 48, refreshRadius: "24px" },
+        measured: { width: 44, height: 44, radius: "22px" },
+        standalone: { width: 44, height: 44, refreshRadius: "22px" },
       })
       await page.getByRole("button", { name: "更多地图工具" }).click()
       await expect(page.getByRole("button", { name: "刷新名录" })).toHaveCount(

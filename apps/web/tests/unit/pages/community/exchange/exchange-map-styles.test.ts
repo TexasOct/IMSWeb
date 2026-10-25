@@ -111,4 +111,40 @@ describe("exchange map stylesheet", () => {
       mapStylesheet.indexOf(".exchange-map-app-surface {")
     )
   })
+
+  it("gives the App map chrome the tab bar's material and one control grid", () => {
+    const glass = blockBody(
+      mapStylesheet,
+      ".exchange-map-app-glass,\n  .exchange-search-card[data-app-search]"
+    )
+
+    // The search pill and the tools trigger reuse the shared bar alpha, blur and
+    // saturation, so the map chrome and the tab bar read as one material.
+    expect(glass).toContain("var(--glass-alpha-bar)")
+    expect(glass).toContain("var(--glass-blur)")
+    expect(glass).toContain("var(--glass-saturate)")
+    expect(glass).toContain(".exchange-search-surface::before")
+    expect(glass).toContain(".exchange-search-round:last-child")
+    // A literal here would be a fourth private copy of the blur recipe.
+    expect(glass).not.toMatch(/blur\(\s*\d/)
+    expect(glass).not.toMatch(/saturate\(\s*\d/)
+
+    const grid = blockBody(
+      mapStylesheet,
+      'html[data-app-target="app"] .exchange-map-side-controls .exchange-map-refresh,'
+    )
+
+    // Refresh, locate and the tools trigger share one 44px box and one 22px
+    // capsule radius, which is what keeps their centres on a single line.
+    expect(grid).toContain("width: 44px")
+    expect(grid).toContain("height: 44px")
+    expect(grid).toContain("border-radius: 22px")
+    expect(grid).toContain("exchange-map-refresh-button")
+    expect(grid).toContain('data-native-glass-control="locate"')
+    const round = blockBody(
+      mapStylesheet,
+      ".exchange-search-card .exchange-search-round {"
+    )
+    expect(round).toContain("border-radius: 22px")
+  })
 })
