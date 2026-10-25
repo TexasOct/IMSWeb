@@ -18,7 +18,10 @@ const office = {
 }
 const empty = { items: [], pageInfo: { hasNextPage: false, nextCursor: null } }
 
-export async function installUnifiedSearchApis(api: ApiDispatcher) {
+export async function installUnifiedSearchApis(
+  api: ApiDispatcher,
+  beforeSearch?: (query: string) => Promise<void>
+) {
   const queries: string[] = []
   await installEmptyWikiCatalogMock(api, { min: 0, max: 8 })
   await api.mockRoute(
@@ -29,9 +32,12 @@ export async function installUnifiedSearchApis(api: ApiDispatcher) {
   )
   await api.mockRoute(
     "**/api/community/exchange/offices?*",
-    (r) => {
+    async (r) => {
       const q = new URL(r.request().url()).searchParams.get("q")
-      if (q) queries.push(q)
+      if (q) {
+        queries.push(q)
+        await beforeSearch?.(q)
+      }
       return r.fulfill({ json: { ...empty, items: q ? [office] : [] } })
     },
     "GET",
