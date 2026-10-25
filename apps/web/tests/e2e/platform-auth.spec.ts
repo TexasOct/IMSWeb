@@ -3,7 +3,6 @@ import type { Page, TestInfo } from "@playwright/test"
 
 import { installEmptyWikiCatalogMock } from "./fixtures/homepage"
 import { installPlatformOAuthProvidersMock } from "./fixtures/platform-auth"
-import { installSeededPublicApis } from "./fixtures/public-content"
 import { api, expect, test } from "./fixtures/test"
 import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
 
@@ -19,13 +18,6 @@ const session = {
 }
 
 async function mockOwnerWorkspace() {
-  installSeededPublicApis(api, [
-    { path: "/api/community/exchange/series", times: 1 },
-    { path: "/api/community/exchange/offices", times: 1 },
-    { path: "/api/community/exchange/cards", times: 1 },
-    { path: "/api/community/exchange/map/config", times: 1 },
-    { path: "/api/community/exchange/map/offices", times: { min: 0, max: 8 } },
-  ])
   await api.mockRoute(
     "**/api/platform/me",
     async (route) => {
@@ -174,6 +166,8 @@ test.describe("platform auth", () => {
       await expect(
         page.getByRole("heading", { name: "个人档案", exact: true })
       ).toBeVisible()
+      await expect(page.getByRole("dialog")).toHaveCount(0)
+      await expect(page.locator("canvas.maplibregl-canvas")).toHaveCount(0)
       await expect(
         page.getByRole("button", { name: "帐号：浏览器制作人" })
       ).toBeVisible()
@@ -256,6 +250,8 @@ test.describe("platform auth", () => {
       await expect(
         page.getByRole("heading", { name: "个人档案", exact: true })
       ).toBeVisible()
+      await expect(page.getByRole("dialog")).toHaveCount(0)
+      await expect(page.locator("canvas.maplibregl-canvas")).toHaveCount(0)
       expect(registrationBody).toEqual({
         email: "new@example.com",
         password: "correct-horse-battery",

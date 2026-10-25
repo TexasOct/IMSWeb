@@ -4,7 +4,6 @@ import type { PlatformProfile } from "@imsweb/contracts/platform"
 import { api, expect, test } from "./fixtures/test"
 import { makeCharacterCatalog } from "./fixtures/fudaba-characters"
 import { settleToasts } from "./fixtures/toast"
-import { installSeededPublicApis } from "./fixtures/public-content"
 
 const avatarFixture = Buffer.from(
   `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240">
@@ -86,14 +85,7 @@ const publishedLocation: LocationFixture = {
   reviewNote: "区域范围合适",
 }
 
-test.beforeEach(async ({ context, page, api: dispatcher }) => {
-  installSeededPublicApis(dispatcher, [
-    { path: "/api/community/exchange/series", times: 1 },
-    { path: "/api/community/exchange/offices", times: 1 },
-    { path: "/api/community/exchange/cards", times: 1 },
-    { path: "/api/community/exchange/map/config", times: 1 },
-    { path: "/api/community/exchange/map/offices", times: { min: 0, max: 8 } },
-  ])
+test.beforeEach(async ({ context, page }) => {
   let currentProfile: PlatformProfile = { ...profile }
   await context.addCookies([
     {
@@ -496,6 +488,8 @@ test.describe("community exchange me", () => {
     await expect(
       page.getByRole("heading", { name: "个人档案", exact: true })
     ).toBeVisible()
+    await expect(page.getByRole("dialog")).toHaveCount(0)
+    await expect(page.locator("canvas.maplibregl-canvas")).toHaveCount(0)
     await expect(page.getByRole("textbox", { name: "显示名称" })).toBeVisible()
     await expect(page.getByText("浏览器交换名片")).toBeHidden()
     await page.screenshot({
