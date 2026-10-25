@@ -1,9 +1,17 @@
 import { Navigate, useParams } from "react-router"
 
 import { CommunityExchangeMeWorkspace } from "~/pages/community/exchange/me/community-exchange-me-workspace"
-import { isProfileWorkspaceSection } from "~/pages/community/exchange/me/profile-workspace-navigation"
+import {
+  isProfileWorkspaceSection,
+  profileWorkspaceSections,
+} from "~/pages/community/exchange/me/profile-workspace-navigation"
 
-export { meta } from "~/pages/community/exchange/me/community-exchange-me-page"
+export function meta({ params }: { params: { section?: string } }) {
+  const section = profileWorkspaceSections.find(
+    (item) => item.id === params.section
+  )
+  return [{ title: `${section?.label ?? "我的"} | IMSWeb` }]
+}
 
 export default function AccountMeSectionPage() {
   const { section } = useParams()

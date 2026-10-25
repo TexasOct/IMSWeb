@@ -257,7 +257,7 @@ describe("ExchangeOfficeMap App viewport memory", () => {
       maplibreMocks.markerInstances[0]?.setLngLat
     ).toHaveBeenLastCalledWith([121.473701, 31.230416])
     expect(maplibreMocks.markerInstances[0]?.addTo).toHaveBeenCalledWith(map)
-    expect(screen.getByText("已回到您的位置")).toHaveClass("sr-only")
+    expect(screen.getByText("定位完成")).toHaveClass("sr-only")
   })
 
   it("reuses the location marker and avoids animation for reduced motion", async () => {

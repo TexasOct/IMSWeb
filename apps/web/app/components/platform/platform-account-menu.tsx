@@ -165,7 +165,7 @@ export function PlatformAccountMenu() {
               </div>
             </div>
             <NavigationLink
-              to="/community/exchange/me"
+              to="/account/me"
               className={buttonVariants({
                 variant: "outline",
                 size: "sm",
@@ -178,12 +178,6 @@ export function PlatformAccountMenu() {
               />
               {t("platformAccount.myCards")}
             </NavigationLink>
-            {/*
-              /account/security is delivered to the web target and prerendered, but
-              its only entry lived on /account/me, which is an app-only route. Web
-              users were left with no way to reach password, email, device, or OAuth
-              link management, so the signed-in menu carries the entry directly.
-            */}
             <NavigationLink
               to="/account/security"
               className={buttonVariants({

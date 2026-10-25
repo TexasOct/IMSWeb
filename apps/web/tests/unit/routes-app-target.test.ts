@@ -95,13 +95,18 @@ describe("app target routes", () => {
     }
   })
 
-  it("keeps App-only routes out of the Web manifest", async () => {
+  it("shares personal pages with Web while keeping the App download hub exclusive", async () => {
     vi.stubEnv("VITE_IMS_APP_TARGET", "web")
     vi.resetModules()
 
     const { default: routes } = await import("~/routes")
 
     expect(routeFile(routes, "apps")).toBeUndefined()
-    expect(routeFile(routes, "account/me/:section")).toBeUndefined()
+    expect(routeFile(routes, "account/me")).toBe(
+      "pages/account/me/account-me-page.tsx"
+    )
+    expect(routeFile(routes, "account/me/:section")).toBe(
+      "pages/account/me/account-me-section-page.tsx"
+    )
   })
 })

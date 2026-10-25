@@ -308,15 +308,15 @@ export const routeDescriptors: readonly RouteDescriptor[] = Object.freeze([
     "account/me",
     "pages/account/me/account-me-page.tsx",
     "public",
-    APP_TARGET,
-    "none"
+    SHARED_TARGETS,
+    "spa"
   ),
   route(
     "account/me/:section",
     "pages/account/me/account-me-section-page.tsx",
     "public",
-    APP_TARGET,
-    "none"
+    SHARED_TARGETS,
+    "spa"
   ),
   route(
     "wiki/classic",

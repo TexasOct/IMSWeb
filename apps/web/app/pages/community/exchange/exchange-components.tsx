@@ -17,8 +17,12 @@ import type {
   FudabaSeries,
 } from "~/lib/api"
 import { cn } from "~/lib/utils"
-import { CardInteractionBar } from "./exchange-card-interactions"
+import {
+  CardInteractionBar,
+  CardInteractionScope,
+} from "./exchange-card-interactions"
 import { CardReactionArea } from "./exchange-card-reaction-area"
+import { ExchangeCardPreviewActions } from "./components/exchange-card-preview-actions"
 import { NavigationLink } from "~/components/navigation/navigation-link"
 
 export { PlacedCardWall } from "./exchange-card-wall"
@@ -137,6 +141,7 @@ function CardMediaPair({ card }: { card: FudabaCard }) {
         src={card.frontImageUrl}
         alt={`${card.displayName}正面`}
         previewLabel="名片"
+        previewActions={<ExchangeCardPreviewActions card={card} />}
         className="aspect-3/2 rounded-none bg-muted"
         imageClassName="object-contain"
       />
@@ -144,6 +149,7 @@ function CardMediaPair({ card }: { card: FudabaCard }) {
         src={card.backImageUrl}
         alt={`${card.displayName}背面`}
         previewLabel="名片"
+        previewActions={<ExchangeCardPreviewActions card={card} />}
         className="aspect-3/2 rounded-none bg-muted"
         imageClassName="object-contain"
       />
@@ -151,7 +157,7 @@ function CardMediaPair({ card }: { card: FudabaCard }) {
   )
 }
 
-export function ExchangeCard({
+function ExchangeCardContent({
   card,
   series,
   onInteractionsChange,
@@ -193,5 +199,13 @@ export function ExchangeCard({
         <CardReactionArea cardId={card.id} />
       </CardFooter>
     </Card>
+  )
+}
+
+export function ExchangeCard(props: Parameters<typeof ExchangeCardContent>[0]) {
+  return (
+    <CardInteractionScope>
+      <ExchangeCardContent {...props} />
+    </CardInteractionScope>
   )
 }

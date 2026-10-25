@@ -1,3 +1,5 @@
+import { useContext } from "react"
+import { ExchangeDataRevision } from "./components/exchange-page-surface"
 import {
   Building2Icon,
   LoaderCircleIcon,
@@ -247,6 +249,7 @@ export function CommunityExchangeMapSection({
   searchTools?: ExchangeSearchCardTools
   webDiscovery?: ExchangeDiscoveryRailProps
 }) {
+  const dataRevision = useContext(ExchangeDataRevision)
   const [config, setConfig] = useState<ConfigState>(initialConfigState)
   const [MapComponent, setMapComponent] = useState<ExchangeMapRenderer | null>(
     null
@@ -522,14 +525,14 @@ export function CommunityExchangeMapSection({
 
   useEffect(() => {
     const bounds = lastBoundsRef.current
-    if (bounds) void loadBounds(bounds)
+    if (bounds) void loadBounds(bounds, true)
     return () => {
       clearTimeout(viewportTimer.current)
       boundsRequest.current?.controller.abort()
       boundsRequest.current = null
       dataGeneration.current += 1
     }
-  }, [loadBounds])
+  }, [loadBounds, dataRevision])
 
   const seriesColorKey = JSON.stringify(
     seriesCatalog

@@ -1,3 +1,4 @@
+import { useExchangeMapDialog } from "../components/exchange-page-surface"
 import {
   Building2Icon,
   CircleAlertIcon,
@@ -62,16 +63,19 @@ function newIdempotencyKey() {
 }
 
 export function OfficeLocationWorkspace({
+  initialOfficeId,
   series,
   homeCity,
   readOnly,
   onWriteClosed,
 }: {
+  initialOfficeId?: string
   series: FudabaSeries[]
   homeCity: string | null
   readOnly: boolean
   onWriteClosed: () => void
 }) {
+  const mapDialog = useExchangeMapDialog()
   const [phase, setPhase] = useState<WorkspacePhase>("loading")
   const [offices, setOffices] = useState<FudabaOwnerOffice[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -161,6 +165,7 @@ export function OfficeLocationWorkspace({
       setPhase("ready")
       const nextId =
         result.items.find((item) => item.id === selectedIdRef.current)?.id ??
+        result.items.find((item) => item.id === initialOfficeId)?.id ??
         result.items[0]?.id ??
         null
       if (!nextId) {
@@ -180,7 +185,7 @@ export function OfficeLocationWorkspace({
       setPhase("error")
       setLoadError(apiMessage(error, "事务所与地图位置暂时无法加载。"))
     }
-  }, [homeCity, loadSelection])
+  }, [homeCity, initialOfficeId, loadSelection])
 
   useEffect(() => {
     const timer = globalThis.setTimeout(() => void loadWorkspace(), 0)
@@ -261,6 +266,7 @@ export function OfficeLocationWorkspace({
         createKey.current = null
         createFingerprint.current = null
         setOfficeFeedback({ kind: "success", message: "交换事务所已创建。" })
+        mapDialog?.changed?.()
         toast.success("交换事务所已创建")
         return
       }
@@ -272,6 +278,7 @@ export function OfficeLocationWorkspace({
       if (!mutationIsCurrent(requestGeneration, targetOfficeId)) return
       replaceOffice(result.office)
       setOfficeFeedback({ kind: "success", message: "事务所资料已保存。" })
+      mapDialog?.changed?.()
       toast.success("事务所资料已保存")
     } catch (error) {
       if (!mutationIsCurrent(requestGeneration, targetOfficeId)) return
@@ -328,6 +335,7 @@ export function OfficeLocationWorkspace({
         kind: "success",
         message: "区域位置已提交审核，审核通过前不会出现在公开地图。",
       })
+      mapDialog?.changed?.()
       toast.success("区域位置已提交审核")
     } catch (error) {
       if (!mutationIsCurrent(requestGeneration, targetOfficeId)) return
@@ -390,6 +398,7 @@ export function OfficeLocationWorkspace({
         kind: "success",
         message: "公开位置已撤回，事务所已从区域地图下线。",
       })
+      mapDialog?.changed?.()
       toast.success("事务所已从区域地图下线")
     } catch (error) {
       if (!mutationIsCurrent(requestGeneration, targetOfficeId)) return

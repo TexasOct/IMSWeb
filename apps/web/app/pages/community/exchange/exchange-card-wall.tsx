@@ -37,6 +37,7 @@ import {
 } from "~/components/ui/tooltip"
 import type { FudabaCardPlacement, FudabaPlacedCard } from "~/lib/api"
 import { cn } from "~/lib/utils"
+import { ExchangeCardPreviewActions } from "./components/exchange-card-preview-actions"
 
 export type WallPlacement = Pick<
   FudabaCardPlacement,
@@ -270,6 +271,7 @@ function WallCard({
         src={flipped ? card.backImageUrl : card.frontImageUrl}
         alt={`${card.displayName}${side}`}
         previewLabel="名片"
+        previewActions={<ExchangeCardPreviewActions card={card} />}
         className="aspect-3/2 w-full border bg-card shadow-sm"
         imageClassName="object-contain"
       />

@@ -13,6 +13,7 @@ import { GeolocationFailure, getCurrentCoordinates } from "~/lib/geolocation"
 import { useNativeGlassControl } from "~/lib/native-glass-controls"
 import { awaitMapSearch } from "~/lib/maps/map-search-abort"
 import { cn } from "~/lib/utils"
+import { createUserLocationMarker } from "./user-location-marker"
 import type {
   MapDriver,
   MapView,
@@ -74,10 +75,17 @@ export function ProviderOfficeMap(props: Props) {
   const runtime = useRef<MapView | null>(null)
   const [ready, setReady] = useState(false)
   const [resourceError, setResourceError] = useState(false)
-  const [location, setLocation] = useState({ busy: false, message: "" })
+  const [location, setLocation] = useState({
+    busy: false,
+    message: "",
+    error: false,
+  })
   const [size, setSize] = useState({ width: 0, height: 0 })
   const locationRequest = useRef(0)
   const userMarker = useRef<MapMarker | null>(null)
+  const userLocationContent = useRef<ReturnType<
+    typeof createUserLocationMarker
+  > | null>(null)
   const refreshMarkers = useRef(() => {})
   useLayoutEffect(() => {
     latest.current = props
@@ -126,9 +134,11 @@ export function ProviderOfficeMap(props: Props) {
       if (!current) return
       if (!initialSignal) latest.current.claimInitialLocation?.()
       const request = ++locationRequest.current
+      userLocationContent.current?.dismissHint()
       setLocation({
         busy: true,
         message: initialSignal ? "" : "正在获取您的位置",
+        error: false,
       })
       try {
         const coordinates = await (initialSignal
@@ -137,21 +147,17 @@ export function ProviderOfficeMap(props: Props) {
         if (request !== locationRequest.current || runtime.current !== current)
           return
         if (initialSignal?.aborted) {
-          setLocation({ busy: false, message: "" })
+          setLocation({ busy: false, message: "", error: false })
           return
         }
         const position: MapPosition = [
           coordinates.longitude,
           coordinates.latitude,
         ]
-        const element = document.createElement("span")
-        element.className =
-          "block size-4 rounded-full border-[3px] border-white bg-primary shadow-md ring-2 ring-primary/30"
-        element.setAttribute("role", "img")
-        element.setAttribute("aria-label", "您的当前位置")
+        const content = createUserLocationMarker()
         const marker = await current.addMarker({
           position,
-          element,
+          element: content.element,
           anchor: "center",
         })
         if (
@@ -164,11 +170,13 @@ export function ProviderOfficeMap(props: Props) {
             request === locationRequest.current &&
             runtime.current === current
           )
-            setLocation({ busy: false, message: "" })
+            setLocation({ busy: false, message: "", error: false })
           return
         }
         userMarker.current?.remove()
+        userLocationContent.current?.dismissHint()
         userMarker.current = marker
+        userLocationContent.current = content
         latest.current.onDevicePosition?.(position)
         const outcome = await focus(
           current,
@@ -181,13 +189,16 @@ export function ProviderOfficeMap(props: Props) {
           return
         setLocation({
           busy: false,
-          message: initialSignal || outcome === false ? "" : "已回到您的位置",
+          message: initialSignal || outcome === false ? "" : "定位完成",
+          error: false,
         })
+        if (!initialSignal && outcome !== false) content.showHint()
       } catch (error) {
         if (request !== locationRequest.current || runtime.current !== current)
           return
         setLocation({
           busy: false,
+          error: !initialSignal,
           message: initialSignal
             ? ""
             : error instanceof GeolocationFailure &&
@@ -232,7 +243,7 @@ export function ProviderOfficeMap(props: Props) {
     let cameraTimer: ReturnType<typeof setTimeout> | undefined
     setReady(false)
     setResourceError(false)
-    setLocation({ busy: false, message: "" })
+    setLocation({ busy: false, message: "", error: false })
     const measure = () => {
       setSize({ width: container.clientWidth, height: container.clientHeight })
       if (initialized && map) {
@@ -432,6 +443,8 @@ export function ProviderOfficeMap(props: Props) {
       observer.disconnect()
       userMarker.current?.remove()
       userMarker.current = null
+      userLocationContent.current?.dismissHint()
+      userLocationContent.current = null
       for (const { marker } of markers.values()) marker.remove()
       latest.current.onAttributionChange?.(null)
       refreshMarkers.current = () => {}
@@ -625,7 +638,10 @@ export function ProviderOfficeMap(props: Props) {
       </div>
       <p
         role="status"
-        className="pointer-events-none absolute right-16 bottom-20 z-10 max-w-56 rounded bg-background/95 px-2 text-xs"
+        className={cn(
+          "pointer-events-none absolute right-16 bottom-20 z-10 max-w-56",
+          location.error ? "rounded bg-background/95 px-2 text-xs" : "sr-only"
+        )}
         style={{ bottom }}
       >
         {location.message}

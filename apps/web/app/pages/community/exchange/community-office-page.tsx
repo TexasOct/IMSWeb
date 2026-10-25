@@ -1,3 +1,5 @@
+import { CardInteractionScope } from "./exchange-card-interactions"
+import { ExchangeDataRevision } from "./components/exchange-page-surface"
 import {
   ArrowLeftIcon,
   Building2Icon,
@@ -12,7 +14,14 @@ import {
   PlusIcon,
   RefreshCwIcon,
 } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import { useParams } from "react-router"
 import { toast } from "sonner"
 
@@ -58,6 +67,7 @@ import {
   SeriesBadge,
 } from "./exchange-components"
 import type { WallPlacement } from "./exchange-card-wall"
+import { ExchangeManagementDialog } from "./components/exchange-management-dialog"
 import {
   ExchangePageSurface,
   useExchangeMapDialog,
@@ -120,9 +130,10 @@ export function meta() {
   ]
 }
 
-export default function CommunityOfficePage() {
+function CommunityOfficePageContent() {
   const { officeSlug } = useParams()
   const embedded = useExchangeMapDialog()
+  const dataRevision = useContext(ExchangeDataRevision)
   const platform = usePlatformSession()
   const [state, setState] = useState<DetailState>(initialState)
   const [wallEditor, setWallEditor] = useState<WallEditorState>(
@@ -146,7 +157,11 @@ export default function CommunityOfficePage() {
       return
     }
     const generation = ++requestGeneration.current
-    setState((current) => ({ ...current, phase: "loading", error: null }))
+    setState((current) => ({
+      ...current,
+      phase: current.phase === "ready" ? "ready" : "loading",
+      error: null,
+    }))
     try {
       const [officeResult, seriesResult] = await Promise.allSettled([
         getFudabaOffice(officeSlug).send(),
@@ -172,7 +187,7 @@ export default function CommunityOfficePage() {
     return () => {
       requestGeneration.current += 1
     }
-  }, [loadOffice])
+  }, [loadOffice, dataRevision])
 
   useEffect(() => {
     if (platform.status !== "authenticated") {
@@ -571,6 +586,15 @@ export default function CommunityOfficePage() {
         )}
       >
         <header className="border-b pb-8">
+          {platform.status === "authenticated" ||
+          platform.status === "restricted" ? (
+            <div className="mb-5">
+              <ExchangeManagementDialog
+                section="offices"
+                officeId={office.id}
+              />
+            </div>
+          ) : null}
           <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
             <div className="max-w-3xl min-w-0">
               <div className="flex flex-wrap items-center gap-2">
@@ -808,5 +832,13 @@ export default function CommunityOfficePage() {
         </section>
       </div>
     </ExchangePageSurface>
+  )
+}
+
+export default function CommunityOfficePage() {
+  return (
+    <CardInteractionScope>
+      <CommunityOfficePageContent />
+    </CardInteractionScope>
   )
 }

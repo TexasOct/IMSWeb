@@ -1,4 +1,5 @@
 import {
+  ArrowLeftIcon,
   CircleAlertIcon,
   LockKeyholeIcon,
   RefreshCwIcon,
@@ -31,6 +32,7 @@ import {
   type PlatformProfile,
 } from "~/lib/api"
 import { cn } from "~/lib/utils"
+import { IS_APP_TARGET } from "~/lib/app-target"
 import { CardWorkspace } from "./card-workspace"
 import { ClaimEnvelopePanel } from "./claim-envelope-panel"
 import { FavoriteCollection } from "./favorite-collection"
@@ -70,9 +72,25 @@ const initialState: WorkspaceState = {
   error: null,
 }
 
+function AccountWorkspaceBackLink() {
+  const embedded = useExchangeMapDialog()
+  if (IS_APP_TARGET || embedded) return null
+  return (
+    <NavigationLink
+      to="/account/me"
+      className="mb-6 inline-flex min-h-10 items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+    >
+      <ArrowLeftIcon className="size-4" aria-hidden="true" />
+      返回我的
+    </NavigationLink>
+  )
+}
+
 export type CommunityExchangeMeWorkspaceProps = {
   section?: ProfileWorkspaceSection
   sectionBasePath?: string
+  initialCardId?: string
+  initialOfficeId?: string
 }
 
 /**
@@ -93,6 +111,8 @@ export function CommunityExchangeMeWorkspace(
 function ProfileWorkspace({
   section,
   sectionBasePath,
+  initialCardId,
+  initialOfficeId,
   platform,
 }: CommunityExchangeMeWorkspaceProps & {
   platform: ReturnType<typeof usePlatformSession>
@@ -107,6 +127,9 @@ function ProfileWorkspace({
   const workspaceGeneration = useRef(0)
   const detailGeneration = useRef(0)
   const requestedSection = searchParams.get("section")
+  const requestedCardId = initialCardId ?? searchParams.get("card")
+  const requestedOfficeId =
+    initialOfficeId ?? searchParams.get("office") ?? undefined
   const accountSectionBasePath =
     sectionBasePath ??
     (location.pathname.startsWith("/account/me/") ? "/account/me" : undefined)
@@ -142,7 +165,11 @@ function ProfileWorkspace({
         cards: cardResult.items,
         error: null,
       })
-      setSelectedCardId(cardResult.items[0]?.id ?? null)
+      setSelectedCardId(
+        cardResult.items.find((card) => card.id === requestedCardId)?.id ??
+          cardResult.items[0]?.id ??
+          null
+      )
       setCreating(cardResult.items.length === 0 && canCreate)
     } catch (error) {
       if (workspaceGeneration.current !== generation) return
@@ -154,7 +181,7 @@ function ProfileWorkspace({
           : apiMessage(error, "制作人名片工作区暂时无法加载。"),
       }))
     }
-  }, [])
+  }, [requestedCardId])
 
   useEffect(() => {
     if (
@@ -196,6 +223,8 @@ function ProfileWorkspace({
     return result.profile
   }
 
+  const mapDialog = useExchangeMapDialog()
+
   function replaceCard(card: FudabaOwnerCard) {
     setState((current) => ({
       ...current,
@@ -219,6 +248,7 @@ function ProfileWorkspace({
   }
 
   function createCard(card: FudabaOwnerCard) {
+    mapDialog?.changed?.()
     setState((current) => ({
       ...current,
       cards: [card, ...current.cards.filter((item) => item.id !== card.id)],
@@ -228,6 +258,7 @@ function ProfileWorkspace({
   }
 
   function deleteCard(cardId: string) {
+    mapDialog?.changed?.()
     const cards = state.cards.filter((item) => item.id !== cardId)
     setState((current) => ({ ...current, cards }))
     setSelectedCardId(cards[0]?.id ?? null)
@@ -251,6 +282,7 @@ function ProfileWorkspace({
         className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8"
         aria-label="正在载入个人档案"
       >
+        {accountSectionBasePath ? <AccountWorkspaceBackLink /> : null}
         <Skeleton className="h-7 w-44" />
         <Skeleton className="mt-5 h-20 w-full" />
         <div className="mt-8 grid gap-8 lg:grid-cols-[20rem_minmax(0,1fr)]">
@@ -267,6 +299,7 @@ function ProfileWorkspace({
         id="main-content"
         className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 lg:px-8"
       >
+        {accountSectionBasePath ? <AccountWorkspaceBackLink /> : null}
         <Empty className="min-h-96 border-y">
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -277,11 +310,9 @@ function ProfileWorkspace({
               登录后可以维护制作人资料、双面名片与交换状态。
             </EmptyDescription>
           </EmptyHeader>
-          {embedded ? (
-            <NavigationLink to="/account/login" className={buttonVariants()}>
-              登录平台帐号
-            </NavigationLink>
-          ) : null}
+          <NavigationLink to="/account/login" className={buttonVariants()}>
+            登录平台帐号
+          </NavigationLink>
           <NavigationLink
             to="/community/exchange"
             className={buttonVariants({ variant: "outline" })}
@@ -299,6 +330,7 @@ function ProfileWorkspace({
         id="main-content"
         className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 lg:px-8"
       >
+        {accountSectionBasePath ? <AccountWorkspaceBackLink /> : null}
         <Empty className="min-h-96 border-y">
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -325,6 +357,7 @@ function ProfileWorkspace({
         id="main-content"
         className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 lg:px-8"
       >
+        {accountSectionBasePath ? <AccountWorkspaceBackLink /> : null}
         <Empty className="min-h-96 border-y">
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -443,10 +476,13 @@ function ProfileWorkspace({
           className={cn(
             "min-w-0",
             accountSectionBasePath
-              ? "px-(--app-safe-inline) py-5"
+              ? IS_APP_TARGET
+                ? "px-(--app-safe-inline) py-5"
+                : "px-4 py-12 sm:px-6 sm:py-16 lg:px-8"
               : "px-4 py-8 sm:px-6 lg:px-8"
           )}
         >
+          {accountSectionBasePath ? <AccountWorkspaceBackLink /> : null}
           {sectionReadOnlyReason ? (
             <Alert>
               <LockKeyholeIcon aria-hidden="true" />
@@ -508,7 +544,10 @@ function ProfileWorkspace({
                   setLoadingDetail(false)
                 }}
                 onCreated={createCard}
-                onSaved={replaceCard}
+                onSaved={(card) => {
+                  replaceCard(card)
+                  mapDialog?.changed?.()
+                }}
                 onDeleted={deleteCard}
                 onReload={loadCard}
                 onWriteClosed={closeWrites}
@@ -531,6 +570,7 @@ function ProfileWorkspace({
             hidden={activeSection !== "offices"}
           >
             <OfficeLocationWorkspace
+              initialOfficeId={requestedOfficeId}
               series={state.series}
               homeCity={state.profile.homeCity}
               readOnly={exchangeReadOnly}

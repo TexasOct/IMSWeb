@@ -316,7 +316,7 @@ test.describe("app account", () => {
     {
       tag: ["@app-iphone", "@app-android", "@app-webkit"],
     },
-    async ({ page, api, apiOrigins, baseURL }) => {
+    async ({ page, api, apiOrigins, baseURL }, testInfo) => {
       await openAccountPage({ page, api, apiOrigins, baseURL })
       await expect(page.getByText("App 制作人")).toBeVisible()
       await expect(page.getByText("上海")).toBeVisible()
@@ -324,6 +324,13 @@ test.describe("app account", () => {
       await expect(
         accountNavigation.getByRole("link", { name: "我的" })
       ).toHaveAttribute("aria-current", "page")
+      await expect(page.locator("[data-app-cold-start-mask]")).toHaveCSS(
+        "opacity",
+        "0"
+      )
+      await page.screenshot({
+        path: testInfo.outputPath("app-personal-hub.png"),
+      })
 
       for (const [name, href] of [
         ["个人资料", "/account/me/profile"],
@@ -355,6 +362,18 @@ test.describe("app account", () => {
       await expect(
         accountNavigation.getByRole("link", { name: "我的" })
       ).toHaveAttribute("aria-current", "page")
+      await page.reload()
+      await expect(
+        page.getByRole("heading", { name: "个人资料", exact: true })
+      ).toBeVisible()
+      await expect(page.getByRole("dialog")).toHaveCount(0)
+      await expect(page.locator("[data-app-cold-start-mask]")).toHaveCSS(
+        "opacity",
+        "0"
+      )
+      await page.screenshot({
+        path: testInfo.outputPath("app-personal-profile.png"),
+      })
       await backButton.click()
       await expect(page).toHaveURL(/\/account\/me$/)
     }

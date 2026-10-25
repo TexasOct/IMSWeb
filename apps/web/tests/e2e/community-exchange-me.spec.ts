@@ -509,7 +509,7 @@ test.describe("community exchange me", () => {
     await accountTrigger.click()
     await expect(page.getByRole("link", { name: "个人档案" })).toHaveAttribute(
       "href",
-      "/community/exchange/me"
+      "/account/me"
     )
     await page.keyboard.press("Escape")
 

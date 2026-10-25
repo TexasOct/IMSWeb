@@ -20,6 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Skeleton } from "~/components/ui/skeleton"
+import { IS_APP_TARGET } from "~/lib/app-target"
 import { profileWorkspaceSections } from "~/pages/community/exchange/me/profile-workspace-navigation"
 
 type LogoutFeedback = "idle" | "pending" | "success" | "error"
@@ -89,7 +90,9 @@ export default function AccountMePage() {
         aria-label={label}
         aria-busy="true"
       >
-        <h1 className="sr-only">{t("appNavigation.account")}</h1>
+        <h1 className={IS_APP_TARGET ? "sr-only" : "text-2xl font-semibold"}>
+          {t("appNavigation.account")}
+        </h1>
         <p className="sr-only" aria-live="polite">
           {label}
         </p>
@@ -117,7 +120,9 @@ export default function AccountMePage() {
 
     return (
       <PageShell width="read" data-account-state="error">
-        <h1 className="sr-only">{t("appNavigation.account")}</h1>
+        <h1 className={IS_APP_TARGET ? "sr-only" : "text-2xl font-semibold"}>
+          {t("appNavigation.account")}
+        </h1>
         <Alert variant="destructive" className="mt-5">
           <CircleAlertIcon aria-hidden="true" />
           <AlertTitle>
@@ -159,7 +164,9 @@ export default function AccountMePage() {
         data-account-state="anonymous"
       >
         <header>
-          <h1 className="sr-only">{t("appNavigation.account")}</h1>
+          <h1 className={IS_APP_TARGET ? "sr-only" : "text-2xl font-semibold"}>
+            {t("appNavigation.account")}
+          </h1>
           <p className="text-sm text-muted-foreground">
             {t("platformAccount.anonymous")}
           </p>
@@ -221,7 +228,9 @@ export default function AccountMePage() {
       className="space-y-8"
       data-account-state={restricted ? "restricted" : "authenticated"}
     >
-      <h1 className="sr-only">{t("appNavigation.account")}</h1>
+      <h1 className={IS_APP_TARGET ? "sr-only" : "text-2xl font-semibold"}>
+        {t("appNavigation.account")}
+      </h1>
 
       <section
         className="flex min-w-0 items-center gap-4 border-y py-5"

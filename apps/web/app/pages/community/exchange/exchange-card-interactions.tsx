@@ -1,5 +1,5 @@
 import { BookmarkIcon, HeartIcon } from "lucide-react"
-import { useState } from "react"
+import { createContext, useContext, useState, type ReactNode } from "react"
 import { toast } from "sonner"
 
 import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
@@ -12,6 +12,31 @@ import {
   type FudabaCardInteractions,
 } from "~/lib/api"
 import { cn } from "~/lib/utils"
+
+const InteractionContext = createContext<{
+  values: Record<string, FudabaCardInteractions>
+  update: (id: string, value: FudabaCardInteractions) => void
+} | null>(null)
+
+export function CardInteractionScope({ children }: { children: ReactNode }) {
+  const parent = useContext(InteractionContext)
+  const [values, setValues] = useState<Record<string, FudabaCardInteractions>>(
+    {}
+  )
+  return (
+    <InteractionContext
+      value={
+        parent ?? {
+          values,
+          update: (id, value) =>
+            setValues((current) => ({ ...current, [id]: value })),
+        }
+      }
+    >
+      {children}
+    </InteractionContext>
+  )
+}
 
 const labels = {
   like: { active: "取消点赞", inactive: "点赞" },
@@ -81,7 +106,14 @@ function InteractionControls({
   onChange,
 }: CardInteractionBarProps) {
   const platform = useOptionalPlatformSession()
-  const [interactions, setInteractions] = useState(card.interactions)
+  const shared = useContext(InteractionContext)
+  const [local, setLocal] = useState(card.interactions)
+  const sharedKey = `${card.id}:${serverState(card.interactions)}`
+  const interactions = shared?.values[sharedKey] ?? local
+  function setInteractions(value: FudabaCardInteractions) {
+    setLocal(value)
+    shared?.update(sharedKey, value)
+  }
   const [pending, setPending] = useState<FudabaCardInteractionKind | null>(null)
 
   const interactive = platform.status === "authenticated"

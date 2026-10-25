@@ -62,6 +62,7 @@ import {
   fudabaCardPlacementSaveResponseSchema,
   fudabaCardQuerySchema,
   fudabaCardReactionsResponseSchema,
+  fudabaCardInteractionResponseSchema,
   fudabaCardUpdateRequestSchema,
   fudabaCardMutationResponseSchema,
   fudabaErrorResponseSchema,
@@ -137,6 +138,10 @@ import {
   platformSessionSchema,
 } from "@imsweb/contracts/platform"
 import { producerMapAdminSnapshotSchema } from "@imsweb/contracts/producer-map"
+import {
+  platformOAuthLinkListResponseSchema,
+  platformSessionListResponseSchema,
+} from "@imsweb/contracts/platform/account-security"
 import {
   sitePackageHttpErrorSchema,
   sitePackageListSchema,
@@ -381,6 +386,14 @@ export function resolveApiContract(
       responses: { 200: fudabaCardReactionsResponseSchema, ...fudabaErrors },
     }
   if (
+    (method === "PUT" || method === "DELETE") &&
+    /^\/api\/community\/exchange\/cards\/[^/]+\/(like|favorite)$/.test(path)
+  )
+    return {
+      body: z.object({}).strict(),
+      responses: { 200: fudabaCardInteractionResponseSchema, ...fudabaErrors },
+    }
+  if (
     method === "GET" &&
     /^\/api\/community\/exchange\/offices\/[^/]+$/.test(path)
   )
@@ -596,6 +609,16 @@ export function resolveApiContract(
       responses: {
         200: platformProfileResponseSchema,
         401: platformHttpErrorSchema,
+      },
+    }
+  if (method === "GET" && path === "/api/platform/me/sessions")
+    return {
+      responses: { 200: platformSessionListResponseSchema },
+    }
+  if (method === "GET" && path === "/api/platform/me/oauth-links")
+    return {
+      responses: {
+        200: platformOAuthLinkListResponseSchema,
       },
     }
   if (method === "PUT" && path === "/api/platform/me/avatar")

@@ -36,6 +36,7 @@ import { GeolocationFailure, getCurrentCoordinates } from "~/lib/geolocation"
 import { useNativeGlassControl } from "~/lib/native-glass-controls"
 import { awaitMapSearch } from "~/lib/maps/map-search-abort"
 import { cn } from "~/lib/utils"
+import { createUserLocationMarker } from "./user-location-marker"
 
 import {
   applyChinaBoundaryCompliance,
@@ -458,15 +459,6 @@ function applyPortalMapPalette(map: MapLibreMap) {
   }
 }
 
-function createUserLocationElement() {
-  const element = document.createElement("span")
-  element.className =
-    "block size-4 rounded-full border-[3px] border-white bg-primary shadow-[0_2px_8px_rgb(23_29_38/35%)] ring-2 ring-primary/30"
-  element.setAttribute("role", "img")
-  element.setAttribute("aria-label", "您的当前位置")
-  return element
-}
-
 function geolocationErrorMessage(error: unknown) {
   if (!(error instanceof GeolocationFailure)) {
     return "暂时无法获取您的位置"
@@ -502,6 +494,9 @@ export function ExchangeOfficeMap({
   const attributionSignatureRef = useRef<string | null>(null)
   const refreshMarkersRef = useRef<() => void>(() => undefined)
   const userLocationMarkerRef = useRef<Marker | null>(null)
+  const userLocationContentRef = useRef<ReturnType<
+    typeof createUserLocationMarker
+  > | null>(null)
   const searchMarkerRef = useRef<Marker | null>(null)
   const occlusionRef = useRef(occlusion)
   const webSelectedGroupKey = IS_APP_TARGET ? null : selectedGroupKey
@@ -538,6 +533,7 @@ export function ExchangeOfficeMap({
 
       if (!initialSignal) claimInitialLocation?.()
       const request = ++locationRequestRef.current
+      userLocationContentRef.current?.dismissHint()
       setLocationState({
         phase: "locating",
         message: initialSignal ? "" : "正在获取您的位置",
@@ -560,8 +556,10 @@ export function ExchangeOfficeMap({
         ]
         let marker = userLocationMarkerRef.current
         if (!marker) {
+          const content = createUserLocationMarker()
+          userLocationContentRef.current = content
           marker = new Marker({
-            element: createUserLocationElement(),
+            element: content.element,
             anchor: "center",
           })
             .setLngLat(center)
@@ -580,8 +578,9 @@ export function ExchangeOfficeMap({
         })
         setLocationState({
           phase: "success",
-          message: initialSignal ? "" : "已回到您的位置",
+          message: initialSignal ? "" : "定位完成",
         })
+        if (!initialSignal) userLocationContentRef.current?.showHint()
       } catch (error) {
         if (locationRequestRef.current !== request || mapRef.current !== map) {
           return
@@ -979,6 +978,8 @@ export function ExchangeOfficeMap({
       if (resizeFrame !== null) cancelAnimationFrame(resizeFrame)
       if (markerRefreshFrame !== null) cancelAnimationFrame(markerRefreshFrame)
       locationRequestRef.current += 1
+      userLocationContentRef.current?.dismissHint()
+      userLocationContentRef.current = null
       userLocationMarkerRef.current?.remove()
       userLocationMarkerRef.current = null
       clearMarkers()

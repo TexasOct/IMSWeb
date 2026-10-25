@@ -78,7 +78,10 @@ import {
 import { ExchangeMapAttributionDialog } from "./components/exchange-map-attribution-dialog"
 import { ExchangeSeriesFilter } from "./components/exchange-series-filter"
 import { ExchangeCard, OfficeCard } from "./exchange-components"
-import { ExchangeMapDialogContext } from "./components/exchange-page-surface"
+import {
+  ExchangeDataRevision,
+  ExchangeMapDialogContext,
+} from "./components/exchange-page-surface"
 import { useExchangeRouteSession } from "./hooks/use-exchange-route-session"
 import type { ExchangeMapAttribution } from "./exchange-map-attribution"
 import {
@@ -417,9 +420,11 @@ export default function CommunityExchangePage() {
   const outlet = useOutlet()
   const routeDialogOpen = !IS_APP_TARGET && outlet !== null
   const routeSession = useExchangeRouteSession(!IS_APP_TARGET)
+  const [dataRevision, setDataRevision] = useState(0)
+  const changed = useCallback(() => setDataRevision((value) => value + 1), [])
   const dialogContext = useMemo(
-    () => (routeDialogOpen ? { close: routeSession.close } : null),
-    [routeDialogOpen, routeSession.close]
+    () => (routeDialogOpen ? { close: routeSession.close, changed } : null),
+    [routeDialogOpen, routeSession.close, changed]
   )
   const [restoredFilterDefaults] = useState(() =>
     IS_APP_TARGET
@@ -629,7 +634,7 @@ export default function CommunityExchangePage() {
     return () => {
       requestGeneration.current += 1
     }
-  }, [loadFirstPage])
+  }, [loadFirstPage, dataRevision])
 
   const seriesMap = useMemo(
     () => new Map(state.series.map((item) => [item.code, item])),
@@ -802,352 +807,358 @@ export default function CommunityExchangePage() {
   }
 
   return (
-    <ExchangeMapDialogContext value={dialogContext}>
-      <main
-        id="main-content"
-        onClickCapture={captureRouteOpener}
-        className={cn(
-          "relative size-full min-h-0 overflow-hidden bg-[#e8f2f4]",
-          IS_APP_TARGET && "exchange-map-app-viewport"
-        )}
-      >
-        {!IS_APP_TARGET ? <h1 className="sr-only">名片交换地图</h1> : null}
-        {state.phase === "ready" ? (
-          <NativeGlassControlsProvider>
-            <div className="flex size-full min-h-0">
-              {IS_APP_TARGET ? <ExchangeDiscoveryRail {...discovery} /> : null}
+    <ExchangeDataRevision value={dataRevision}>
+      <ExchangeMapDialogContext value={dialogContext}>
+        <main
+          id="main-content"
+          onClickCapture={captureRouteOpener}
+          className={cn(
+            "relative size-full min-h-0 overflow-hidden bg-[#e8f2f4]",
+            IS_APP_TARGET && "exchange-map-app-viewport"
+          )}
+        >
+          {!IS_APP_TARGET ? <h1 className="sr-only">名片交换地图</h1> : null}
+          {state.phase === "ready" ? (
+            <NativeGlassControlsProvider>
+              <div className="flex size-full min-h-0">
+                {IS_APP_TARGET ? (
+                  <ExchangeDiscoveryRail {...discovery} />
+                ) : null}
 
-              <div className="relative min-w-0 flex-1">
-                <CommunityExchangeMapSection
-                  webDiscovery={IS_APP_TARGET ? undefined : discovery}
-                  city={city || undefined}
-                  series={seriesCodes.length ? seriesCodes : undefined}
-                  seriesCatalog={state.series}
-                  open={openOnly ? true : undefined}
-                  onAttributionChange={setAttribution}
-                  onSearchAttributionChange={setSearchAttributions}
-                  onSwitchDirectory={() => openDirectory("offices")}
-                  searchTools={{
-                    filterAnchorRef: IS_APP_TARGET
-                      ? undefined
-                      : filterAnchorRef,
-                    refreshing,
-                    filterApplied: hasFilters,
-                    modalOpen:
-                      filterOpen ||
-                      directoryOpen ||
-                      attributionOpen ||
-                      routeDialogOpen,
-                    onOpenFilter: () => {
-                      setDirectoryOpen(false)
-                      filterReturnFocus.current = true
-                      setFilterOpen(true)
-                    },
-                    onOpenOffices: () => {
-                      setFilterOpen(false)
-                      openDirectory("offices")
-                    },
-                    onOpenCards: () => {
-                      setFilterOpen(false)
-                      openDirectory("cards")
-                    },
-                    onRefresh: () => void loadFirstPage(),
-                    onOpenAttribution: hasAttribution
-                      ? openAttribution
-                      : undefined,
-                  }}
-                />
-              </div>
-            </div>
-
-            {IS_APP_TARGET ? (
-              <Sheet open={filterOpen} onOpenChange={setFilterOpen}>
-                <SheetContent
-                  side="bottom"
-                  initialFocus={IS_APP_TARGET ? filterTitleRef : undefined}
-                  className="exchange-map-filter-sheet overflow-y-auto pb-4"
-                >
-                  <SheetHeader className="border-b pr-14">
-                    <SheetTitle ref={filterTitleRef} tabIndex={-1}>
-                      筛选地图
-                    </SheetTitle>
-                    <SheetDescription>
-                      按城市、企划与开放状态收窄地图和名录。
-                    </SheetDescription>
-                  </SheetHeader>
-                  <FilterControls
-                    {...filterProps}
-                    idPrefix="mobile"
-                    className="px-4"
+                <div className="relative min-w-0 flex-1">
+                  <CommunityExchangeMapSection
+                    webDiscovery={IS_APP_TARGET ? undefined : discovery}
+                    city={city || undefined}
+                    series={seriesCodes.length ? seriesCodes : undefined}
+                    seriesCatalog={state.series}
+                    open={openOnly ? true : undefined}
+                    onAttributionChange={setAttribution}
+                    onSearchAttributionChange={setSearchAttributions}
+                    onSwitchDirectory={() => openDirectory("offices")}
+                    searchTools={{
+                      filterAnchorRef: IS_APP_TARGET
+                        ? undefined
+                        : filterAnchorRef,
+                      refreshing,
+                      filterApplied: hasFilters,
+                      modalOpen:
+                        filterOpen ||
+                        directoryOpen ||
+                        attributionOpen ||
+                        routeDialogOpen,
+                      onOpenFilter: () => {
+                        setDirectoryOpen(false)
+                        filterReturnFocus.current = true
+                        setFilterOpen(true)
+                      },
+                      onOpenOffices: () => {
+                        setFilterOpen(false)
+                        openDirectory("offices")
+                      },
+                      onOpenCards: () => {
+                        setFilterOpen(false)
+                        openDirectory("cards")
+                      },
+                      onRefresh: () => void loadFirstPage(),
+                      onOpenAttribution: hasAttribution
+                        ? openAttribution
+                        : undefined,
+                    }}
                   />
-                </SheetContent>
-              </Sheet>
-            ) : (
-              <Popover
-                open={filterOpen}
-                modal={false}
-                onOpenChange={(open, details) => {
-                  filterReturnFocus.current =
-                    details.reason !== "outside-press" &&
-                    details.reason !== "focus-out"
-                  setFilterOpen(open)
-                }}
-              >
-                <PopoverContent
-                  anchor={filterAnchorRef}
-                  side="bottom"
-                  align="end"
-                  sideOffset={8}
-                  initialFocus={filterTitleRef}
-                  finalFocus={() =>
-                    filterReturnFocus.current ? filterAnchorRef.current : false
-                  }
-                  aria-labelledby={filterTitleId}
-                  className="exchange-web-filter-popover max-h-[min(var(--available-height),calc(100dvh-6rem))] w-90 max-w-[calc(100vw-1.5rem)] overflow-y-auto p-0 motion-reduce:animate-none"
-                >
-                  <header className="flex items-start justify-between gap-3 border-b p-4">
-                    <div className="space-y-1">
-                      <PopoverTitle
-                        id={filterTitleId}
-                        ref={filterTitleRef}
-                        tabIndex={-1}
-                      >
+                </div>
+              </div>
+
+              {IS_APP_TARGET ? (
+                <Sheet open={filterOpen} onOpenChange={setFilterOpen}>
+                  <SheetContent
+                    side="bottom"
+                    initialFocus={IS_APP_TARGET ? filterTitleRef : undefined}
+                    className="exchange-map-filter-sheet overflow-y-auto pb-4"
+                  >
+                    <SheetHeader className="border-b pr-14">
+                      <SheetTitle ref={filterTitleRef} tabIndex={-1}>
                         筛选地图
-                      </PopoverTitle>
-                      <p className="text-xs/5 text-muted-foreground">
+                      </SheetTitle>
+                      <SheetDescription>
                         按城市、企划与开放状态收窄地图和名录。
-                      </p>
+                      </SheetDescription>
+                    </SheetHeader>
+                    <FilterControls
+                      {...filterProps}
+                      idPrefix="mobile"
+                      className="px-4"
+                    />
+                  </SheetContent>
+                </Sheet>
+              ) : (
+                <Popover
+                  open={filterOpen}
+                  modal={false}
+                  onOpenChange={(open, details) => {
+                    filterReturnFocus.current =
+                      details.reason !== "outside-press" &&
+                      details.reason !== "focus-out"
+                    setFilterOpen(open)
+                  }}
+                >
+                  <PopoverContent
+                    anchor={filterAnchorRef}
+                    side="bottom"
+                    align="end"
+                    sideOffset={8}
+                    initialFocus={filterTitleRef}
+                    finalFocus={() =>
+                      filterReturnFocus.current
+                        ? filterAnchorRef.current
+                        : false
+                    }
+                    aria-labelledby={filterTitleId}
+                    className="exchange-web-filter-popover max-h-[min(var(--available-height),calc(100dvh-6rem))] w-90 max-w-[calc(100vw-1.5rem)] overflow-y-auto p-0 motion-reduce:animate-none"
+                  >
+                    <header className="flex items-start justify-between gap-3 border-b p-4">
+                      <div className="space-y-1">
+                        <PopoverTitle
+                          id={filterTitleId}
+                          ref={filterTitleRef}
+                          tabIndex={-1}
+                        >
+                          筛选地图
+                        </PopoverTitle>
+                        <p className="text-xs/5 text-muted-foreground">
+                          按城市、企划与开放状态收窄地图和名录。
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-lg"
+                        className="shrink-0"
+                        aria-label="关闭筛选浮窗"
+                        onClick={() => setFilterOpen(false)}
+                      >
+                        <XIcon aria-hidden="true" />
+                      </Button>
+                    </header>
+                    <FilterControls
+                      {...filterProps}
+                      compact
+                      idPrefix="web-floating"
+                      className="p-4"
+                    />
+                  </PopoverContent>
+                </Popover>
+              )}
+
+              {IS_APP_TARGET ? (
+                <Sheet open={directoryOpen} onOpenChange={setDirectoryOpen}>
+                  <SheetContent
+                    side={isNarrow ? "bottom" : "right"}
+                    className={cn(
+                      "min-h-0 gap-0 overflow-hidden",
+                      isNarrow
+                        ? "exchange-map-directory-sheet"
+                        : "w-[min(92vw,30rem)] sm:max-w-120"
+                    )}
+                  >
+                    <SheetHeader className="shrink-0 pr-14">
+                      <SheetTitle>公开交换名录</SheetTitle>
+                      <SheetDescription>
+                        地图范围之外的公开事务所和名片也会保留在这里。
+                      </SheetDescription>
+                    </SheetHeader>
+                    <DirectoryResults
+                      view={directoryView}
+                      state={state}
+                      seriesMap={seriesMap}
+                      hasFilters={hasFilters}
+                      loadingMoreOffices={loadingMoreOffices}
+                      loadingMoreCards={loadingMoreCards}
+                      onViewChange={setDirectoryView}
+                      onResetFilters={resetFilters}
+                      onLoadMoreOffices={() => void loadMoreOffices()}
+                      onLoadMoreCards={() => void loadMoreCards()}
+                    />
+                  </SheetContent>
+                </Sheet>
+              ) : null}
+
+              <ExchangeMapAttributionDialog
+                attribution={attribution}
+                iosMapPresentation={shouldUseNativeGlassControls()}
+                searchAttributions={
+                  IS_APP_TARGET ? searchAttributions : undefined
+                }
+                open={attributionOpen}
+                onOpenChange={handleAttributionOpenChange}
+              />
+            </NativeGlassControlsProvider>
+          ) : (
+            <section className="relative flex size-full min-h-0 items-center justify-center overflow-hidden px-4">
+              <SeriesAccentStrip className="absolute inset-x-0 top-0 h-1" />
+              {state.phase === "loading" ? (
+                <div
+                  aria-label="正在加载交换区"
+                  className="w-full max-w-sm rounded-lg border bg-background/95 p-5 shadow-sm"
+                >
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="size-10 shrink-0 rounded-lg" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-36" />
+                      <Skeleton className="h-3 w-full" />
                     </div>
+                  </div>
+                  <p className="sr-only">正在加载名片交换事务所地图</p>
+                </div>
+              ) : state.phase === "closed" ? (
+                <Empty className="w-full max-w-lg rounded-lg border bg-background/95 px-5 shadow-sm">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <MapPinnedIcon aria-hidden="true" />
+                    </EmptyMedia>
+                    <EmptyTitle>社区交换区尚未开放</EmptyTitle>
+                    <EmptyDescription>
+                      事务所与名片完成公开审核后会在这里显示。
+                    </EmptyDescription>
+                  </EmptyHeader>
+                  <NavigationLink
+                    to="/community"
+                    className={buttonVariants({ variant: "outline" })}
+                  >
+                    返回制作人社区
+                  </NavigationLink>
+                </Empty>
+              ) : (
+                <Alert
+                  variant="destructive"
+                  className="w-full max-w-lg bg-background/95 shadow-sm"
+                >
+                  <SlidersHorizontalIcon aria-hidden="true" />
+                  <AlertTitle>社区交换区暂时无法加载</AlertTitle>
+                  <AlertDescription>
+                    {state.error || "请稍后重新加载。"}
+                  </AlertDescription>
+                  <div className="col-start-2 mt-3">
+                    <Button type="button" onClick={() => void loadFirstPage()}>
+                      <RefreshCwIcon aria-hidden="true" />
+                      重新加载
+                    </Button>
+                  </div>
+                </Alert>
+              )}
+            </section>
+          )}
+        </main>
+        {!IS_APP_TARGET ? (
+          <Dialog
+            open={webDialogOpen}
+            onOpenChange={(open) => {
+              if (open) return
+              if (routeDialogOpen) routeSession.close()
+              else setDirectoryOpen(false)
+            }}
+          >
+            <DialogContent
+              layout="pinned"
+              showCloseButton={false}
+              initialFocus={dialogTitleRef}
+              finalFocus={() => {
+                const candidates = [
+                  routeOpener.current,
+                  directoryOpener.current,
+                  document.querySelector<HTMLElement>(
+                    '.exchange-web-search-dock button[aria-label="更多地图工具"]'
+                  ),
+                ]
+                return (
+                  candidates.find(
+                    (node) =>
+                      node?.isConnected &&
+                      !node.closest("[inert]") &&
+                      node.getClientRects().length
+                  ) ?? false
+                )
+              }}
+              className="exchange-map-page-dialog h-[min(48rem,var(--overlay-safe-height))] gap-0 rounded-lg p-0 motion-reduce:animate-none sm:max-w-5xl"
+            >
+              <DialogHeader className="flex-row items-center justify-between gap-3 border-b px-4 py-3 text-left sm:px-6">
+                <div className="flex min-w-0 items-center gap-2">
+                  {routeDialogOpen ? (
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon-lg"
-                      className="shrink-0"
-                      aria-label="关闭筛选浮窗"
-                      onClick={() => setFilterOpen(false)}
+                      aria-label={directoryOpen ? "返回交换名录" : "返回地图"}
+                      onClick={routeSession.close}
                     >
-                      <XIcon aria-hidden="true" />
+                      <ArrowLeftIcon aria-hidden="true" />
                     </Button>
-                  </header>
-                  <FilterControls
-                    {...filterProps}
-                    compact
-                    idPrefix="web-floating"
-                    className="p-4"
-                  />
-                </PopoverContent>
-              </Popover>
-            )}
-
-            {IS_APP_TARGET ? (
-              <Sheet open={directoryOpen} onOpenChange={setDirectoryOpen}>
-                <SheetContent
-                  side={isNarrow ? "bottom" : "right"}
-                  className={cn(
-                    "min-h-0 gap-0 overflow-hidden",
-                    isNarrow
-                      ? "exchange-map-directory-sheet"
-                      : "w-[min(92vw,30rem)] sm:max-w-120"
-                  )}
-                >
-                  <SheetHeader className="shrink-0 pr-14">
-                    <SheetTitle>公开交换名录</SheetTitle>
-                    <SheetDescription>
-                      地图范围之外的公开事务所和名片也会保留在这里。
-                    </SheetDescription>
-                  </SheetHeader>
-                  <DirectoryResults
-                    view={directoryView}
-                    state={state}
-                    seriesMap={seriesMap}
-                    hasFilters={hasFilters}
-                    loadingMoreOffices={loadingMoreOffices}
-                    loadingMoreCards={loadingMoreCards}
-                    onViewChange={setDirectoryView}
-                    onResetFilters={resetFilters}
-                    onLoadMoreOffices={() => void loadMoreOffices()}
-                    onLoadMoreCards={() => void loadMoreCards()}
-                  />
-                </SheetContent>
-              </Sheet>
-            ) : null}
-
-            <ExchangeMapAttributionDialog
-              attribution={attribution}
-              iosMapPresentation={shouldUseNativeGlassControls()}
-              searchAttributions={
-                IS_APP_TARGET ? searchAttributions : undefined
-              }
-              open={attributionOpen}
-              onOpenChange={handleAttributionOpenChange}
-            />
-          </NativeGlassControlsProvider>
-        ) : (
-          <section className="relative flex size-full min-h-0 items-center justify-center overflow-hidden px-4">
-            <SeriesAccentStrip className="absolute inset-x-0 top-0 h-1" />
-            {state.phase === "loading" ? (
-              <div
-                aria-label="正在加载交换区"
-                className="w-full max-w-sm rounded-lg border bg-background/95 p-5 shadow-sm"
-              >
-                <div className="flex items-center gap-3">
-                  <Skeleton className="size-10 shrink-0 rounded-lg" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-4 w-36" />
-                    <Skeleton className="h-3 w-full" />
+                  ) : null}
+                  <div className="min-w-0">
+                    <DialogTitle
+                      ref={dialogTitleRef}
+                      tabIndex={-1}
+                      className="text-base"
+                    >
+                      {routeDialogOpen ? routeTitle : "公开交换名录"}
+                    </DialogTitle>
+                    <DialogDescription
+                      className={routeDialogOpen ? "sr-only" : "mt-1 text-xs"}
+                    >
+                      {routeDialogOpen
+                        ? "查看与管理交换资料，关闭后返回地图。"
+                        : "浏览符合当前筛选的公开事务所和名片。"}
+                    </DialogDescription>
                   </div>
                 </div>
-                <p className="sr-only">正在加载名片交换事务所地图</p>
-              </div>
-            ) : state.phase === "closed" ? (
-              <Empty className="w-full max-w-lg rounded-lg border bg-background/95 px-5 shadow-sm">
-                <EmptyHeader>
-                  <EmptyMedia variant="icon">
-                    <MapPinnedIcon aria-hidden="true" />
-                  </EmptyMedia>
-                  <EmptyTitle>社区交换区尚未开放</EmptyTitle>
-                  <EmptyDescription>
-                    事务所与名片完成公开审核后会在这里显示。
-                  </EmptyDescription>
-                </EmptyHeader>
-                <NavigationLink
-                  to="/community"
-                  className={buttonVariants({ variant: "outline" })}
-                >
-                  返回制作人社区
-                </NavigationLink>
-              </Empty>
-            ) : (
-              <Alert
-                variant="destructive"
-                className="w-full max-w-lg bg-background/95 shadow-sm"
-              >
-                <SlidersHorizontalIcon aria-hidden="true" />
-                <AlertTitle>社区交换区暂时无法加载</AlertTitle>
-                <AlertDescription>
-                  {state.error || "请稍后重新加载。"}
-                </AlertDescription>
-                <div className="col-start-2 mt-3">
-                  <Button type="button" onClick={() => void loadFirstPage()}>
-                    <RefreshCwIcon aria-hidden="true" />
-                    重新加载
-                  </Button>
-                </div>
-              </Alert>
-            )}
-          </section>
-        )}
-      </main>
-      {!IS_APP_TARGET ? (
-        <Dialog
-          open={webDialogOpen}
-          onOpenChange={(open) => {
-            if (open) return
-            if (routeDialogOpen) routeSession.close()
-            else setDirectoryOpen(false)
-          }}
-        >
-          <DialogContent
-            layout="pinned"
-            showCloseButton={false}
-            initialFocus={dialogTitleRef}
-            finalFocus={() => {
-              const candidates = [
-                routeOpener.current,
-                directoryOpener.current,
-                document.querySelector<HTMLElement>(
-                  '.exchange-web-search-dock button[aria-label="更多地图工具"]'
-                ),
-              ]
-              return (
-                candidates.find(
-                  (node) =>
-                    node?.isConnected &&
-                    !node.closest("[inert]") &&
-                    node.getClientRects().length
-                ) ?? false
-              )
-            }}
-            className="exchange-map-page-dialog h-[min(48rem,var(--overlay-safe-height))] gap-0 rounded-lg p-0 motion-reduce:animate-none sm:max-w-5xl"
-          >
-            <DialogHeader className="flex-row items-center justify-between gap-3 border-b px-4 py-3 text-left sm:px-6">
-              <div className="flex min-w-0 items-center gap-2">
-                {routeDialogOpen ? (
+                <div className="flex shrink-0 items-center gap-1">
+                  {routeDialogOpen && routeTitle === "个人档案" ? (
+                    <PlatformAccountMenu />
+                  ) : null}
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-lg"
-                    aria-label={directoryOpen ? "返回交换名录" : "返回地图"}
-                    onClick={routeSession.close}
+                    aria-label="关闭"
+                    onClick={() => {
+                      setDirectoryOpen(false)
+                      if (routeDialogOpen) routeSession.close()
+                    }}
                   >
-                    <ArrowLeftIcon aria-hidden="true" />
+                    <XIcon aria-hidden="true" />
                   </Button>
-                ) : null}
-                <div className="min-w-0">
-                  <DialogTitle
-                    ref={dialogTitleRef}
-                    tabIndex={-1}
-                    className="text-base"
-                  >
-                    {routeDialogOpen ? routeTitle : "公开交换名录"}
-                  </DialogTitle>
-                  <DialogDescription
-                    className={routeDialogOpen ? "sr-only" : "mt-1 text-xs"}
-                  >
-                    {routeDialogOpen
-                      ? "查看与管理交换资料，关闭后返回地图。"
-                      : "浏览符合当前筛选的公开事务所和名片。"}
-                  </DialogDescription>
                 </div>
+              </DialogHeader>
+              <div
+                className={
+                  routeDialogOpen ? "hidden" : "flex min-h-0 flex-1 flex-col"
+                }
+                aria-hidden={routeDialogOpen}
+                inert={routeDialogOpen}
+                onClickCapture={captureRouteOpener}
+              >
+                <DirectoryResults
+                  mapDialog
+                  view={directoryView}
+                  state={state}
+                  seriesMap={seriesMap}
+                  hasFilters={hasFilters}
+                  loadingMoreOffices={loadingMoreOffices}
+                  loadingMoreCards={loadingMoreCards}
+                  onViewChange={setDirectoryView}
+                  onResetFilters={resetFilters}
+                  onLoadMoreOffices={() => void loadMoreOffices()}
+                  onLoadMoreCards={() => void loadMoreCards()}
+                />
               </div>
-              <div className="flex shrink-0 items-center gap-1">
-                {routeDialogOpen && routeTitle === "个人档案" ? (
-                  <PlatformAccountMenu />
-                ) : null}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-lg"
-                  aria-label="关闭"
-                  onClick={() => {
-                    setDirectoryOpen(false)
-                    if (routeDialogOpen) routeSession.close()
-                  }}
-                >
-                  <XIcon aria-hidden="true" />
-                </Button>
-              </div>
-            </DialogHeader>
-            <div
-              className={
-                routeDialogOpen ? "hidden" : "flex min-h-0 flex-1 flex-col"
-              }
-              aria-hidden={routeDialogOpen}
-              inert={routeDialogOpen}
-              onClickCapture={captureRouteOpener}
-            >
-              <DirectoryResults
-                mapDialog
-                view={directoryView}
-                state={state}
-                seriesMap={seriesMap}
-                hasFilters={hasFilters}
-                loadingMoreOffices={loadingMoreOffices}
-                loadingMoreCards={loadingMoreCards}
-                onViewChange={setDirectoryView}
-                onResetFilters={resetFilters}
-                onLoadMoreOffices={() => void loadMoreOffices()}
-                onLoadMoreCards={() => void loadMoreCards()}
-              />
-            </div>
-            {routeDialogOpen ? (
-              <DialogBody className="exchange-map-page-dialog-body">
-                {outlet}
-              </DialogBody>
-            ) : null}
-          </DialogContent>
-        </Dialog>
-      ) : null}
-    </ExchangeMapDialogContext>
+              {routeDialogOpen ? (
+                <DialogBody className="exchange-map-page-dialog-body">
+                  {outlet}
+                </DialogBody>
+              ) : null}
+            </DialogContent>
+          </Dialog>
+        ) : null}
+      </ExchangeMapDialogContext>
+    </ExchangeDataRevision>
   )
 }

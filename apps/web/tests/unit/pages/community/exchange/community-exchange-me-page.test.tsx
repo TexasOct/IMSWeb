@@ -8,6 +8,7 @@ import { resetNamecardCharacterCatalogCache } from "~/lib/use-namecard-character
 import AccountMeSectionPage from "~/pages/account/me/account-me-section-page"
 import CommunityExchangeMePage from "~/pages/community/exchange/me/community-exchange-me-page"
 import { ProfileEditor } from "~/pages/community/exchange/me/profile-editor"
+import { ExchangeManagementDialog } from "~/pages/community/exchange/components/exchange-management-dialog"
 import { makeNamecardCharacterCatalog } from "@/mocks/data/characters"
 
 const sessionMocks = vi.hoisted(() => ({
@@ -887,5 +888,59 @@ describe("CommunityExchangeMePage", () => {
     expect(screen.getByText("请先登录平台帐号")).toBeVisible()
     expect(apiMocks.getPlatformProfile).not.toHaveBeenCalled()
     expect(apiMocks.getFudabaOwnerCards).not.toHaveBeenCalled()
+  })
+
+  it("edits an owned card inside a map management dialog and returns to context", async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <p>保留的地图上下文</p>
+        <ExchangeManagementDialog section="cards" cardId={card.id} />
+      </MemoryRouter>
+    )
+    expect(apiMocks.getFudabaOwnerCards).not.toHaveBeenCalled()
+    await user.click(screen.getByRole("button", { name: "管理我的名片" }))
+    const title = await screen.findByRole("textbox", { name: "名片标题" })
+    await user.clear(title)
+    await user.type(title, "地图中修改的名片")
+    await user.click(screen.getByRole("button", { name: "保存名片资料" }))
+    await waitFor(() =>
+      expect(apiMocks.updateFudabaCard).toHaveBeenCalledWith(
+        card.id,
+        expect.objectContaining({
+          displayName: "地图中修改的名片",
+          expectedRevision: card.revision,
+        })
+      )
+    )
+    expect(await screen.findByText("名片资料已保存。")).toBeVisible()
+    expect(
+      screen.getByRole("link", { name: "打开完整管理页面" })
+    ).toHaveAttribute("href", `/account/me/cards?card=${card.id}`)
+    expect(screen.queryByRole("main")).not.toBeInTheDocument()
+    await user.keyboard("{Escape}")
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    )
+    expect(screen.getByText("保留的地图上下文")).toBeVisible()
+  })
+
+  it("keeps contextual card editing read-only for restricted accounts", async () => {
+    sessionMocks.usePlatformSession.mockReturnValue({
+      ...authenticatedSession(),
+      status: "restricted",
+    })
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <ExchangeManagementDialog section="cards" cardId={card.id} />
+      </MemoryRouter>
+    )
+    await user.click(screen.getByRole("button", { name: "管理我的名片" }))
+    expect(
+      await screen.findByRole("textbox", { name: "名片标题" })
+    ).toBeDisabled()
+    expect(screen.getByRole("button", { name: "保存名片资料" })).toBeDisabled()
+    expect(apiMocks.updateFudabaCard).not.toHaveBeenCalled()
   })
 })

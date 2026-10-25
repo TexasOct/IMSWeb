@@ -19,7 +19,7 @@ export default function PublicLayout() {
       : location.pathname
   const isExchangeMap =
     normalizedPathname === "/community/exchange" ||
-    normalizedPathname.startsWith("/community/exchange/")
+    normalizedPathname.startsWith("/community/exchange/offices/")
   const isWikiCatalog =
     normalizedPathname === "/wiki" || normalizedPathname === "/wiki/modern"
   const isModernStory =
