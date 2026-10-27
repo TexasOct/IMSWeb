@@ -120,6 +120,7 @@ the committed map).
 | `@imsweb/contracts/platform/admin` | `platformAdmin` | schema |
 | `@imsweb/contracts/platform/admin-email` | `platformAdminEmail` | schema |
 | `@imsweb/contracts/platform/admin-users` | `platformAdminUsers` | schema |
+| `@imsweb/contracts/platform/admin-station-messages` | `platformAdminStationMessages` | schema |
 | `@imsweb/contracts/platform/account-security` | `platformAccountSecurity` | schema |
 | `@imsweb/contracts/live` | `live` | schema |
 | `@imsweb/contracts/events` | `events` | schema |
