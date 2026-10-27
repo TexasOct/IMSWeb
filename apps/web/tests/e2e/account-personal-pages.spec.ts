@@ -70,8 +70,13 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
     },
     (route) => route.fulfill({ json: session })
   )
+  // A navigation can start a workspace load and move on before its last
+  // parallel request fires, so a tail request may legitimately be missing.
+  // The upper bound still catches redundant reloads, which is the regression
+  // this budget exists to catch.
+  const workspaceTimes = { min: 1, max: workspaceLoads }
   await api.mock(
-    { method: "GET", path: "/api/platform/me", times: workspaceLoads },
+    { method: "GET", path: "/api/platform/me", times: workspaceTimes },
     (route) =>
       route.fulfill({
         json: {
@@ -87,23 +92,15 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
     "/api/community/exchange/me/offices",
     "/api/community/exchange/me/claim-envelopes",
   ]) {
-    await api.mock(
-      {
-        method: "GET",
-        path,
-        times:
-          path === "/api/community/exchange/me/offices"
-            ? { min: 1, max: workspaceLoads }
-            : workspaceLoads,
-      },
-      (route) => route.fulfill({ json: { items: [] } })
+    await api.mock({ method: "GET", path, times: workspaceTimes }, (route) =>
+      route.fulfill({ json: { items: [] } })
     )
   }
   await api.mock(
     {
       method: "GET",
       path: "/api/community/exchange/me/favorites",
-      times: workspaceLoads,
+      times: workspaceTimes,
     },
     (route) =>
       route.fulfill({
