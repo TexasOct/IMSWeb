@@ -119,6 +119,10 @@ async function mockNamecardApi(
           submission: {
             id: 1,
             publicationStatus: "pending",
+            reviewStatus: null,
+            reviewReason: null,
+            reviewSubmittedAt: null,
+            pendingContent: null,
             revision: 0,
           },
           withdrawalToken: "a".repeat(64),
