@@ -69,6 +69,11 @@ test("Owner front/back images decode through authenticated API routes @mobile @a
   isMobile,
   browserName,
 }) => {
+  // The case boots a real media fixture server, decodes four images, walks the
+  // front/back preview dialogs and uploads a replacement. WebKit spends most of
+  // its budget decoding, so a single slow CI runner could exhaust the default
+  // 20s even though every step passes well inside the per-assertion timeouts.
+  test.slow()
   const cors = {
     "Access-Control-Allow-Origin": new URL(baseURL!).origin,
     "Access-Control-Allow-Headers":
