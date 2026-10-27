@@ -793,7 +793,6 @@ import { test } from 'vitest';
             async attachCanonicalMedia() {
                 throw new Error('unexpected canonical media attach');
             },
-            async releaseCardApproval() { return false; },
             async findCardMedia(id) {
                 calls.namecardFindMedia.push(id);
                 return null;

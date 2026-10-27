@@ -643,19 +643,6 @@ export class SqlCoreRepository implements NamecardRepository {
         return this.findSubmission(id);
     }
 
-    async releaseCardApproval(id: number, approvingRevision: number): Promise<boolean> {
-        const updated = await queryOne<{ id: string }>(this.database,
-            `UPDATE fudaba_cards
-             SET publication_status=CASE WHEN publication_status='approving'
-                     THEN 'pending' ELSE publication_status END,
-                 revision=revision+1, updated_at=CURRENT_TIMESTAMP
-             WHERE card_number=? AND revision=? AND deleted_at IS NULL
-               AND (publication_status='approving' OR review_status='pending')
-             RETURNING id`,
-            [id, approvingRevision]
-        );
-        return updated !== null;
-    }
 
     async lockCard(
         id: number,

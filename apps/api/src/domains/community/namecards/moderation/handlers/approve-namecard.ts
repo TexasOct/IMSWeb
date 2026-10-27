@@ -34,10 +34,6 @@ function exchangeUpload(value: string): { cardId: string; side: string; ext: str
 export async function handleApproveNamecard(c: NamecardMutationContext): Promise<Response> {
     const { id } = c.req.valid('param');
     const { expected_revision: revision } = c.req.valid('json');
-    // Set once the CAS transition moved the card to `approving`; a later failure
-    // must put it back to `pending`, otherwise the row is stuck and every retry
-    // answers 409.
-    let approvingRevision: number | null = null;
     try {
         const repository = namecardRepository(c);
         const claim = await repository.beginCardApproval(id, revision);
@@ -56,7 +52,10 @@ export async function handleApproveNamecard(c: NamecardMutationContext): Promise
                 revision: claim.revision
             } satisfies NamecardErrorResponse, 410);
         }
-        approvingRevision = claim.card.revision;
+        // A failed attempt leaves the row in `approving` on purpose: the retry
+        // path recognises that claim (revision+1) and resumes it, whereas
+        // reverting to `pending` would let a stale reviewer approve a newer
+        // edit the owner submitted in the meantime.
         const runtime = services(c);
         const storage = runtime.storage;
         if (!storage) throw new Error('Object storage publication is unavailable');
@@ -124,13 +123,6 @@ export async function handleApproveNamecard(c: NamecardMutationContext): Promise
         } satisfies NamecardMutationResponse);
     } catch (error) {
         console.error('Failed to approve namecard', error);
-        if (approvingRevision !== null) {
-            try {
-                await namecardRepository(c).releaseCardApproval(id, approvingRevision);
-            } catch (rollbackError) {
-                console.error('Failed to release namecard approval', rollbackError);
-            }
-        }
         return c.json({ error: '服务器错误' } satisfies NamecardErrorResponse, 500);
     }
 }

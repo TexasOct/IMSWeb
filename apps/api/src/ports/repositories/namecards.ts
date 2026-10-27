@@ -121,7 +121,6 @@ export interface NamecardRepository {
         approvingRevision: number,
     ): Promise<NamecardMutationResult>;
     /** Returns a card to `pending` when approval aborts before completion. */
-    releaseCardApproval(id: number, approvingRevision: number): Promise<boolean>;
     /** Rewrites an approved upload's media into the canonical namecard layout. */
     attachCanonicalMedia(
         cardId: string,
