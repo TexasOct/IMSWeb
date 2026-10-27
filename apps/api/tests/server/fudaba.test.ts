@@ -152,10 +152,10 @@ import { describe, onTestFinished, test } from 'vitest';
                  series_code, favorite_idol, front_object_key,
                  back_object_key, accent, bio, trade_note, available,
                  source_url, source_label, source_credit,
-                 media_rights_status, publication_status, revision, created_at,
+                 publication_status, revision, created_at,
                  updated_at, deleted_at)
              VALUES (?, 'agency-migration-owner', 'Producer', ?, ?, '', ?, ?,
-                     '#4f64dd', '', '', TRUE, NULL, NULL, NULL, 'approved',
+                     '#4f64dd', '', '', TRUE, NULL, NULL, NULL,
                      'published', 0, '2026-08-03T00:00:00.000Z',
                      '2026-08-03T00:00:00.000Z', NULL)`
                 ).bind(
@@ -7945,7 +7945,7 @@ import { describe, onTestFinished, test } from 'vitest';
             );
         });
 
-        test('soft deletion fences the owner write and removes protected card media', async () => {
+        test('soft deletion hides the card and keeps its media', async () => {
             const fixture = new OwnerRouteFixture();
             const current = fixture.cards.get('owner-card')!;
             const response = await fixture.app.request(
@@ -7962,9 +7962,13 @@ import { describe, onTestFinished, test } from 'vitest';
                 revision: 2
             });
             assert.equal(fixture.deleteInputs[0]?.ownerAccountId, ACCOUNT_ID);
-            assert.ok(fixture.cards.get('owner-card')?.deleted_at);
-            assert.equal(fixture.storage.objects.has(current.front_object_key), false);
-            assert.equal(fixture.storage.objects.has(current.back_object_key), false);
+            // Hidden rather than purged: the row and its media stay for review,
+            // and the owner simply stops seeing it.
+            assert.equal(fixture.cards.get('owner-card')?.publication_status, 'hidden');
+            assert.equal(fixture.cards.get('owner-card')?.deleted_at, null);
+            assert.equal(fixture.storage.objects.has(current.front_object_key), true);
+            assert.equal(fixture.storage.objects.has(current.back_object_key), true);
+            assert.equal(fixture.storage.ownedDeletes.length, 0);
             assert.equal((await fixture.app.request(
                 'http://ims.test/api/community/exchange/me/cards/owner-card',
                 { headers: bearerHeaders() }

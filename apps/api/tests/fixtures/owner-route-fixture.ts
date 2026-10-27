@@ -515,15 +515,22 @@ export class OwnerRouteFixture {
         findPublicOfficeBySlug: async () => null,
         listPublicCards: async () => [],
         listCardsForOwner: async (ownerAccountId: string) =>
-            [...this.cards.values()].filter((card) =>
-                card.owner_account_id === ownerAccountId && card.deleted_at === null
+            // Hidden cards are owner deletions: invisible here but kept for
+            // moderation, exactly like the repository's `<> 'hidden'` filter.
+            [...this.cards.values()].filter(
+                (card) =>
+                    card.owner_account_id === ownerAccountId &&
+                    card.deleted_at === null &&
+                    card.publication_status !== 'hidden'
             ),
         findCardForOwner: async (cardId: string, ownerAccountId: string) => {
             if (this.cardMutationCommitted && this.failCardConfirmationRead) {
                 throw new Error('card confirmation read failed');
             }
             const card = this.cards.get(cardId);
-            return card?.owner_account_id === ownerAccountId && card.deleted_at === null
+            return card?.owner_account_id === ownerAccountId &&
+                card.deleted_at === null &&
+                card.publication_status !== 'hidden'
                 ? { ...card }
                 : null;
         },
@@ -639,10 +646,13 @@ export class OwnerRouteFixture {
             if (current.revision !== input.expectedRevision) {
                 return { status: 'conflict', revision: current.revision };
             }
+            // Owner deletion hides the card instead of purging it: reviewers
+            // still need the images and the row that was live.
             const card = {
                 ...current,
+                publication_status: 'hidden' as const,
+                lock_reason: null,
                 revision: current.revision + 1,
-                deleted_at: input.deletedAt,
                 updated_at: input.deletedAt
             };
             this.cards.set(card.id, card);
