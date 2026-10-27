@@ -23,14 +23,12 @@ import {
 } from "~/components/ui/dialog"
 import {
   getFudabaClaimEnvelopes,
+  getNamecardNotifications,
   isApiError,
+  markNamecardNotificationsRead,
   respondFudabaClaimEnvelope,
   type FudabaClaimEnvelope,
 } from "~/lib/api"
-import {
-  getNamecardNotifications,
-  markNamecardNotificationsRead,
-} from "~/lib/api/endpoints/fudaba/card-claims"
 import { setNamecardUnread } from "~/lib/use-namecard-unread"
 import type { NamecardNotification } from "@imsweb/contracts/fudaba/card-claims"
 

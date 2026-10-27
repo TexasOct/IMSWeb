@@ -572,6 +572,10 @@ test.describe("namecard claim workflow", () => {
     tradeNote: "",
     available: true,
     publicationStatus: "pending",
+    reviewStatus: null,
+    reviewReason: null,
+    reviewSubmittedAt: null,
+    pendingContent: null,
     revision: 1,
     createdAt: "2026-08-16T19:30:00.000Z",
     updatedAt: "2026-08-16T19:30:00.000Z",
@@ -735,8 +739,10 @@ test.describe("namecard claim workflow", () => {
     )
 
     await page.goto("/community/exchange/me")
-    await page.getByRole("link", { name: "认领消息", exact: true }).click()
-    await expect(page.getByText("1 封待确认")).toBeVisible()
+    await page.getByRole("link", { name: "消息", exact: true }).click()
+    await expect(
+      page.getByRole("heading", { name: "消息", exact: true })
+    ).toBeVisible()
     await expect(page.getByRole("dialog")).toHaveCount(0)
     await expect(page.locator("canvas.maplibregl-canvas")).toHaveCount(0)
     await expect(page.getByText("历史名片 #42")).toBeVisible()
@@ -750,7 +756,7 @@ test.describe("namecard claim workflow", () => {
     await expect(
       page.getByText("已确认本人名片，认领申请等待管理员审核")
     ).toBeVisible()
-    await expect(page.getByText("当前没有待确认信封。")).toBeVisible()
+    await expect(page.getByText("当前没有消息。")).toBeVisible()
     expect(responseBody).toEqual({ decision: "confirm", expectedRevision: 0 })
     expect(csrf).toBe("claim-workflow-csrf")
   })

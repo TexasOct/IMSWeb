@@ -7,19 +7,15 @@ import { renderPage } from "@/tests/unit/support/harness"
 
 const inbox = vi.hoisted(() => ({ send: vi.fn() }))
 
-vi.mock("~/lib/api/endpoints/fudaba/card-claims", () => ({
+vi.mock("~/lib/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api")>()),
   getNamecardNotifications: () => ({ send: inbox.send }),
+  hasPlatformSessionHint: () => session.signedIn,
 }))
 
-const session = vi.hoisted(() => ({ status: "authenticated" }))
-
-vi.mock("~/components/platform/platform-session-provider", () => ({
-  useOptionalPlatformSession: () => ({
-    status: session.status,
-    session: null,
-    error: null,
-  }),
-}))
+// The badge reads the session *hint* rather than the session context: the
+// provider is not mounted around every surface that renders it.
+const session = vi.hoisted(() => ({ signedIn: true }))
 
 function Badge() {
   return <output data-testid="badge">{useNamecardUnread()}</output>
@@ -38,12 +34,12 @@ function renderShell() {
 
 describe("useNamecardUnread", () => {
   beforeEach(() => {
-    session.status = "authenticated"
+    session.signedIn = true
     inbox.send.mockReset()
   })
 
   it("stays silent for visitors without a session", async () => {
-    session.status = "anonymous"
+    session.signedIn = false
     renderShell()
 
     // Anonymous chrome still renders the badge slot, just with nothing in it.

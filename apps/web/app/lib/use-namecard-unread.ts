@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react"
 import { useLocation } from "react-router"
 
-import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
-import { getNamecardNotifications } from "~/lib/api/endpoints/fudaba/card-claims"
+import { getNamecardNotifications, hasPlatformSessionHint } from "~/lib/api"
 
 let cachedUnread: number | null = null
 let inFlight: Promise<void> | null = null
@@ -60,11 +59,7 @@ export function refreshNamecardUnread(): Promise<void> {
  */
 export function useNamecardUnread(): number {
   const { pathname } = useLocation()
-  const { status } = useOptionalPlatformSession()
   const [unread, setUnread] = useState(cachedUnread ?? 0)
-  // Anonymous visitors have no inbox; asking would only produce a 401 on every
-  // page load, and the header renders without a badge either way.
-  const signedIn = status === "authenticated" || status === "restricted"
 
   useEffect(() => {
     listeners.add(setUnread)
@@ -73,14 +68,21 @@ export function useNamecardUnread(): number {
     }
   }, [])
 
+  // Anonymous visitors have no inbox; asking would only produce a 401 on every
+  // page load, and the header renders without a badge either way. The hint is a
+  // cookie/storage read instead of the session context so the badge still works
+  // in chrome rendered outside the session provider.
   useEffect(() => {
-    if (!signedIn) return
+    if (!hasPlatformSessionHint()) {
+      publish(0)
+      return
+    }
     void loadUnread()
-  }, [pathname, signedIn])
+  }, [pathname])
 
   useEffect(() => {
-    if (!signedIn) return
     const refresh = () => {
+      if (!hasPlatformSessionHint()) return
       void loadUnread()
     }
     const onVisible = () => {
@@ -92,7 +94,7 @@ export function useNamecardUnread(): number {
       window.removeEventListener("focus", refresh)
       document.removeEventListener("visibilitychange", onVisible)
     }
-  }, [signedIn])
+  }, [])
 
-  return signedIn ? unread : 0
+  return unread
 }

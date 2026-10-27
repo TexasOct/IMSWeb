@@ -194,7 +194,7 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
     ["cards", "交换名片"],
     ["favorites", "收藏夹"],
     ["offices", "事务所与位置"],
-    ["claims", "认领消息"],
+    ["claims", "消息"],
   ]) {
     await page.getByRole("link", { name: new RegExp(`^${label}`) }).click()
     await expect(page).toHaveURL(new RegExp(`/account/me/${section}$`))
@@ -241,7 +241,7 @@ test("opens personal content with desktop sidebar and mobile standalone navigati
   await page.goto("/account/me")
   await expectAccountRootReady()
   // Exercise client-side history without depending on document BFCache behavior.
-  await page.getByRole("link", { name: /^认领消息/ }).click()
+  await page.getByRole("link", { name: /^消息/ }).click()
   await expect(page.locator("#profile-workspace-section-claims")).toBeVisible()
   await page.goBack()
   await expectAccountRootReady()
