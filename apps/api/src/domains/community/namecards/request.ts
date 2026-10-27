@@ -144,6 +144,18 @@ export function validateLockedNamecardRequest(
     };
 }
 
+export function validateRejectedNamecardRequest(
+    value: unknown,
+): ExpectedRevisionRequest & { reason?: string } {
+    const request = validateExpectedRevisionRequest(value);
+    const body = requestRecord(value, 'expected_revision is required');
+    const reason =
+        typeof body.reason === 'string' ? body.reason.trim() : '';
+    return reason === ''
+        ? request
+        : { ...request, reason: reason.slice(0, LOCKED_NAMECARD_REASON_MAX_LENGTH) };
+}
+
 export function validateExpectedRevisionRequest(
     value: unknown,
 ): ExpectedRevisionRequest {

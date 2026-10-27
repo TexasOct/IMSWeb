@@ -8,6 +8,7 @@ import {
     validateAdminNamecardListQuery,
     validateCompatibleNamecardIdParams,
     validateExpectedRevisionRequest,
+    validateRejectedNamecardRequest,
     validateLockedNamecardRequest,
 } from "@/domains/community/namecards/request";
 import {
@@ -62,12 +63,7 @@ export function namecardModerationRoutes(): ImsCapabilityRouter {
         opOnly,
         backofficeCsrf,
         namecardIdValidator,
-        jsonSchemaValidator(rejectedNamecardRequestSchema, { invalidMessage: "expected_revision must be a non-negative integer" }, (body) => ({
-            ...validateExpectedRevisionRequest(body),
-            ...(typeof body.reason === 'string' && body.reason.trim().length > 0
-                ? { reason: body.reason.trim().slice(0, 400) }
-                : {}),
-        })),
+        jsonSchemaValidator(rejectedNamecardRequestSchema, { invalidMessage: "expected_revision must be a non-negative integer" }, validateRejectedNamecardRequest),
         handleRejectNamecard,
     );
     // Flagging is a verdict on the submitted revision only; a published card

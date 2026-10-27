@@ -69,7 +69,14 @@ function sameIds(left: readonly number[], right: readonly number[]): boolean {
  * go through review. Changes limited to `CARD_REVIEW_EXEMPT_FIELDS` return
  * `false` and are applied to the live row right away.
  */
-export function requiresCardReview(
+export interface FudabaReviewPolicy {
+    requiresCardReview(
+        current: CardReviewSnapshot,
+        next: FudabaPendingCardPayload
+    ): boolean;
+}
+
+function requiresCardReview(
     current: CardReviewSnapshot,
     next: FudabaPendingCardPayload
 ): boolean {
@@ -82,3 +89,5 @@ export function requiresCardReview(
     if (text(current.tradeNote) !== text(next.trade_note)) return true;
     return !sameIds(current.favoriteCharacterIds, next.favorite_character_ids ?? []);
 }
+
+export const fudabaReviewPolicy: FudabaReviewPolicy = { requiresCardReview };

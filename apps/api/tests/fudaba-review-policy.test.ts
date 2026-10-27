@@ -5,8 +5,10 @@ import type { FudabaPendingCardPayload } from '@/ports/repositories/fudaba';
 import {
     CARD_REVIEW_EXEMPT_FIELDS,
     type CardReviewSnapshot,
-    requiresCardReview
+    fudabaReviewPolicy
 } from '@/ports/repositories/fudaba-review-policy';
+
+const { requiresCardReview } = fudabaReviewPolicy;
 
 const live: CardReviewSnapshot = {
     displayName: 'NEI',

@@ -1,3 +1,4 @@
+import { PUBLIC_UPLOADS_PATH_PREFIX } from '@imsweb/contracts/paths';
 import { writeAudit } from '@/domains/admin/audit/write-audit';
 import {
     ensureNamecardThumbnails,
@@ -73,7 +74,10 @@ export async function handleApproveNamecard(c: NamecardMutationContext): Promise
             ['back', claim.card.image2_url]
         ] as const) {
             if (typeof value !== 'string') continue;
-            if (value.startsWith('/uploads/') || value.startsWith('http')) {
+            if (
+                value.startsWith(`${PUBLIC_UPLOADS_PATH_PREFIX}/`) ||
+                value.startsWith('http')
+            ) {
                 canonicalUrls.push(value);
                 continue;
             }

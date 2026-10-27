@@ -6,7 +6,7 @@ import type {
 import {
     ADMIN_STATION_MESSAGE_MAX_LEAD_MS,
     ADMIN_STATION_MESSAGE_MIN_LEAD_MS
-} from '@imsweb/contracts/platform/admin-station-messages';
+} from '@imsweb/contracts/platform/admin-station-messages/runtime';
 
 export const ADMIN_STATION_MESSAGE_DEFAULT_PAGE_SIZE = 20;
 export const ADMIN_STATION_MESSAGE_MAX_PAGE_SIZE = 50;

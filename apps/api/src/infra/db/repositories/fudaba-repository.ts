@@ -1,5 +1,5 @@
 import { NAMECARD_FAVORITE_CHARACTER_LIMIT } from "@imsweb/contracts/fudaba/runtime";
-import { requiresCardReview } from "@/ports/repositories/fudaba-review-policy";
+import { fudabaReviewPolicy } from "@/ports/repositories/fudaba-review-policy";
 import type {
     AuditLogInput,
     CardFavoriteSelectionRecord,
@@ -2535,7 +2535,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                 const currentFavorites = current
                     ? await this.listCardFavoritesFrom(database, [input.cardId])
                     : new Map<string, CardFavoriteSelectionRecord[]>();
-                const needsReview = !current || requiresCardReview(
+                const needsReview = !current || fudabaReviewPolicy.requiresCardReview(
                     {
                         displayName: current.display_name ?? null,
                         producerName: current.producer_name ?? null,

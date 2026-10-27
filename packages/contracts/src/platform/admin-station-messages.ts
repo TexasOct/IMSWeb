@@ -22,9 +22,10 @@ export const adminStationMessageStatusSchema = z.enum([
   "canceled",
 ]);
 
-// How far ahead a scheduled send may be queued, and the minimum lead time.
-export const ADMIN_STATION_MESSAGE_MAX_LEAD_MS = 90 * 24 * 60 * 60 * 1000;
-export const ADMIN_STATION_MESSAGE_MIN_LEAD_MS = 60 * 1000;
+export {
+  ADMIN_STATION_MESSAGE_MAX_LEAD_MS,
+  ADMIN_STATION_MESSAGE_MIN_LEAD_MS,
+} from "./admin-station-messages/runtime.js";
 
 const accountIdsSchema = z
   .array(z.string().trim().min(1).max(128))
