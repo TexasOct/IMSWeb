@@ -17,7 +17,7 @@ function installInboxProbe(dispatcher: ApiDispatcher) {
     times: { min: 0, max: 1_000 },
     handle: () => ({
       status: 200,
-      json: { success: true, items: [], unread: 0 },
+      json: { items: [], unread: 0 },
     }),
   })
 }
