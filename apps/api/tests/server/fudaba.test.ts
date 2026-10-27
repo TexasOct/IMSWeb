@@ -151,11 +151,11 @@ import { describe, onTestFinished, test } from 'vitest';
                 (id, owner_account_id, producer_name, display_name,
                  series_code, favorite_idol, front_object_key,
                  back_object_key, accent, bio, trade_note, available,
-                 source_url, source_label, source_credit,
+                 source_url, source_label, source_credit, media_rights_status,
                  publication_status, revision, created_at,
                  updated_at, deleted_at)
              VALUES (?, 'agency-migration-owner', 'Producer', ?, ?, '', ?, ?,
-                     '#4f64dd', '', '', TRUE, NULL, NULL, NULL,
+                     '#4f64dd', '', '', TRUE, NULL, NULL, NULL, 'approved',
                      'published', 0, '2026-08-03T00:00:00.000Z',
                      '2026-08-03T00:00:00.000Z', NULL)`
                 ).bind(
@@ -2537,7 +2537,7 @@ import { describe, onTestFinished, test } from 'vitest';
              publication_status, revision,
              created_at, updated_at)
          VALUES (?, ?, 'legacy', NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-                 ?, ?, FALSE, 'approved', 'published', 0, ?, ?)`
+                 ?, ?, FALSE, 'published', 0, ?, ?)`
         ).bind(
             `legacy-${row.id}`,
             row.id,
@@ -8542,9 +8542,11 @@ import { describe, onTestFinished, test } from 'vitest';
             updatedAt: UPDATED_AT
         }), { status: 'unavailable' });
 
+        // A live card stages new revisions instead of overwriting them, so the
+        // in-place fences below are exercised on a card still in review.
         await fixture.database.prepare(
             `UPDATE fudaba_cards
-         SET publication_status='published'
+         SET publication_status='pending'
          WHERE id=?`
         ).bind(cardId).run();
         await fixture.database.prepare(
@@ -8605,9 +8607,11 @@ import { describe, onTestFinished, test } from 'vitest';
             updatedAt: MEDIA_UPDATED_AT
         }), { status: 'conflict', revision: 1 });
 
+        // A live card stages new revisions instead of overwriting them, so the
+        // in-place fences below are exercised on a card still in review.
         await fixture.database.prepare(
             `UPDATE fudaba_cards
-         SET publication_status='published'
+         SET publication_status='pending'
          WHERE id=?`
         ).bind(cardId).run();
         const nextFront = `community/fudaba/cards/${cardId}/front-next.webp`;
@@ -8652,7 +8656,8 @@ import { describe, onTestFinished, test } from 'vitest';
         });
         assert.equal(deleted.status, 'saved');
         if (deleted.status !== 'saved') return;
-        assert.equal(deleted.card.deleted_at, DELETED_AT);
+        assert.equal(deleted.card.publication_status, 'hidden');
+        assert.equal(deleted.card.deleted_at, null);
         assert.equal(deleted.card.revision, 3);
         assert.equal(await fixture.fudaba.findCardForOwner(cardId, ownerId), null);
         assert.deepEqual(await fixture.fudaba.listCardsForOwner(ownerId), []);

@@ -413,12 +413,12 @@ import { describe, onTestFinished, test } from 'vitest';
                 `INSERT INTO fudaba_cards
             (id, owner_account_id, producer_name, display_name, series_code,
              favorite_idol, front_object_key, back_object_key, accent, bio,
-             trade_note, available, source_url, source_label, source_credit,
+             trade_note, available, source_url, source_label, source_credit, media_rights_status,
              publication_status, revision, created_at,
              updated_at, deleted_at)
          VALUES ('migration-fudaba', 'migration-owner', 'Producer', 'Card',
                  '765', '', 'migration/front.webp', 'migration/back.webp',
-                 '#4f64dd', '', '', TRUE, NULL, NULL, NULL,
+                 '#4f64dd', '', '', TRUE, NULL, NULL, NULL, 'approved',
                  'published', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, NULL)`
             ).run();
 
@@ -521,12 +521,12 @@ import { describe, onTestFinished, test } from 'vitest';
             await harness.connection.prepare(
                 `INSERT INTO fudaba_cards
             (id, card_number, origin, front_object_key, back_object_key,
-             trade_note, available, publication_status,
+             trade_note, available, media_rights_status, publication_status,
              revision, created_at, updated_at)
          VALUES (?, ?, 'legacy',
                  'community/namecards/assets/reconcile-front/image.webp',
                  'community/namecards/assets/reconcile-back/image.webp',
-                 NULL, FALSE, 'published', 0,
+                 NULL, FALSE, 'approved', 'published', 0,
                  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
             ).bind(unifiedId, legacy.id).run();
 
@@ -629,12 +629,12 @@ import { describe, onTestFinished, test } from 'vitest';
                 `INSERT INTO fudaba_cards
             (id, owner_account_id, producer_name, display_name, series_code,
              favorite_idol, front_object_key, back_object_key, accent, bio,
-             trade_note, available, source_url, source_label, source_credit,
+             trade_note, available, source_url, source_label, source_credit, media_rights_status,
              publication_status, revision, created_at,
              updated_at, deleted_at)
          VALUES ('unification-exchange', 'unification-owner', 'Producer', 'Card',
                  '765', '', 'exchange/front.webp', 'exchange/back.webp',
-                 '#4f64dd', '', '', TRUE, NULL, NULL, NULL,
+                 '#4f64dd', '', '', TRUE, NULL, NULL, NULL, 'approved',
                  'published', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, NULL)`
             ).run();
 

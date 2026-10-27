@@ -2742,7 +2742,7 @@ export class SqlFudabaRepository implements FudabaRepository {
                      updated_at=?, revision=revision+1
                  WHERE id=? AND owner_account_id=? AND revision=?
                    AND deleted_at IS NULL
-                   AND publication_status NOT IN ('approving', 'locked')
+                   AND publication_status NOT IN ('approving', 'locked', 'hidden')
                    AND EXISTS (
                        SELECT 1 FROM platform_accounts account
                        WHERE account.id=fudaba_cards.owner_account_id
