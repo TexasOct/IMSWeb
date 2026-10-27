@@ -313,7 +313,8 @@ export class SqlStationMessageRepository implements StationMessageRepository {
               WHERE id = ? AND status = 'scheduled'`,
             [id]
         ).run();
-        if ((result.meta.changes ?? 0) === 0) return this.findById(id);
+        // Only a pending schedule can be cancelled; anything else is not this call's business.
+        if ((result.meta.changes ?? 0) === 0) return null;
         return this.findById(id);
     }
 
