@@ -153,7 +153,10 @@ function pendingNamecardPayload(value: unknown): NamecardPendingPayload | null {
 // live is `published`. The intermediate `approving` lock only exists for the
 // two-phase approval, so it surfaces as `pending` instead of leaking out.
 function toLegacyNamecardStatus(status: string): NamecardSubmissionRecord['status'] {
-    const normalized = status === 'approving' ? 'pending' : status;
+    // The public routes still speak the legacy vocabulary: `published` serves as
+    // `approved`, and the approval lock reads as `pending`.
+    const normalized =
+        status === 'published' ? 'approved' : status === 'approving' ? 'pending' : status;
     return normalized as NamecardSubmissionRecord['status'];
 }
 
