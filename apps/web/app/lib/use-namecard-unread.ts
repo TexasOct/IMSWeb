@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { useLocation } from "react-router"
 
+import { useOptionalPlatformSession } from "~/components/platform/platform-session-provider"
 import { getNamecardNotifications } from "~/lib/api/endpoints/fudaba/card-claims"
 
 let cachedUnread: number | null = null
@@ -59,7 +60,11 @@ export function refreshNamecardUnread(): Promise<void> {
  */
 export function useNamecardUnread(): number {
   const { pathname } = useLocation()
+  const { status } = useOptionalPlatformSession()
   const [unread, setUnread] = useState(cachedUnread ?? 0)
+  // Anonymous visitors have no inbox; asking would only produce a 401 on every
+  // page load, and the header renders without a badge either way.
+  const signedIn = status === "authenticated" || status === "restricted"
 
   useEffect(() => {
     listeners.add(setUnread)
@@ -69,10 +74,12 @@ export function useNamecardUnread(): number {
   }, [])
 
   useEffect(() => {
+    if (!signedIn) return
     void loadUnread()
-  }, [pathname])
+  }, [pathname, signedIn])
 
   useEffect(() => {
+    if (!signedIn) return
     const refresh = () => {
       void loadUnread()
     }
@@ -85,7 +92,7 @@ export function useNamecardUnread(): number {
       window.removeEventListener("focus", refresh)
       document.removeEventListener("visibilitychange", onVisible)
     }
-  }, [])
+  }, [signedIn])
 
-  return unread
+  return signedIn ? unread : 0
 }

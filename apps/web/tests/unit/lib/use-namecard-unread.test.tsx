@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 import { Link } from "react-router"
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { useNamecardUnread } from "~/lib/use-namecard-unread"
 import { renderPage } from "@/tests/unit/support/harness"
@@ -9,6 +9,16 @@ const inbox = vi.hoisted(() => ({ send: vi.fn() }))
 
 vi.mock("~/lib/api/endpoints/fudaba/card-claims", () => ({
   getNamecardNotifications: () => ({ send: inbox.send }),
+}))
+
+const session = vi.hoisted(() => ({ status: "authenticated" }))
+
+vi.mock("~/components/platform/platform-session-provider", () => ({
+  useOptionalPlatformSession: () => ({
+    status: session.status,
+    session: null,
+    error: null,
+  }),
 }))
 
 function Badge() {
@@ -27,6 +37,22 @@ function renderShell() {
 }
 
 describe("useNamecardUnread", () => {
+  beforeEach(() => {
+    session.status = "authenticated"
+    inbox.send.mockReset()
+  })
+
+  it("stays silent for visitors without a session", async () => {
+    session.status = "anonymous"
+    renderShell()
+
+    // Anonymous chrome still renders the badge slot, just with nothing in it.
+    await waitFor(() =>
+      expect(screen.getByTestId("badge")).toHaveTextContent("0")
+    )
+    expect(inbox.send).not.toHaveBeenCalled()
+  })
+
   it("refetches the count on navigation and on window focus", async () => {
     let unread = 0
     inbox.send.mockImplementation(() => {
