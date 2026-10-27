@@ -151,9 +151,9 @@ import { describe, onTestFinished, test } from 'vitest';
                 (id, owner_account_id, producer_name, display_name,
                  series_code, favorite_idol, front_object_key,
                  back_object_key, accent, bio, trade_note, available,
-                 source_url, source_label, source_credit, media_rights_status,
-                 publication_status, revision, created_at, updated_at,
-                 deleted_at)
+                 source_url, source_label, source_credit,
+                 media_rights_status, publication_status, revision, created_at,
+                 updated_at, deleted_at)
              VALUES (?, 'agency-migration-owner', 'Producer', ?, ?, '', ?, ?,
                      '#4f64dd', '', '', TRUE, NULL, NULL, NULL, 'approved',
                      'published', 0, '2026-08-03T00:00:00.000Z',
@@ -912,7 +912,6 @@ import { describe, onTestFinished, test } from 'vitest';
             sourceUrl: null,
             sourceLabel: null,
             sourceCredit: null,
-            mediaRightsStatus: 'approved',
             publicationStatus: 'published',
             revision: 0,
             createdAt: CREATED_AT,
@@ -984,7 +983,6 @@ import { describe, onTestFinished, test } from 'vitest';
         }));
         await fixture.repository.createCard(card(`${dialect}-deleted-card`, ownerId, {
             publicationStatus: 'pending',
-            mediaRightsStatus: 'unknown',
             updatedAt: UPDATED_AT,
             deletedAt: UPDATED_AT
         }));
@@ -1922,8 +1920,13 @@ import { describe, onTestFinished, test } from 'vitest';
             source_url: null,
             source_label: null,
             source_credit: null,
-            media_rights_status: 'unknown',
             publication_status: 'approving',
+            review_status: null,
+            review_reason: null,
+            review_submitted_at: null,
+            pending_payload: null,
+            pending_front_object_key: null,
+            pending_back_object_key: null,
             revision: 1,
             created_at: CREATED_AT,
             updated_at: CREATED_AT,
@@ -2249,7 +2252,6 @@ import { describe, onTestFinished, test } from 'vitest';
                     return {
                         ...card,
                         publication_status: 'published',
-                        media_rights_status: 'approved',
                         revision: 2
                     };
                 },
@@ -2315,7 +2317,6 @@ import { describe, onTestFinished, test } from 'vitest';
                         id: cardId,
                         legacy_card_id: 42,
                         publication_status: 'published',
-                        media_rights_status: 'approved',
                         revision: 0
                     };
                 },
@@ -2453,7 +2454,6 @@ import { describe, onTestFinished, test } from 'vitest';
             sourceUrl: null,
             sourceLabel: null,
             sourceCredit: null,
-            mediaRightsStatus: publicationStatus === 'published' ? 'approved' : 'unknown',
             publicationStatus,
             revision: 0,
             createdAt: CREATED_AT,
@@ -2534,7 +2534,7 @@ import { describe, onTestFinished, test } from 'vitest';
             (id, card_number, origin, producer_name, display_name,
              series_code, favorite_character, accent, bio, trade_note,
              front_object_key, back_object_key, available,
-             media_rights_status, publication_status, revision,
+             publication_status, revision,
              created_at, updated_at)
          VALUES (?, ?, 'legacy', NULL, NULL, NULL, NULL, NULL, NULL, NULL,
                  ?, ?, FALSE, 'approved', 'published', 0, ?, ?)`
@@ -2956,7 +2956,6 @@ import { describe, onTestFinished, test } from 'vitest';
             assert.equal(createdCardResult.card?.owner_account_id, ownerB);
             assert.equal(createdCardResult.card?.series_code, 'cg');
             assert.equal(createdCardResult.card?.publication_status, 'published');
-            assert.equal(createdCardResult.card?.media_rights_status, 'approved');
             assert.equal(createdCardResult.card?.favorite_character, '测试春香、测试卯月');
             assert.equal(
                 createdCardResult.card?.front_object_key,
@@ -3081,7 +3080,6 @@ import { describe, onTestFinished, test } from 'vitest';
             assert.equal(registeredComplete.status, 'saved');
             if (registeredComplete.status !== 'saved') return;
             assert.equal(registeredComplete.card.publication_status, 'published');
-            assert.equal(registeredComplete.card.media_rights_status, 'approved');
             const registeredReplay = await fudaba.completeRegisteredCardReview({
                 cardId: reviewCardId,
                 approvingRevision: 1,
@@ -3110,7 +3108,6 @@ import { describe, onTestFinished, test } from 'vitest';
             assert.equal(registeredRejected.status, 'saved');
             if (registeredRejected.status !== 'saved') return;
             assert.equal(registeredRejected.card.publication_status, 'rejected');
-            assert.equal(registeredRejected.card.media_rights_status, 'denied');
 
             const rollbackCardId = 'registered-review-rollback';
             assert.equal(
@@ -3220,7 +3217,6 @@ import { describe, onTestFinished, test } from 'vitest';
             sourceUrl: null,
             sourceLabel: null,
             sourceCredit: null,
-            mediaRightsStatus: 'approved',
             publicationStatus: 'published',
             revision: 0,
             createdAt: CREATED_AT,
@@ -3523,21 +3519,15 @@ import { describe, onTestFinished, test } from 'vitest';
             ).bind(exchangeId).first<string>('status'), 'accepted');
         }
 
-        postgresTest('media rights and moderation constraints cannot be bypassed', async () => {
+        postgresTest('moderation constraints cannot be bypassed', async () => {
             const fixture = await createFixture();
             await seedPlatformAccount(fixture, 'card-owner');
             const actorId = await seedBackofficeActor(fixture, 'fudaba-moderator');
 
-            await assert.rejects(fixture.repository.createCard(card(
-                'unapproved-published-card',
-                'card-owner',
-                { mediaRightsStatus: 'unknown', publicationStatus: 'published' }
-            )));
             const published = await fixture.repository.createCard(card(
                 'approved-published-card',
                 'card-owner'
             ));
-            assert.equal(published.media_rights_status, 'approved');
             assert.equal(published.publication_status, 'published');
 
             await assert.rejects(fixture.repository.createModerationCase({
@@ -8403,7 +8393,6 @@ import { describe, onTestFinished, test } from 'vitest';
             sourceUrl: 'https://example.test/source',
             sourceLabel: 'Imported source',
             sourceCredit: 'Migration',
-            mediaRightsStatus: 'approved',
             publicationStatus: 'published',
             revision: 0,
             deletedAt: null
@@ -8516,7 +8505,6 @@ import { describe, onTestFinished, test } from 'vitest';
         assert.equal(created.status, 'saved');
         if (created.status !== 'saved') return;
         assert.equal(created.card.owner_account_id, ownerId);
-        assert.equal(created.card.media_rights_status, 'unknown');
         assert.equal(created.card.publication_status, 'pending');
         assert.equal(created.card.revision, 0);
         assert.equal(created.card.source_url, null);
@@ -8552,7 +8540,7 @@ import { describe, onTestFinished, test } from 'vitest';
 
         await fixture.database.prepare(
             `UPDATE fudaba_cards
-         SET media_rights_status='approved', publication_status='published'
+         SET publication_status='published'
          WHERE id=?`
         ).bind(cardId).run();
         await fixture.database.prepare(
@@ -8606,7 +8594,6 @@ import { describe, onTestFinished, test } from 'vitest';
                 { id: 900_002, agency: 'cg' }
             ]
         );
-        assert.equal(metadataSaved.card.media_rights_status, 'unknown');
         assert.equal(metadataSaved.card.publication_status, 'pending');
         assert.deepEqual(await fixture.fudaba.updateCardMetadataForOwner({
             ...metadataInput,
@@ -8616,7 +8603,7 @@ import { describe, onTestFinished, test } from 'vitest';
 
         await fixture.database.prepare(
             `UPDATE fudaba_cards
-         SET media_rights_status='approved', publication_status='published'
+         SET publication_status='published'
          WHERE id=?`
         ).bind(cardId).run();
         const nextFront = `community/fudaba/cards/${cardId}/front-next.webp`;
@@ -8636,7 +8623,6 @@ import { describe, onTestFinished, test } from 'vitest';
         );
         assert.equal(mediaSaved.card.front_object_key, nextFront);
         assert.equal(mediaSaved.card.revision, 2);
-        assert.equal(mediaSaved.card.media_rights_status, 'unknown');
         assert.equal(mediaSaved.card.publication_status, 'pending');
 
         await fixture.database.prepare(
@@ -8846,7 +8832,6 @@ import { describe, onTestFinished, test } from 'vitest';
             sourceUrl: "https://example.test/source",
             sourceLabel: "Source",
             sourceCredit: "Creator",
-            mediaRightsStatus: "approved",
             publicationStatus: "published",
             revision: 0,
             createdAt: CARD_OLD_AT,
@@ -9157,7 +9142,6 @@ import { describe, onTestFinished, test } from 'vitest';
                 updatedAt: CARD_NEW_AT,
             }),
             card("card-unapproved", {
-                mediaRightsStatus: "unknown",
                 publicationStatus: "pending",
                 createdAt: CARD_NEW_AT,
                 updatedAt: CARD_NEW_AT,

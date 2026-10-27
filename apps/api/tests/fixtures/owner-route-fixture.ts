@@ -84,8 +84,13 @@ export function ownerCard(overrides: Partial<FudabaCardRecord> = {}): FudabaCard
         source_url: null,
         source_label: null,
         source_credit: null,
-        media_rights_status: 'unknown',
         publication_status: 'pending',
+        review_status: null,
+        review_reason: null,
+        review_submitted_at: null,
+        pending_payload: null,
+        pending_front_object_key: null,
+        pending_back_object_key: null,
         revision: 1,
         created_at: CREATED_AT,
         updated_at: CREATED_AT,
@@ -576,7 +581,6 @@ export class OwnerRouteFixture {
                 bio: input.bio,
                 trade_note: input.tradeNote,
                 available: input.available,
-                media_rights_status: 'unknown' as const,
                 publication_status: 'pending' as const,
                 revision: current.revision + 1,
                 updated_at: input.updatedAt
@@ -610,7 +614,6 @@ export class OwnerRouteFixture {
             const card = {
                 ...current,
                 [property]: input.objectKey,
-                media_rights_status: 'unknown' as const,
                 publication_status: 'pending' as const,
                 revision: current.revision + 1,
                 updated_at: input.updatedAt
