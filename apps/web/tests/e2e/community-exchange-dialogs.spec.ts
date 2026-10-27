@@ -95,7 +95,7 @@ async function installDialogApis(
               location: {
                 latitude: 31.2,
                 longitude: 121.5,
-                precision: "regional",
+                precision: "exact",
               },
             },
           ],
@@ -223,15 +223,13 @@ test("keeps map state through office dialogs and opens personal pages separately
   expect(viewportReads).toBe(committedReads)
   await more.click()
   await page.getByRole("menuitem", { name: "我的交换账号" }).click()
-  await expect(page).toHaveURL(/\/community\/exchange\/me$/)
+  await expect(page).toHaveURL(/\/account\/me$/)
   await expect(page.getByRole("dialog")).toHaveCount(0)
   await expect(page.locator("canvas.maplibregl-canvas")).toHaveCount(0)
   await expect(
-    page.getByRole("main").getByText("请先登录平台帐号", { exact: true })
+    page.getByRole("main").getByText("未登录", { exact: true })
   ).toBeVisible()
-  await expect(
-    page.getByRole("link", { name: "登录平台帐号", exact: true })
-  ).toHaveAttribute("href", "/account/login")
+  await expect(page.locator('a[href="/account/login"]')).toContainText("登录")
 })
 
 test("opens direct office links over the map and safely closes after refresh @mobile", async ({
@@ -353,6 +351,12 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
     pendingCoverUrl: null,
     pendingCoverSubmittedAt: null,
     status: "active",
+    reviewState: "published",
+    submittedAt: ownedCard.createdAt,
+    reviewedAt: ownedCard.updatedAt,
+    reviewedBy: 17,
+    reviewNote: "",
+    reviewInProgress: false,
     revision: 1,
     createdAt: ownedCard.createdAt,
     updatedAt: ownedCard.updatedAt,
@@ -384,15 +388,11 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
     ["/api/community/exchange/me/cards", { items: [ownedCard] }, 3],
     ["/api/community/exchange/me/series", { items: [] }, 2],
     ["/api/community/exchange/me/offices", { items: [ownedOffice] }, 2],
+    // One explicit management opening loads owner detail; PUT returns the saved office.
     [
       `/api/community/exchange/me/offices/${office.id}`,
       { office: ownedOffice },
-      2,
-    ],
-    [
-      `/api/community/exchange/me/offices/${office.id}/location`,
-      { location: null },
-      2,
+      1,
     ],
     ["/api/community/exchange/me/claim-envelopes", { items: [] }, 2],
     ["/api/community/exchange/me/favorites", { ...emptyPage }, 2],
@@ -459,6 +459,13 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
         json: { success: true, cardId: ownedCard.id, reactions: [] },
       })
   )
+  let mapBoundsReads = 0
+  page.on("request", (request) => {
+    if (
+      new URL(request.url()).pathname === "/api/community/exchange/map/offices"
+    )
+      mapBoundsReads++
+  })
   await page.goto(`/community/exchange/offices/${office.slug}`)
   const detail = page.getByRole("dialog", { name: "事务所详情", exact: true })
   await expect(
@@ -471,6 +478,33 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
     name: "管理我的事务所",
     exact: true,
   })
+  await expect(page.locator("[data-map-results-state]")).toHaveAttribute(
+    "data-map-results-state",
+    "ready"
+  )
+  const mainFrame = await canvas.boundingBox()
+  const readsBeforePicker = mapBoundsReads
+  const addressBeforePicker = await management
+    .getByRole("textbox", { name: "详细地址" })
+    .inputValue()
+  await management.getByRole("button", { name: "搜索地点与地图选点" }).click()
+  await expect(page.locator("canvas.maplibregl-canvas")).toHaveCount(2)
+  await expect(management.locator("[data-map-state=ready]")).toBeVisible()
+  expect(
+    await canvas.first().evaluate((node, old) => node === old, retainedCanvas)
+  ).toBe(true)
+  await management
+    .getByRole("button", { name: "取消选点", exact: true })
+    .click()
+  await expect(canvas).toHaveCount(1)
+  expect(
+    await canvas.evaluate((node, old) => node === old, retainedCanvas)
+  ).toBe(true)
+  expect(await canvas.boundingBox()).toEqual(mainFrame)
+  expect(mapBoundsReads).toBe(readsBeforePicker)
+  await expect(
+    management.getByRole("textbox", { name: "详细地址" })
+  ).toHaveValue(addressBeforePicker)
   await management
     .getByRole("textbox", { name: "事务所名称" })
     .fill("地图中更新的事务所")
@@ -478,7 +512,9 @@ test("manages offices and cards in map dialogs and shows a temporary location bu
     .getByRole("button", { name: "保存事务所", exact: true })
     .click()
   await expect(
-    management.getByText("事务所资料已保存。", { exact: true })
+    management.getByText("事务所资料未发生变化，保持已公开。", {
+      exact: true,
+    })
   ).toBeVisible()
   await expect(
     management.getByRole("link", { name: "打开完整管理页面" })

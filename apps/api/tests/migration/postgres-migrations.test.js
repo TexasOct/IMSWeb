@@ -126,6 +126,8 @@ test.describe('PostgreSQL migration', () => {
                 { version: '20261024140000_namecard_drop_media_rights', phase: 'post-data' },
                 { version: '20261024150000_namecard_notifications', phase: 'post-data' },
                 { version: '20261026120000_station_messages', phase: 'post-data' },
+                { version: '20261026130000_fudaba_public_location_precision', phase: 'post-data' },
+                { version: '20261026230000_fudaba_office_review', phase: 'post-data' },
                 { version: '20261027120000_namecard_lock_status', phase: 'post-data' },
                 { version: '20261027180000_namecard_pending_versions', phase: 'post-data' }
             ]
@@ -656,7 +658,7 @@ test.describe('PostgreSQL migration', () => {
 
     test('catalog is available without a database connection', () => {
         const catalog = migrationCatalog();
-        assert.equal(catalog.count, 60);
+        assert.equal(catalog.count, 62);
         assert.equal(catalog.migrations[0].version, '0001_initial_compatibility');
         assert.equal(
             catalog.migrations.at(-1).version,
@@ -999,6 +1001,8 @@ test.describe('PostgreSQL migration', () => {
                 '20261024140000_namecard_drop_media_rights',
                 '20261024150000_namecard_notifications',
                 '20261026120000_station_messages',
+                '20261026130000_fudaba_public_location_precision',
+                '20261026230000_fudaba_office_review',
                 '20261027120000_namecard_lock_status',
                 '20261027180000_namecard_pending_versions'
             ]);

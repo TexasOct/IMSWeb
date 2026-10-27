@@ -641,13 +641,6 @@ test.describe("namecard claim workflow", () => {
       "GET"
     )
     await api.mockRoute(
-      "**/api/community/exchange/characters",
-      async (route) => {
-        await route.fulfill({ json: makeCharacterCatalog() })
-      },
-      "GET"
-    )
-    await api.mockRoute(
       "**/api/community/exchange/me/cards",
       async (route) => {
         await route.fulfill({
@@ -738,8 +731,7 @@ test.describe("namecard claim workflow", () => {
       "PUT"
     )
 
-    await page.goto("/community/exchange/me")
-    await page.getByRole("link", { name: "消息", exact: true }).click()
+    await page.goto("/account/me/claims")
     await expect(
       page.getByRole("heading", { name: "消息", exact: true })
     ).toBeVisible()

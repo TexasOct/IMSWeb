@@ -1,9 +1,11 @@
 name: CI
 
 on:
+  workflow_dispatch:
   pull_request:
     branches:
       - main
+      - release/v1.1
   push:
     branches:
       - main
