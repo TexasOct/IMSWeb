@@ -13,7 +13,6 @@ on:
       # Feature branches are verified on their own commit so a long-running
       # branch never has to occupy `release/v1.1` to learn whether it is green.
       - "feat/**"
-  workflow_dispatch:
 
 permissions:
   contents: read
