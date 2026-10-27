@@ -143,7 +143,6 @@ const card = {
   bio: "上海地区制作人",
   tradeNote: "周末现场交换",
   available: true,
-  mediaRightsStatus: "approved" as const,
   publicationStatus: "draft" as const,
   revision: 3,
   createdAt: "2026-08-02T08:00:00.000Z",
@@ -355,7 +354,6 @@ describe("CommunityExchangeMePage", () => {
     expect(await screen.findByText("制作人资料已保存。")).toBeVisible()
 
     await user.click(screen.getByRole("link", { name: "交换名片" }))
-    expect(screen.getByText("素材已核准")).toBeVisible()
     expect(screen.getAllByText("草稿")).toHaveLength(2)
     expect(
       screen.queryByRole("textbox", { name: "显示名称" })

@@ -571,7 +571,6 @@ test.describe("namecard claim workflow", () => {
     bio: "",
     tradeNote: "",
     available: true,
-    mediaRightsStatus: "unknown",
     publicationStatus: "pending",
     revision: 1,
     createdAt: "2026-08-16T19:30:00.000Z",

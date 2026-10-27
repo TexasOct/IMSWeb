@@ -36,7 +36,6 @@ const card = {
   bio: "上海地区制作人",
   tradeNote: "周末现场交换",
   available: true,
-  mediaRightsStatus: "approved",
   publicationStatus: "draft",
   revision: 3,
   createdAt: "2026-08-02T08:00:00.000Z",
@@ -648,7 +647,6 @@ test.describe("community exchange me", () => {
     await page.getByRole("link", { name: "交换名片", exact: true }).click()
     await expect(page).toHaveURL(/section=cards/)
     await expect(page.getByText("浏览器交换名片")).toBeVisible()
-    await expect(page.getByText("素材已核准")).toBeVisible()
     await expect(
       page.getByLabel("编辑名片").getByText("草稿", { exact: true })
     ).toBeVisible()

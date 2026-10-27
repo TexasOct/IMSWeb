@@ -1,8 +1,6 @@
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
-  KeyRoundIcon,
-  LoaderCircleIcon,
   RefreshCwIcon,
   ShieldCheckIcon,
   UserRoundIcon,
@@ -648,7 +646,6 @@ export default function AdminPlatformUsersPage() {
         onConfirm={() => void suspendConfirm.confirmAction()}
         confirmLabel={t("adminPlatformUsers.confirm.suspendLabel")}
         cancelLabel={t("adminPlatformUsers.confirm.cancel")}
-        icon={ShieldCheckIcon}
       />
 
       <ConfirmActionDialog
@@ -661,7 +658,6 @@ export default function AdminPlatformUsersPage() {
         confirmLabel={t("adminPlatformUsers.confirm.activateLabel")}
         cancelLabel={t("adminPlatformUsers.confirm.cancel")}
         variant="default"
-        icon={UserRoundIcon}
       />
 
       <ConfirmActionDialog
@@ -673,7 +669,6 @@ export default function AdminPlatformUsersPage() {
         onConfirm={() => void logoutConfirm.confirmAction()}
         confirmLabel={t("adminPlatformUsers.confirm.forceLogoutLabel")}
         cancelLabel={t("adminPlatformUsers.confirm.cancel")}
-        icon={KeyRoundIcon}
       />
 
       <ConfirmActionDialog
@@ -686,7 +681,6 @@ export default function AdminPlatformUsersPage() {
         confirmLabel={t("adminPlatformUsers.confirm.resetLabel")}
         cancelLabel={t("adminPlatformUsers.confirm.cancel")}
         variant="default"
-        icon={KeyRoundIcon}
       />
 
       <ConfirmActionDialog
@@ -707,7 +701,6 @@ export default function AdminPlatformUsersPage() {
         onConfirm={() => void confirmUnlink()}
         confirmLabel={t("adminPlatformUsers.confirm.unlinkLabel")}
         cancelLabel={t("adminPlatformUsers.confirm.cancel")}
-        icon={LoaderCircleIcon}
       />
     </div>
   )

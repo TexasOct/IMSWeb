@@ -11,15 +11,6 @@ export type EditorFeedback = {
   message: string
 }
 
-export const mediaRightsLabels: Record<
-  FudabaOwnerCard["mediaRightsStatus"],
-  string
-> = {
-  unknown: "素材授权待确认",
-  approved: "素材已核准",
-  denied: "素材未授权",
-}
-
 export const publicationLabels: Record<
   FudabaOwnerCard["publicationStatus"],
   string
@@ -30,6 +21,8 @@ export const publicationLabels: Record<
   published: "已公开",
   hidden: "已隐藏",
   rejected: "已驳回",
+  withdrawn: "已撤回",
+  locked: "已锁定",
 }
 
 export function profileFields(profile: PlatformProfile) {
