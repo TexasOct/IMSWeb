@@ -49,6 +49,20 @@ function decision(baseline, incoming, current) {
 }
 
 function validateConfig(config) {
+    if (config.media?.strategy !== undefined && !['verified-bytes', 'r2-optimized'].includes(config.media.strategy)) {
+        throw new Error('Unsupported media strategy');
+    }
+    if (config.media?.concurrency !== undefined && (!Number.isInteger(config.media.concurrency) ||
+        config.media.concurrency < 1 || config.media.concurrency > 16)) {
+        throw new Error('Media concurrency must be an integer from 1 to 16');
+    }
+    if (config.media?.serverSideCopy !== undefined && typeof config.media.serverSideCopy !== 'boolean') {
+        throw new Error('serverSideCopy must be a boolean');
+    }
+    if (config.media?.requestTimeoutMs !== undefined && (!Number.isInteger(config.media.requestTimeoutMs) ||
+        config.media.requestTimeoutMs < 1000 || config.media.requestTimeoutMs > 120000)) {
+        throw new Error('R2 request timeout must be between 1000 and 120000ms');
+    }
     if (config.preserveMediaKeys !== undefined && (!Array.isArray(config.preserveMediaKeys) ||
         config.preserveMediaKeys.some((key) => !PRESERVABLE_MEDIA_KEYS.has(key)))) {
         throw new Error('preserveMediaKeys supports only independent content configuration documents');
@@ -181,7 +195,10 @@ async function mergeTable(source, target, table, options) {
     const preservedKeys = options.preserveMediaKeys || [];
     const filter = table === 's3_object_versions' ? " WHERE t.storage_scope='public' AND EXISTS (SELECT 1 FROM public.s3_object_index i WHERE i.object_id=t.object_id AND i.state='ready' AND NOT(i.logical_key=ANY($2::text[])))" :
         table === 's3_object_index' ? " WHERE t.state='ready' AND NOT(t.logical_key=ANY($2::text[])) AND EXISTS (SELECT 1 FROM public.s3_object_versions v WHERE v.object_id=t.object_id AND v.storage_scope='public')" : '';
+    const initialValues = table === 'fudaba_cards'
+        ? "jsonb_build_object('created_at',t.created_at,'updated_at',t.updated_at,'available',false,'trade_note',NULL)::text" : "'{}'::text";
     const rows = await source.query(`SELECT (${projection})::text AS payload, ${references} AS parent_refs,
+        ${initialValues} AS insert_values,
         (${keyExpression})::text AS key FROM ${relation(table)} t${filter}`, mediaTable ? [ignored, preservedKeys] : [ignored]);
     const summary = { insert: 0, update: 0, adopt: 0, unchanged: 0, conflict: 0, deleted: 0,
         insertedKeys: new Set(), conflictKeys: new Set() };
@@ -224,7 +241,7 @@ async function mergeTable(source, target, table, options) {
                         }
                     }
                     if (action === 'insert') {
-                        const extra = {};
+                        const extra = JSON.parse(row.insert_values);
                         if (['site_packages', 'site_package_revisions'].includes(table)) {
                             if (!/^\d+$/.test(options.actor || '') || !(await target.query(
                                 'SELECT 1 FROM public.backoffice_accounts WHERE id=$1', [options.actor])).rows.length) {
@@ -284,6 +301,7 @@ async function run(config, apply = false) {
     validateConfig(config);
     if (!config.media) throw new Error('Explicit source/preview media configuration is required');
     const clients = [];
+    let verifyMedia;
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'imsweb-sync-'));
     fs.chmodSync(directory, 0o700);
     try {
@@ -319,25 +337,46 @@ async function run(config, apply = false) {
         await verifyLegacySchema(stage);
         await migratePostgres({ connectionString: config.stage });
         await stage.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
-        const verifyMedia = require('./preview-media-sync').verifier(config.media);
+        verifyMedia = require('./preview-media-sync').verifier(config.media);
         if (apply) {
             // Copy slow object bytes before holding application table locks.
-            // Baselines provide the incremental watermark; immutable objects
-            // already accepted in a prior run need no repeated byte download.
+            // Generic stores use the accepted SQL baseline. R2 can cheaply
+            // recheck every object through its batched inventory each run.
             const stateExists = Boolean((await target.query("SELECT to_regclass('preview_sync.baselines') AS name")).rows[0].name);
             const media = await stage.query(`SELECT (to_jsonb(v)-ARRAY['owner_token','revision'])::text AS payload,
                 v.object_id FROM public.s3_object_versions v WHERE v.storage_scope='public'
                 AND EXISTS (SELECT 1 FROM public.s3_object_index i WHERE i.object_id=v.object_id AND i.state='ready'
                     AND NOT(i.logical_key=ANY($1::text[])))`, [config.preserveMediaKeys || []]);
-            for (const row of media.rows) {
-                const accepted = stateExists ? await target.query(`SELECT 1 FROM preview_sync.baselines b
-                    JOIN public.s3_object_versions v ON v.object_id=$2
-                    WHERE b.source_id=$1 AND b.table_name='s3_object_versions'
-                    AND b.row_key=jsonb_build_object('object_id',$2::text)
-                    AND b.payload=$3::jsonb AND (to_jsonb(v)-ARRAY['owner_token','revision'])=$3::jsonb`,
-                [config.sourceId, row.object_id, row.payload]) : { rows: [] };
-                if (!accepted.rows.length) await verifyMedia('s3_object_versions', row.payload);
-            }
+            if (verifyMedia.prepare) await verifyMedia.prepare();
+            let cursor = 0;
+            let processed = 0;
+            let failure;
+            let lastProgress = 0;
+            const concurrency = config.media.concurrency || (config.media.strategy === 'r2-optimized' ? 8 : 1);
+            const workers = Array.from({ length: concurrency }, async () => {
+                while (!failure && cursor < media.rows.length) {
+                    const row = media.rows[cursor++];
+                    try {
+                        const accepted = stateExists && config.media.strategy !== 'r2-optimized' ? await target.query(`SELECT 1 FROM preview_sync.baselines b
+                            JOIN public.s3_object_versions v ON v.object_id=$2
+                            WHERE b.source_id=$1 AND b.table_name='s3_object_versions'
+                            AND b.row_key=jsonb_build_object('object_id',$2::text)
+                            AND b.payload=$3::jsonb AND (to_jsonb(v)-ARRAY['owner_token','revision'])=$3::jsonb`,
+                        [config.sourceId, row.object_id, row.payload]) : { rows: [] };
+                        if (!accepted.rows.length) await verifyMedia('s3_object_versions', row.payload);
+                        processed += 1;
+                        if (processed === media.rows.length || Date.now() - lastProgress >= 5000) {
+                            const stats = verifyMedia.stats;
+                            console.error(`Media preflight: ${processed}/${media.rows.length}` +
+                                (stats ? ` reused=${stats.reused} copied=${stats.copied} relayedBytes=${stats.bytesRelayed}` : ''));
+                            lastProgress = Date.now();
+                        }
+                    } catch (error) { failure ||= error; }
+                }
+            });
+            // Drain in-flight operations before closing database connections.
+            await Promise.allSettled(workers);
+            if (failure) throw failure;
         }
         await target.query(apply ? 'BEGIN' : 'BEGIN READ ONLY');
         await target.query("SET LOCAL lock_timeout='5s'");
@@ -355,7 +394,7 @@ async function run(config, apply = false) {
             await target.query(`LOCK TABLE ${TABLES.map(relation).join(',')} IN SHARE ROW EXCLUSIVE MODE`);
         }
         const hasState = Boolean((await target.query("SELECT to_regclass('preview_sync.baselines') AS name")).rows[0].name);
-        /** @type {{sourceId: string, mode: string, tables: Record<string, {
+        /** @type {{sourceId: string, mode: string, media?: Record<string, number|string>, tables: Record<string, {
          * insert?: number, update?: number, adopt?: number, unchanged?: number,
          * conflict?: number, deleted?: number, preserved?: number, skipped?: string,
          * insertedKeys?: Set<string>, conflictKeys?: Set<string>
@@ -402,8 +441,10 @@ async function run(config, apply = false) {
         }
         await target.query('COMMIT');
         await stage.query('COMMIT');
+        if (verifyMedia.stats) report.media = { ...verifyMedia.stats };
         return report;
     } finally {
+        verifyMedia?.destroy?.();
         await Promise.all(clients.map((client) => client.end().catch(() => undefined)));
         fs.rmSync(directory, { recursive: true, force: true });
     }

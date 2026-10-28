@@ -16,6 +16,9 @@ function verifier(config, clients = {}) {
     }
     const source = clients.source || new S3Client(config.source);
     const target = clients.target || new S3Client(config.target);
+    if (config.strategy === 'r2-optimized') {
+        return require('./preview-r2-sync').r2Verifier(config, { source, target });
+    }
     const maxBytes = config.maxBytes || 64 * 1024 * 1024;
     const verified = new Set();
     async function read(client, bucket, key) {

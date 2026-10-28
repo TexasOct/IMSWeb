@@ -2,7 +2,7 @@
 
 > 文档类型：运维
 > 状态：Active
-> 权威来源：`apps/api/scripts/migration/preview-data-sync.js`、`apps/api/scripts/migration/preview-media-sync.js`、`scripts/deployment/sync-preview-data.sh`
+> 权威来源：`apps/api/scripts/migration/preview-data-sync.js`、`apps/api/scripts/migration/preview-media-sync.js`、`apps/api/scripts/migration/preview-r2-sync.js`、`scripts/deployment/sync-preview-data.sh`
 
 ## 适用范围
 
@@ -64,6 +64,24 @@ Wiki 同步规范化表，不回写历史 story 表。同步表以脚本 `TABLES
 目标桶名须包含独立的 `test` 段。物理 key 原样复制，preview 的公开读取基址必须指向这个桶。
 数据库 URL 的 libpq 参数支持 `sslmode`、`sslrootcert`、`sslcert` 和 `sslkey`；数据库 Node 客户端也必须能使用相应 TLS 配置。
 preview 部署前置要求见[部署与发布](github-actions-deployment.md)。
+
+### 同账号 R2 提速
+
+源和目标使用相同的 R2 account endpoint 时，可以在 `media` 增加
+`strategy: "r2-optimized"`，并设置 `concurrency: 8`（允许 1–16）和
+`requestTimeoutMs: 30000`。执行器先批量列举两桶，再用文件大小和快照记录的 provider ETag
+跳过一致对象；没有可靠 ETag 时使用 HEAD 中的 SHA-256 元数据，仍不能确认时才下载核验。
+此模式不会对所有既有对象重新计算 SHA-256。缺失文件通过宿主机传输时仍会计算完整 SHA-256，
+保存哈希元数据，并以 create-only 条件上传；本次写入的对象均回读正文并重新计算 SHA-256。
+日志持续输出进度，报告包含 `media` 统计。
+
+`serverSideCopy: false` 使用两套独立桶凭据，只传输缺失文件。
+要使用 R2 云端跨桶复制，设置 `serverSideCopy: true`；签名凭据必须同时能读源桶、写目标桶。
+可在 `media.copyCredentials` 提供该凭据（字段与 `credentials` 相同）；缺省使用目标凭据。
+权限不足会明确失败，不会绕过权限或自动改成覆盖写入。
+云端复制使用源 ETag 条件及 R2 的 `cf-copy-destination-if-none-match: *` 条件，防止源变化和目标覆盖，
+后者属于 R2 的[目标条件复制扩展](https://developers.cloudflare.com/r2/api/s3/extensions/)。
+复制本身在 R2 内完成，不经宿主机上传对象正文；复制后仍下载新对象进行 SHA-256 回读核验。
 
 ## 执行和调度
 

@@ -31,6 +31,10 @@ test('configuration rejects source-target alias reuse and non-scratch database n
     assert.throws(() => validateConfig({ ...config, confirmTargetDatabase: 'production' }));
     assert.doesNotThrow(() => validateConfig({ ...config, preserveMediaKeys: ['editorial/about/config.json'] }));
     assert.throws(() => validateConfig({ ...config, preserveMediaKeys: ['community/namecards/assets/front/image.png'] }));
+    assert.throws(() => validateConfig({ ...config, media: { strategy: 'unknown' } }));
+    assert.throws(() => validateConfig({ ...config, media: { concurrency: 0 } }));
+    assert.throws(() => validateConfig({ ...config, media: { concurrency: 17 } }));
+    assert.throws(() => validateConfig({ ...config, media: { serverSideCopy: 'false' } }));
 });
 
 test.skipIf(!postgresIntegrationEnabled())('real PostgreSQL: baselines, conflicts, deletion, rollback and bigint identity', async () => {
@@ -95,6 +99,27 @@ test.skipIf(!postgresIntegrationEnabled())('real PostgreSQL: baselines, conflict
         assert.equal(children.conflict, 1);
         assert.deepEqual((await target.query('SELECT id::text,parent_id::text FROM public.sync_children')).rows,
             [{ id: '1', parent_id: '4' }]);
+        // Legacy rows need explicit timestamps and an unavailable ownerless
+        // layer on insert; those fields remain preview-owned on later updates.
+        await target.query(`INSERT INTO public.s3_object_versions
+            (object_id,byte_size,content_type,sha256,etag,created_at,physical_key,storage_scope)
+            VALUES ('front',1,'image/png',repeat('a',64),'front',1,'front','public'),
+                   ('back',1,'image/png',repeat('b',64),'back',1,'back','public');
+            INSERT INTO public.s3_object_index(logical_key,object_id,state,incarnation,updated_at)
+            VALUES ('front','front','ready',1,1),('back','back','ready',1,1)`);
+        await source.query(`INSERT INTO public.fudaba_cards
+            (id,card_number,origin,front_object_key,back_object_key,available,trade_note,publication_status,revision,created_at,updated_at)
+            VALUES ('legacy-import',9000,'legacy','front','back',false,NULL,'published',0,'2026-01-01','2026-01-02')`);
+        await target.query('BEGIN');
+        assert.equal((await mergeTable(source, target, 'fudaba_cards', options)).insert, 1);
+        await target.query('COMMIT');
+        const card = (await target.query("SELECT available,created_at,updated_at FROM public.fudaba_cards WHERE id='legacy-import'")).rows[0];
+        assert.equal(card.available, false);
+        assert.equal(card.created_at.toISOString(), '2026-01-01T00:00:00.000Z');
+        assert.equal(card.updated_at.toISOString(), '2026-01-02T00:00:00.000Z');
+        await target.query('BEGIN');
+        assert.equal((await mergeTable(source, target, 'fudaba_cards', options)).unchanged, 1);
+        await target.query('COMMIT');
     } finally {
         await source.end(); await target.end();
         await sourceDb.close(); await targetDb.close();
