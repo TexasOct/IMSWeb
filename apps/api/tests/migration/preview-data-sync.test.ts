@@ -109,6 +109,8 @@ test('media verifies bytes and uses create-only writes; collisions never overwri
     assert.equal(writes, 1);
 });
 
+// Four real pg_dump/pg_restore cycles replay the full migration catalog. The
+// shared CI runner under coverage needs an integration-test budget, not 5s.
 test.skipIf(!postgresIntegrationEnabled())('complete old-schema snapshot transforms into preview without replacing local edits', async () => {
     const sourceDb = await createPostgresTestHarness({ label: 'sync_legacy', seedCanonicalAgencies: false });
     const targetDb = await createPostgresTestHarness({ label: 'sync_preview', seedCanonicalAgencies: false });
@@ -169,4 +171,4 @@ test.skipIf(!postgresIntegrationEnabled())('complete old-schema snapshot transfo
         await source.end(); await target.end();
         await sourceDb.close(); await targetDb.close();
     }
-});
+}, 60_000);
