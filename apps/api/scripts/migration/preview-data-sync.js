@@ -33,6 +33,12 @@ const IGNORED = {
 };
 const quote = (value) => '"' + value.replaceAll('"', '""') + '"';
 const relation = (table) => `public.${quote(table)}`;
+// These documents are read independently of SQL content rows. Operators may
+// explicitly retain preview's copies without blocking unrelated content.
+const PRESERVABLE_MEDIA_KEYS = new Set([
+    'editorial/information/index.json', 'community/producer-map/config.json',
+    'editorial/about/config.json'
+]);
 
 function decision(baseline, incoming, current) {
     if (baseline !== null && incoming === baseline) return 'unchanged';
@@ -43,6 +49,10 @@ function decision(baseline, incoming, current) {
 }
 
 function validateConfig(config) {
+    if (config.preserveMediaKeys !== undefined && (!Array.isArray(config.preserveMediaKeys) ||
+        config.preserveMediaKeys.some((key) => !PRESERVABLE_MEDIA_KEYS.has(key)))) {
+        throw new Error('preserveMediaKeys supports only independent content configuration documents');
+    }
     if (!/^[a-zA-Z0-9_-]{1,64}$/.test(config.sourceId || '')) {
         throw new Error('sourceId must be a stable identifier (1–64 letters/digits/_/-)');
     }
@@ -148,12 +158,39 @@ async function mergeTable(source, target, table, options) {
     const projection = `to_jsonb(t) - $1::text[]`;
     const keyExpression = `jsonb_build_object(${keys.map((key) => `'${key}',t.${quote(key)}`).join(',')})`;
     const predicate = keys.map((key) => `t.${quote(key)}=(jsonb_populate_record(NULL::${relation(table)},$2::jsonb)).${quote(key)}`).join(' AND ');
-    const filter = table === 's3_object_versions' ? " WHERE t.storage_scope='public' AND EXISTS (SELECT 1 FROM public.s3_object_index i WHERE i.object_id=t.object_id AND i.state='ready')" :
-        table === 's3_object_index' ? " WHERE t.state='ready' AND EXISTS (SELECT 1 FROM public.s3_object_versions v WHERE v.object_id=t.object_id AND v.storage_scope='public')" : '';
-    const rows = await source.query(`SELECT (${projection})::text AS payload,
-        (${keyExpression})::text AS key FROM ${relation(table)} t${filter}`, [ignored]);
-    const summary = { insert: 0, update: 0, adopt: 0, unchanged: 0, conflict: 0, deleted: 0 };
-    Object.defineProperty(summary, 'insertedKeys', { value: new Set() });
+    const foreignKeys = await source.query(`SELECT c.confrelid::regclass::text AS parent,
+        array_agg(child.attname::text ORDER BY k.position) AS child_columns,
+        array_agg(parent.attname::text ORDER BY k.position) AS parent_columns
+        FROM pg_constraint c
+        CROSS JOIN LATERAL unnest(c.conkey,c.confkey) WITH ORDINALITY k(child_number,parent_number,position)
+        JOIN pg_attribute child ON child.attrelid=c.conrelid AND child.attnum=k.child_number
+        JOIN pg_attribute parent ON parent.attrelid=c.confrelid AND parent.attnum=k.parent_number
+        WHERE c.contype='f' AND c.conrelid=to_regclass($1)
+        GROUP BY c.oid,c.confrelid ORDER BY c.oid`, [`public.${table}`]);
+    const dependencies = foreignKeys.rows.filter((fk) => options.parentConflicts?.has(fk.parent.replace(/^public\./, '')));
+    for (const fk of dependencies) {
+        fk.primary_columns = (await metadata(source, fk.parent.replace(/^public\./, '')))
+            .filter((column) => column.primary_key).map((column) => column.name);
+    }
+    const references = dependencies.length ? `jsonb_build_object(${dependencies.map((fk, index) =>
+        `'${index}',(SELECT jsonb_build_object(${fk.primary_columns.map((name) =>
+            `'${name.replaceAll("'", "''")}',p.${quote(name)}`).join(',')})::text
+            FROM ${relation(fk.parent.replace(/^public\./, ''))} p WHERE ${fk.parent_columns.map((name, position) =>
+            `p.${quote(name)}=t.${quote(fk.child_columns[position])}`).join(' AND ')})`).join(',')})::text` : "'{}'::text";
+    const mediaTable = table === 's3_object_versions' || table === 's3_object_index';
+    const preservedKeys = options.preserveMediaKeys || [];
+    const filter = table === 's3_object_versions' ? " WHERE t.storage_scope='public' AND EXISTS (SELECT 1 FROM public.s3_object_index i WHERE i.object_id=t.object_id AND i.state='ready' AND NOT(i.logical_key=ANY($2::text[])))" :
+        table === 's3_object_index' ? " WHERE t.state='ready' AND NOT(t.logical_key=ANY($2::text[])) AND EXISTS (SELECT 1 FROM public.s3_object_versions v WHERE v.object_id=t.object_id AND v.storage_scope='public')" : '';
+    const rows = await source.query(`SELECT (${projection})::text AS payload, ${references} AS parent_refs,
+        (${keyExpression})::text AS key FROM ${relation(table)} t${filter}`, mediaTable ? [ignored, preservedKeys] : [ignored]);
+    const summary = { insert: 0, update: 0, adopt: 0, unchanged: 0, conflict: 0, deleted: 0,
+        insertedKeys: new Set(), conflictKeys: new Set() };
+    if (table === 's3_object_index') {
+        const retained = await source.query('SELECT count(*)::int AS count FROM public.s3_object_index WHERE logical_key=ANY($1::text[])', [preservedKeys]);
+        summary.preserved = retained.rows[0].count;
+    }
+    Object.defineProperty(summary, 'insertedKeys', { enumerable: false });
+    Object.defineProperty(summary, 'conflictKeys', { enumerable: false });
     const seen = new Set();
     for (const row of rows.rows) {
         seen.add(row.key);
@@ -165,6 +202,8 @@ async function mergeTable(source, target, table, options) {
         [options.sourceId, stateTable, row.key]) : { rows: [] };
         let action = decision(baseline.rows[0]?.payload ?? null, row.payload, current.rows[0]?.payload ?? null);
         if (!baseline.rows.length && options.bootstrapKeys?.has(row.key) && action === 'conflict') action = 'update';
+        const parentKeys = JSON.parse(row.parent_refs);
+        if (dependencies.some((fk, index) => options.parentConflicts.get(fk.parent.replace(/^public\./, '')).has(parentKeys[index]))) action = 'conflict';
         if (action === 'update' && current.rows[0]?.locally_owned) action = 'conflict';
         // A removed preview record is a conflict, never resurrected automatically.
         if (action === 'update' && !current.rows.length) action = 'conflict';
@@ -226,11 +265,13 @@ async function mergeTable(source, target, table, options) {
         }
         summary[action] += 1;
         if (action === 'insert') summary.insertedKeys.add(row.key);
+        if (action === 'conflict') summary.conflictKeys.add(row.key);
     }
     if (options.hasState) {
         const prior = await target.query(`SELECT row_key::text AS key FROM preview_sync.baselines
             WHERE source_id=$1 AND table_name=$2`, [options.sourceId, stateTable]);
         for (const row of prior.rows) if (!seen.has(row.key)) {
+            if (mediaTable && (await source.query(`SELECT 1 FROM ${relation(table)} t WHERE to_jsonb(t) @> $1::jsonb`, [row.key])).rows.length) continue;
             summary.deleted += 1;
             if (options.apply) await target.query(`INSERT INTO preview_sync.events
                 (source_id,table_name,row_key,kind) VALUES ($1,$2,$3::jsonb,'source-deleted')`, [options.sourceId, stateTable, row.key]);
@@ -286,7 +327,8 @@ async function run(config, apply = false) {
             const stateExists = Boolean((await target.query("SELECT to_regclass('preview_sync.baselines') AS name")).rows[0].name);
             const media = await stage.query(`SELECT (to_jsonb(v)-ARRAY['owner_token','revision'])::text AS payload,
                 v.object_id FROM public.s3_object_versions v WHERE v.storage_scope='public'
-                AND EXISTS (SELECT 1 FROM public.s3_object_index i WHERE i.object_id=v.object_id AND i.state='ready')`);
+                AND EXISTS (SELECT 1 FROM public.s3_object_index i WHERE i.object_id=v.object_id AND i.state='ready'
+                    AND NOT(i.logical_key=ANY($1::text[])))`, [config.preserveMediaKeys || []]);
             for (const row of media.rows) {
                 const accepted = stateExists ? await target.query(`SELECT 1 FROM preview_sync.baselines b
                     JOIN public.s3_object_versions v ON v.object_id=$2
@@ -315,18 +357,15 @@ async function run(config, apply = false) {
         const hasState = Boolean((await target.query("SELECT to_regclass('preview_sync.baselines') AS name")).rows[0].name);
         /** @type {{sourceId: string, mode: string, tables: Record<string, {
          * insert?: number, update?: number, adopt?: number, unchanged?: number,
-         * conflict?: number, deleted?: number, skipped?: string, insertedKeys?: Set<string>
+         * conflict?: number, deleted?: number, preserved?: number, skipped?: string,
+         * insertedKeys?: Set<string>, conflictKeys?: Set<string>
          * }>}} */
         const report = { sourceId: config.sourceId, mode: apply ? 'apply' : 'plan', tables: {} };
         const blocked = new Set();
+        const parentConflicts = new Map();
         for (const table of TABLES) {
             if (table === 's3_object_index' && blocked.has('s3_object_versions') ||
                 !table.startsWith('s3_') && (blocked.has('s3_object_versions') || blocked.has('s3_object_index'))) {
-                report.tables[table] = { skipped: 'parent-conflict' }; blocked.add(table); continue;
-            }
-            const parents = await target.query(`SELECT confrelid::regclass::text AS name FROM pg_constraint
-                WHERE contype='f' AND conrelid=to_regclass($1)`, [`public.${table}`]);
-            if (parents.rows.some((row) => blocked.has(row.name.replace(/^public\./, '')))) {
                 report.tables[table] = { skipped: 'parent-conflict' }; blocked.add(table); continue;
             }
             // Media synchronization is explicit: no dangling index is imported by default.
@@ -334,9 +373,13 @@ async function run(config, apply = false) {
                 report.tables[table] = { skipped: 'media-not-configured' }; blocked.add(table); continue;
             }
             report.tables[table] = await mergeTable(stage, target, table, {
-                apply, hasState, sourceId: config.sourceId, verifyMedia, actor: config.previewActorAccountId
+                apply, hasState, sourceId: config.sourceId, verifyMedia, actor: config.previewActorAccountId,
+                preserveMediaKeys: config.preserveMediaKeys || [], parentConflicts
             });
-            if (report.tables[table].conflict) blocked.add(table);
+            if (report.tables[table].conflict) {
+                blocked.add(table);
+                parentConflicts.set(table, report.tables[table].conflictKeys);
+            }
             if (apply) for (const column of await metadata(target, table)) if (column.sequence) {
                 // Never lower an allocator after explicit legacy-ID inserts.
                 await target.query(`SELECT setval($1::regclass, GREATEST(

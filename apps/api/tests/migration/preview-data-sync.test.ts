@@ -29,6 +29,8 @@ test('configuration rejects source-target alias reuse and non-scratch database n
     assert.throws(() => validateConfig({ ...config, target: config.source }));
     assert.throws(() => validateConfig({ ...config, stage: config.target }));
     assert.throws(() => validateConfig({ ...config, confirmTargetDatabase: 'production' }));
+    assert.doesNotThrow(() => validateConfig({ ...config, preserveMediaKeys: ['editorial/about/config.json'] }));
+    assert.throws(() => validateConfig({ ...config, preserveMediaKeys: ['community/namecards/assets/front/image.png'] }));
 });
 
 test.skipIf(!postgresIntegrationEnabled())('real PostgreSQL: baselines, conflicts, deletion, rollback and bigint identity', async () => {
@@ -75,6 +77,24 @@ test.skipIf(!postgresIntegrationEnabled())('real PostgreSQL: baselines, conflict
         await mergeTable(source, target, 'sync_records', options);
         await target.query('ROLLBACK');
         assert.equal((await target.query('SELECT count(*) FROM preview_sync.baselines')).rows[0].count, '1');
+        // A conflicting parent blocks only its own children, not children of
+        // independently accepted rows in the same parent table.
+        for (const client of [source, target]) await client.query(`
+            ALTER TABLE public.sync_records ADD UNIQUE(id,name);
+            CREATE TABLE public.sync_children (id bigint PRIMARY KEY, parent_id bigint NOT NULL,
+                parent_name text NOT NULL, FOREIGN KEY(parent_id,parent_name) REFERENCES public.sync_records(id,name))`);
+        await source.query("INSERT INTO public.sync_records VALUES (9007199254740993,'old','source-v3')");
+        await source.query("INSERT INTO public.sync_children VALUES (1,4,'dry'),(2,9007199254740993,'old')");
+        await target.query('BEGIN');
+        const parents = await mergeTable(source, target, 'sync_records', options);
+        const children = await mergeTable(source, target, 'sync_children', {
+            ...options, parentConflicts: new Map([['sync_records', parents.conflictKeys]])
+        });
+        await target.query('COMMIT');
+        assert.equal(children.insert, 1);
+        assert.equal(children.conflict, 1);
+        assert.deepEqual((await target.query('SELECT id::text,parent_id::text FROM public.sync_children')).rows,
+            [{ id: '1', parent_id: '4' }]);
     } finally {
         await source.end(); await target.end();
         await sourceDb.close(); await targetDb.close();
@@ -140,15 +160,30 @@ test.skipIf(!postgresIntegrationEnabled())('complete old-schema snapshot transfo
                 'source.zip',repeat('a',64),'manifest.json','{}',repeat('b',64),1,1)`);
         await source.query('COMMIT');
         await target.query("INSERT INTO public.backoffice_accounts(id,username,password) VALUES (1,'preview-sync-actor','unused')");
+        const preserveMediaKeys = ['editorial/information/index.json', 'community/producer-map/config.json', 'editorial/about/config.json'];
+        for (const [index, logicalKey] of preserveMediaKeys.entries()) {
+            for (const [client, prefix] of [[source, 'source'], [target, 'preview']] as const) {
+                await client.query(`INSERT INTO public.s3_object_versions
+                    (object_id,byte_size,content_type,sha256,etag,created_at,physical_key,storage_scope)
+                    VALUES ($1,2,'application/json',repeat('a',64),$1,1,$1,'public')`, [`${prefix}-config-${index}`]);
+                await client.query(`INSERT INTO public.s3_object_index(logical_key,object_id,state,incarnation,updated_at)
+                    VALUES ($1,$2,'ready',1,1)`, [logicalKey, `${prefix}-config-${index}`]);
+            }
+        }
         const stageUrl = new URL(sourceDb.databaseUrl); stageUrl.pathname = `/${scratchName}`;
         const config = { sourceId: 'legacy', source: sourceDb.databaseUrl, target: targetDb.databaseUrl,
             stage: stageUrl.toString(), confirmTargetDatabase: targetDb.databaseName, previewActorAccountId: '1',
+            preserveMediaKeys,
             media: { source: { endpoint: 'https://source.invalid', bucket: 'production' },
                 target: { endpoint: 'https://target.invalid', bucket: 'preview-test' } } };
         const plan = await run(config);
         assert.equal(plan.tables.news.insert, 1);
         assert.equal((await target.query("SELECT to_regclass('preview_sync.baselines') AS name")).rows[0].name, null);
         const firstApply = await run(config, true);
+        assert.equal(firstApply.tables.s3_object_index.preserved, 3);
+        assert.equal(firstApply.tables.news.insert, 1);
+        assert.equal((await target.query("SELECT count(*) FROM public.s3_object_index WHERE object_id LIKE 'preview-config-%'")).rows[0].count, '3');
+        assert.equal((await target.query("SELECT count(*) FROM public.s3_object_versions WHERE object_id LIKE 'source-config-%'")).rows[0].count, '0');
         assert.equal(firstApply.tables.fudaba_cards.conflict, 1);
         assert.equal((await target.query('SELECT count(*) FROM public.fudaba_cards')).rows[0].count, '0');
         assert.equal((await target.query('SELECT title FROM public.news')).rows[0].title, 'old-site');

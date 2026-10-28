@@ -55,6 +55,10 @@ Wiki 同步规范化表，不回写历史 story 表。同步表以脚本 `TABLES
 ```
 
 `sourceId` 必须固定且唯一，不得在不清点 baseline 的情况下更换其对应源。
+需要保留 preview 已编辑的独立内容配置时，可增加可选的 `preserveMediaKeys` 数组。
+只允许 `editorial/information/index.json`、`community/producer-map/config.json`、
+`editorial/about/config.json`；这些文档及其专属源对象版本不参与合并和文件复制，
+报告中的 `preserved` 记录保留数量。不会因它们的差异跳过其余 SQL 内容，其他媒体冲突仍按原规则处理。
 `previewActorAccountId` 指定 preview 已有后台账号，用于新站点包的归属；未配置或账号不存在时，新站点包记为冲突。
 不复用旧站账号 ID，也不复制站点包预览令牌；新版本使用独立的随机 token hash，已发布内容不受影响。
 目标桶名须包含独立的 `test` 段。物理 key 原样复制，preview 的公开读取基址必须指向这个桶。
@@ -98,7 +102,8 @@ Cron 需显式配置包含 Node 和 PostgreSQL 工具的 PATH，并对日志配�
 - 有 baseline：源未变则保留 preview；只有源变化则更新；两边变化且结果不同则保留 preview 并记录冲突。
 - preview 已删记录不会自动复活。源删除只记为候选，不删除目标。
 - 不自动重映射数字 ID；主键、业务唯一键冲突会保留目标，需要人工确定归属。
-- 父表存在冲突时，依赖表整表跳过，避免把源记录关联到不同的 preview 实体。
+- 父记录存在冲突时，只跳过引用该记录的子记录；其他已接受父记录的子记录继续同步。
+  未显式保留的媒体版本或索引冲突仍会阻止后续业务合并，避免发布错误的媒体引用。
 - 实际更新递增 revision；保留 preview 的名片所有权、待审字段和账号数据。
 - 名片两面的公开媒体必须已就绪；媒体缺失、私有或未完成上传的名片记为冲突，不导入悬空图片引用。
 
